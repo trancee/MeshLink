@@ -8,11 +8,12 @@ import kotlinx.coroutines.launch
 
 /**
  * A node's active view (ADR 0008 decision 1; its passive view is [PassiveView]): the node's
- * links within the budget of [LINKS] bearers, kept or opening, in either role: the node dials
- * one candidate at a time, heard in the last [HEARD_MILLIS], while it holds fewer than [LINKS] − 1,
- * which keeps one slot free for newcomers, and accepts a bearer while it holds fewer than [LINKS],
- * or one more while its bridge or replacement dial is in flight ([accepts]). A node that has held
- * [LINKS] for [FULL_MILLIS] frees one (newcomer reservation N3). A bridge, a likely split-off part of
+ * links within the budget of d bearers, kept or opening, in either role, that [links] gives for its
+ * density class (ADR 0008 decision 2): the node dials one candidate at a time, heard in the last
+ * [HEARD_MILLIS], while it holds fewer than d − 1, which keeps one slot free for newcomers, and
+ * accepts a bearer while it holds fewer than d, or one more while its bridge or replacement dial is
+ * in flight ([accepts]). A node that has held
+ * d for [FULL_MILLIS] frees one (newcomer reservation N3). A bridge, a likely split-off part of
  * the mesh, is dialed first, and every [REPLACE_INTERVAL_MILLIS] a node at its last free slot may
  * replace its most redundant link with a less named candidate (bridge rule and diversity
  * replacement; see [dial]). A candidate
@@ -25,6 +26,7 @@ internal class Views<T>(
     private val random: RandomSource,
     private val neighbors: NeighborLists,
     private val linked: () -> Map<NodeId, T>,
+    private val links: () -> Int,
     private val free: (T) -> Unit,
 ) {
     /** The candidates the node keeps undialed. */
@@ -48,10 +50,10 @@ internal class Views<T>(
      * the mesh; it must also have been first heard at least [SETTLE_MILLIS] ago, so that a linked
      * peer's neighbor that rotated its identifier is named by the lists the rotation triggers first.
      * At most once per [BRIDGE_INTERVAL_MILLIS] the node dials a random bridge first, even
-     * with only the newcomer slot free; holding [LINKS], it frees its most redundant link instead, if
-     * one has redundancy, and dials the bridge once the slot is free. Otherwise, below [LINKS] − 1,
+     * with only the newcomer slot free; holding d, it frees its most redundant link instead, if
+     * one has redundancy, and dials the bridge once the slot is free. Otherwise, below d − 1,
      * it dials a random identified candidate of those the fewest peers' lists name; at
-     * [LINKS] − 1, only during a [diversify] tick, only one first heard at least [SETTLE_MILLIS] ago,
+     * d − 1, only during a [diversify] tick, only one first heard at least [SETTLE_MILLIS] ago,
      * and only one at least [REPLACE_MARGIN] less named than its most redundant link. A bridge or
      * replacement dial reserves its handle for [kept]. One dial at a time keeps two nodes from
      * filling their budgets with dials and refusing each other's. Forgets the failures of handles no
@@ -71,7 +73,7 @@ internal class Views<T>(
             }
         val bridges = ready.filter { bridges(candidates.getValue(it), now) }
         val due = bridges.isNotEmpty() && bridgedAt.let { it == null || now - it >= BRIDGE_INTERVAL_MILLIS }
-        if (used >= LINKS) {
+        if (used >= links()) {
             if (due) evict(now, bridges)
             return null
         }
@@ -125,7 +127,7 @@ internal class Views<T>(
     ): PeerHandle? {
         val settled = { handle: PeerHandle -> now - candidates.getValue(handle).since >= SETTLE_MILLIS }
         val strong = ready.filter { candidates.getValue(it).rssi >= DIAL_FLOOR_DBM }
-        val eligible = if (used < LINKS - 1) strong else strong.filter(settled)
+        val eligible = if (used < links() - 1) strong else strong.filter(settled)
         val overlaps =
             eligible
                 .mapNotNull { handle ->
@@ -135,7 +137,7 @@ internal class Views<T>(
         val pick = fewest.keys.toList().pick() ?: return null
         val most = linked().keys.map(neighbors::redundancy).fold(0, ::maxOf)
         return when {
-            used < LINKS - 1 -> pick
+            used < links() - 1 -> pick
             replacing && fewest.getValue(pick) + REPLACE_MARGIN <= most -> pick.also { reserved = it }
             else -> null
         }
@@ -156,7 +158,7 @@ internal class Views<T>(
 
     /**
      * The dial to [handle] opened a kept link to [peer], and the node holds [used] bearers: if it
-     * was a bridge or replacement dial and the node holds [LINKS], frees its most redundant other link.
+     * was a bridge or replacement dial and the node holds d, frees its most redundant other link.
      */
     fun kept(
         handle: PeerHandle,
@@ -165,9 +167,9 @@ internal class Views<T>(
     ) {
         if (handle != reserved) return
         reserved = null
-        if (used < LINKS) return
-        val links = linked()
-        mostRedundant(links.keys - peer, least = 0)?.let { free(links.getValue(it)) }
+        if (used < links()) return
+        val current = linked()
+        mostRedundant(current.keys - peer, least = 0)?.let { free(current.getValue(it)) }
     }
 
     /** A dial to [handle] ended, its link [kept] or not: ends its reservation and updates its [backoff]. */
@@ -180,7 +182,7 @@ internal class Views<T>(
     }
 
     /**
-     * The node holds [used] bearers: once it has held [LINKS] for [FULL_MILLIS], in [scope], it
+     * The node holds [used] bearers: once it has held d for [FULL_MILLIS], in [scope], it
      * [free]s a random one of its [linked] links, if any, so a newcomer can join it (newcomer reservation).
      */
     fun held(
@@ -188,7 +190,7 @@ internal class Views<T>(
         scope: CoroutineScope,
     ) {
         when {
-            used < LINKS -> {
+            used < links() -> {
                 full?.cancel()
                 full = null
             }
@@ -219,23 +221,20 @@ internal class Views<T>(
     }
 
     /**
-     * Whether the node, holding [used] bearers, accepts another: one beyond [LINKS] while its bridge
+     * Whether the node, holding [used] bearers, accepts another: one beyond d while its bridge
      * or replacement dial is in flight, so two nodes dialing each other at once both accept, and the
      * duplicate-link rule or [kept] brings the node back within its budget (crossed-dial slack).
      */
-    fun accepts(used: Int): Boolean = used < LINKS + if (reserved == null) 0 else 1
+    fun accepts(used: Int): Boolean = used < links() + if (reserved == null) 0 else 1
 
     /** A random element, or `null` if empty. */
     private fun <E> List<E>.pick(): E? = if (isEmpty()) null else get(random.nextInt(0, size))
 
     companion object {
-        /** The link budget d, the low-density value (ADR 0008 decision 1; ticket 36 makes it per class). */
-        const val LINKS: Int = 6
-
         /** How recently a candidate must have been heard to be dialed. */
         const val HEARD_MILLIS: Long = 4_000
 
-        /** How long a node holds [LINKS] bearers before it frees one (newcomer reservation N3). */
+        /** How long a node holds d bearers before it frees one (newcomer reservation N3). */
         const val FULL_MILLIS: Long = 30_000
 
         /**

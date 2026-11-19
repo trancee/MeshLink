@@ -13,7 +13,7 @@ class PassiveViewTest {
         val neighbors = NeighborLists(FixedClock, TestScope()) {}
         val view = passive(neighbors)
         neighbors.advertised(id(OWN), id(OWN))
-        view.merge(List(PassiveView.PASSIVE_MAX) { id(it) })
+        view.merge(List(PASSIVE_MAX) { id(it) })
         val before = view.identifiers.map { it.toList() }
 
         // Act
@@ -21,10 +21,30 @@ class PassiveViewTest {
 
         // Assert
         val after = view.identifiers.map { it.toList() }
-        assertEquals(PassiveView.PASSIVE_MAX, after.size)
+        assertEquals(PASSIVE_MAX, after.size)
         assertTrue(id(NEW).toList() in after)
         assertTrue(id(OWN).toList() !in after)
-        assertEquals(PassiveView.PASSIVE_MAX - 1, after.count { it in before })
+        assertEquals(PASSIVE_MAX - 1, after.count { it in before })
+    }
+
+    @Test
+    fun theViewHoldsFourTimesTheBudgetAndDropsRandomEntriesWhenItShrinks() {
+        // Arrange
+        var budget = LINKS
+        val view = passive(NeighborLists(FixedClock, TestScope()) {}) { budget }
+        view.merge(List(PASSIVE_MAX + 1) { id(it) })
+        val before = view.identifiers.map { it.toList() }
+
+        // Act
+        budget = DENSE_LINKS
+        view.merge(listOf(id(NEW)))
+
+        // Assert
+        val after = view.identifiers.map { it.toList() }
+        assertEquals(PASSIVE_MAX, before.size)
+        assertEquals(4 * DENSE_LINKS, after.size)
+        assertTrue(id(NEW).toList() in after)
+        assertEquals(4 * DENSE_LINKS - 1, after.count { it in before })
     }
 
     @Test
@@ -34,7 +54,7 @@ class PassiveViewTest {
         val empty = view.sample()
         view.merge(List(3) { id(it) })
         val small = view.sample()
-        view.merge(List(PassiveView.PASSIVE_MAX) { id(it) })
+        view.merge(List(PASSIVE_MAX) { id(it) })
 
         // Act
         val samples = List(SAMPLES) { view.sample().map { it.toList() } }
@@ -46,9 +66,12 @@ class PassiveViewTest {
         assertTrue(samples.toSet().size > 1, "always the same sample")
     }
 
-    private fun passive(neighbors: NeighborLists): PassiveView<Int> {
+    private fun passive(
+        neighbors: NeighborLists,
+        links: () -> Int = { LINKS },
+    ): PassiveView<Int> {
         val random = SeededRandom(SEED)
-        return PassiveView(random, neighbors) { emptyMap() }
+        return PassiveView(random, neighbors, links) { emptyMap() }
     }
 
     private fun id(n: Int): ByteArray = ByteArray(Advertisement.RESOLVABLE_TAG_LENGTH) { n.toByte() }
@@ -61,6 +84,9 @@ class PassiveViewTest {
 
     private companion object {
         const val SEED = 35L
+        const val LINKS = 6
+        const val DENSE_LINKS = 5
+        const val PASSIVE_MAX = 4 * LINKS
         const val OWN = 99
         const val NEW = 98
         const val SAMPLES = 8

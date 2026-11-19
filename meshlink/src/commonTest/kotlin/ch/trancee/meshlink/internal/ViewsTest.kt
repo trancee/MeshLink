@@ -20,23 +20,44 @@ class ViewsTest {
     fun theDialPoolPicksOneCandidateHeardInTheLastFourSecondsWhileASlotBelowTheBudgetIsFree() {
         // Arrange
         val views = Node().views
-        val heard = List<PeerHandle>(Views.LINKS) { Handle() }
+        val heard = List<PeerHandle>(LINKS) { Handle() }
         val old = Handle()
         val fresh = heard.mapIndexed { n, handle -> handle to known(n, NOW - HEARD_MILLIS) }.toMap()
-        val candidates = fresh + (old to known(Views.LINKS, NOW - HEARD_MILLIS - 1))
+        val candidates = fresh + (old to known(LINKS, NOW - HEARD_MILLIS - 1))
 
         // Act
-        val picks = List(SAMPLES) { views.dial(heard + old, candidates, used = Views.LINKS - 2) }
+        val picks = List(SAMPLES) { views.dial(heard + old, candidates, used = LINKS - 2) }
         val onlyOld = views.dial(listOf(old), candidates, used = 0)
-        val full = views.dial(heard, candidates, used = Views.LINKS - 1)
+        val full = views.dial(heard, candidates, used = LINKS - 1)
 
         // Assert
         assertTrue(picks.all { it in heard })
         assertTrue(picks.toSet().size > 1, "always the same candidate")
         assertEquals(null, onlyOld)
         assertEquals(null, full)
-        assertTrue(views.accepts(Views.LINKS - 1))
-        assertTrue(!views.accepts(Views.LINKS))
+        assertTrue(views.accepts(LINKS - 1))
+        assertTrue(!views.accepts(LINKS))
+    }
+
+    @Test
+    fun theBudgetFollowsTheDensityClass() {
+        // Arrange
+        val node = Node()
+        node.budget = LOW_LINKS
+        val heard = List<PeerHandle>(LOW_LINKS) { Handle() }
+        val candidates = heard.mapIndexed { n, handle -> handle to known(n, NOW) }.toMap()
+        val low = node.views.accepts(LINKS)
+
+        // Act
+        node.budget = LINKS
+        val dials = listOf(LINKS - 2, LINKS - 1).map { node.views.dial(heard, candidates, used = it) }
+        val accepts = listOf(LINKS - 1, LINKS).map { node.views.accepts(it) }
+
+        // Assert
+        assertTrue(low)
+        assertTrue(dials[0] in heard)
+        assertEquals(null, dials[1])
+        assertEquals(listOf(true, false), accepts)
     }
 
     @Test
@@ -75,10 +96,10 @@ class ViewsTest {
         val heardAt = { at: Long -> later to candidateOf(ad(LATER), at, at - SETTLE_MILLIS) }
 
         // Act
-        val withoutNew = dialAt(NOW, Views.LINKS - 1, listOf(inside, next, known, stale, settling))
-        val bridge = dialAt(NOW, Views.LINKS - 1, listOf(inside, next, known, stale, settling, fresh))
-        val limited = dialAt(NOW + BRIDGE_MILLIS - 1, Views.LINKS - 1, listOf(heardAt(NOW + BRIDGE_MILLIS - 1)))
-        val unlimited = dialAt(NOW + BRIDGE_MILLIS, Views.LINKS - 1, listOf(heardAt(NOW + BRIDGE_MILLIS)))
+        val withoutNew = dialAt(NOW, LINKS - 1, listOf(inside, next, known, stale, settling))
+        val bridge = dialAt(NOW, LINKS - 1, listOf(inside, next, known, stale, settling, fresh))
+        val limited = dialAt(NOW + BRIDGE_MILLIS - 1, LINKS - 1, listOf(heardAt(NOW + BRIDGE_MILLIS - 1)))
+        val unlimited = dialAt(NOW + BRIDGE_MILLIS, LINKS - 1, listOf(heardAt(NOW + BRIDGE_MILLIS)))
         val untilThen = NOW + 2 * BRIDGE_MILLIS
         val noAnonymous = dialAt(untilThen - 1, 0, listOf(anonymous to old(null, untilThen - 1)))
         val first = dialAt(untilThen, 0, listOf(stale.first to known(4, untilThen), anonymous to old(null, untilThen)))
@@ -102,7 +123,7 @@ class ViewsTest {
 
         // Act
         val ordinaries = listOf(DIAL_FLOOR, DIAL_FLOOR - TENTH, BRIDGE_FLOOR).map { dial(it, ordinary, 0) }
-        val bridges = listOf(BRIDGE_FLOOR, BRIDGE_FLOOR - TENTH).map { dial(it, bridging, Views.LINKS - 1) }
+        val bridges = listOf(BRIDGE_FLOOR, BRIDGE_FLOOR - TENTH).map { dial(it, bridging, LINKS - 1) }
 
         // Assert
         assertEquals(listOf(true, false, false), ordinaries)
@@ -126,7 +147,7 @@ class ViewsTest {
             node.clock.now = at
             val bridge: PeerHandle = Handle()
             val candidate = candidateOf(ad(2), at, at - SETTLE_MILLIS)
-            node.views.dial(listOf(bridge), mapOf(bridge to candidate), Views.LINKS - 1)
+            node.views.dial(listOf(bridge), mapOf(bridge to candidate), LINKS - 1)
         }
 
         // Act
@@ -140,7 +161,7 @@ class ViewsTest {
         relinked.neighbors.received(nodeId(1), list(OWN_1, NEXT_1))
         val handle: PeerHandle = Handle()
         val candidates = mapOf(handle to candidateOf(ad(2), NOW, NOW - SETTLE_MILLIS))
-        val again = relinked.views.dial(listOf(handle), candidates, Views.LINKS - 1)
+        val again = relinked.views.dial(listOf(handle), candidates, LINKS - 1)
 
         // Assert
         assertEquals(setOf(other), overlapping)
@@ -154,26 +175,26 @@ class ViewsTest {
     fun aFullNodeFreesItsMostRedundantLinkForABridgeWhichFreesTheMostRedundantOtherOnceKept() {
         // Arrange
         val node = Node()
-        List(Views.LINKS) { n -> node.links[nodeId(n + 1)] = n + 1 }
+        List(LINKS) { n -> node.links[nodeId(n + 1)] = n + 1 }
         val bridge = Handle()
         val candidates = mapOf<PeerHandle, Candidate>(bridge to candidateOf(ad(NEW), NOW, NOW - SETTLE_MILLIS))
-        val noneRedundant = node.views.dial(listOf(bridge), candidates, used = Views.LINKS)
+        val noneRedundant = node.views.dial(listOf(bridge), candidates, used = LINKS)
         val freedNone = node.freed.toList()
         node.neighbors.received(nodeId(1), list(OWN_1, NEXT_1, OWN_2, OWN_3))
         node.neighbors.received(nodeId(2), list(OWN_2, NEXT_2, OWN_1))
         node.neighbors.received(nodeId(3), list(OWN_3, NEXT_3, OWN_1, UNREACHED))
 
         // Act
-        val evicting = node.views.dial(listOf(bridge), candidates, used = Views.LINKS)
-        val whileClosing = node.views.dial(listOf(bridge), candidates, used = Views.LINKS)
+        val evicting = node.views.dial(listOf(bridge), candidates, used = LINKS)
+        val whileClosing = node.views.dial(listOf(bridge), candidates, used = LINKS)
         node.links.remove(nodeId(1))
         node.neighbors.unlinked(nodeId(1))
-        val pending = node.views.dial(listOf(bridge), candidates, used = Views.LINKS - 1)
+        val pending = node.views.dial(listOf(bridge), candidates, used = LINKS - 1)
         node.links[nodeId(NEW)] = NEW
         node.neighbors.received(nodeId(NEW), list(NEW, LATER, OWN_1, OWN_2, OWN_3, UNREACHED))
-        node.views.kept(Handle(), nodeId(NEW), used = Views.LINKS)
+        node.views.kept(Handle(), nodeId(NEW), used = LINKS)
         val keptOther = node.freed.toList()
-        node.views.kept(bridge, nodeId(NEW), used = Views.LINKS)
+        node.views.kept(bridge, nodeId(NEW), used = LINKS)
 
         // Assert
         assertEquals(listOf(null, null, null), listOf(noneRedundant, evicting, whileClosing))
@@ -187,24 +208,24 @@ class ViewsTest {
     fun whileItsBridgeOrReplacementDialIsInFlightANodeAcceptsOneBearerBeyondItsBudget() {
         // Arrange
         val node = Node()
-        List(Views.LINKS - 1) { n -> node.links[nodeId(n + 1)] = n + 1 }
+        List(LINKS - 1) { n -> node.links[nodeId(n + 1)] = n + 1 }
         val bridges = List(2) { Handle() }
         val dialAt = { at: Long, bridge: PeerHandle ->
             node.clock.now = at
             val candidates = mapOf(bridge to candidateOf(ad(NEW), at, at - SETTLE_MILLIS))
-            node.views.dial(listOf(bridge), candidates, used = Views.LINKS - 1)
+            node.views.dial(listOf(bridge), candidates, used = LINKS - 1)
         }
-        val before = node.views.accepts(Views.LINKS)
+        val before = node.views.accepts(LINKS)
 
         // Act
         dialAt(NOW, bridges[0])
-        val failing = listOf(node.views.accepts(Views.LINKS), node.views.accepts(Views.LINKS + 1))
+        val failing = listOf(node.views.accepts(LINKS), node.views.accepts(LINKS + 1))
         node.views.dialed(bridges[0], kept = false)
-        val failed = node.views.accepts(Views.LINKS)
+        val failed = node.views.accepts(LINKS)
         dialAt(NOW + BRIDGE_MILLIS, bridges[1])
-        val keeping = node.views.accepts(Views.LINKS)
-        node.views.kept(bridges[1], nodeId(NEW), used = Views.LINKS)
-        val kept = node.views.accepts(Views.LINKS)
+        val keeping = node.views.accepts(LINKS)
+        node.views.kept(bridges[1], nodeId(NEW), used = LINKS)
+        val kept = node.views.accepts(LINKS)
 
         // Assert
         assertEquals(listOf(true, false), failing)
@@ -215,25 +236,25 @@ class ViewsTest {
     fun aFailedBridgeABridgeKeptBelowTheBudgetOrOneKeptWithoutAnotherLinkFreesNothing() {
         // Arrange
         val node = Node()
-        List(Views.LINKS - 1) { n -> node.links[nodeId(n + 1)] = n + 1 }
+        List(LINKS - 1) { n -> node.links[nodeId(n + 1)] = n + 1 }
         val bridges = List(2) { Handle() }
         val dialAt = { at: Long, bridge: PeerHandle ->
             node.clock.now = at
             val candidates = mapOf(bridge to candidateOf(ad(NEW), at, at - SETTLE_MILLIS))
-            node.views.dial(listOf(bridge), candidates, used = Views.LINKS - 1)
+            node.views.dial(listOf(bridge), candidates, used = LINKS - 1)
         }
 
         // Act
         val failed = dialAt(NOW, bridges[0])
         node.views.dialed(bridges[0], kept = false)
-        node.views.kept(bridges[0], nodeId(NEW), used = Views.LINKS)
+        node.views.kept(bridges[0], nodeId(NEW), used = LINKS)
         val below = dialAt(NOW + BRIDGE_MILLIS, bridges[1])
-        node.views.kept(bridges[1], nodeId(NEW), used = Views.LINKS - 1)
-        node.views.kept(bridges[1], nodeId(NEW), used = Views.LINKS)
+        node.views.kept(bridges[1], nodeId(NEW), used = LINKS - 1)
+        node.views.kept(bridges[1], nodeId(NEW), used = LINKS)
         node.links.clear()
         node.links[nodeId(NEW)] = NEW
         val alone = dialAt(NOW + 2 * BRIDGE_MILLIS, bridges[0])
-        node.views.kept(bridges[0], nodeId(NEW), used = Views.LINKS)
+        node.views.kept(bridges[0], nodeId(NEW), used = LINKS)
 
         // Assert
         assertEquals(bridges + bridges[0], listOf(failed, below, alone))
@@ -246,7 +267,7 @@ class ViewsTest {
             // Arrange
             val node = Node(clock = TestClockOf(this))
             node.neighbors.advertised(id(OWN), id(OWN))
-            val peers = List(Views.LINKS - 1) { it + 1 }
+            val peers = List(LINKS - 1) { it + 1 }
             peers.forEach { node.links[nodeId(it)] = it }
             val named = { by: Int ->
                 peers.forEach { n ->
@@ -265,20 +286,20 @@ class ViewsTest {
                         candidate to candidateOf(ad(NEW), now, now - SETTLE_MILLIS),
                         unsettled to candidateOf(ad(LATER), now, now - SETTLE_MILLIS + 1),
                     )
-                picks += now to node.views.dial(candidates.keys.toList(), candidates, Views.LINKS - 1)
+                picks += now to node.views.dial(candidates.keys.toList(), candidates, LINKS - 1)
             }
             backgroundScope.launch { node.views.diversify(dial) }
 
             // Act
-            named(4)
+            named(LINKS - 2)
             advanceTimeBy(REPLACE_MILLIS - 1)
             dial()
             advanceTimeBy(2)
-            named(3)
+            named(LINKS - 3)
             dial()
             advanceTimeBy(REPLACE_MILLIS)
             node.links[nodeId(NEW)] = NEW
-            node.views.kept(candidate, nodeId(NEW), used = Views.LINKS)
+            node.views.kept(candidate, nodeId(NEW), used = LINKS)
 
             // Assert
             val expected: List<Pair<Long, PeerHandle?>> =
@@ -349,12 +370,12 @@ class ViewsTest {
     fun aNodeHoldingItsBudgetForThirtySecondsFreesOneRandomLinkAndADropBelowRestartsTheWait() =
         runTest {
             // Arrange
-            val links = List(Views.LINKS) { nodeId(it) to it }.toMap()
+            val links = List(LINKS) { nodeId(it) to it }.toMap()
             var held = emptyMap<NodeId, Int>()
             val freed = mutableListOf<Pair<Long, Int>>()
             val neighbors = NeighborLists(FixedClock(0), TestScope()) {}
             val views =
-                Views(FixedClock(0), SeededRandom(SEED), neighbors, { held }) {
+                Views(FixedClock(0), SeededRandom(SEED), neighbors, { held }, { LINKS }) {
                     freed += testScheduler.currentTime to it
                 }
             val hold = { used: Int, now: Map<NodeId, Int> ->
@@ -364,18 +385,18 @@ class ViewsTest {
             val advance = { millis: Long -> advanceTimeBy(millis) }
 
             // Act
-            hold(Views.LINKS, links)
+            hold(LINKS, links)
             advance(FULL_MILLIS - 1)
-            hold(Views.LINKS - 1, links)
-            hold(Views.LINKS, links)
+            hold(LINKS - 1, links)
+            hold(LINKS, links)
             advance(1)
-            hold(Views.LINKS, links)
+            hold(LINKS, links)
             advance(FULL_MILLIS)
-            hold(Views.LINKS, emptyMap())
+            hold(LINKS, emptyMap())
             advance(FULL_MILLIS + 1)
             val frees =
                 List(SAMPLES) {
-                    hold(Views.LINKS, links)
+                    hold(LINKS, links)
                     advance(FULL_MILLIS + 1)
                     freed.last().second
                 }
@@ -393,7 +414,8 @@ class ViewsTest {
         val neighbors = NeighborLists(clock, TestScope()) {}
         val links = mutableMapOf<NodeId, Int>()
         val freed = mutableListOf<Int>()
-        val views = Views(clock, SeededRandom(SEED), neighbors, { links.toMap() }) { freed += it }
+        var budget = LINKS
+        val views = Views(clock, SeededRandom(SEED), neighbors, { links.toMap() }, { budget }) { freed += it }
     }
 
     /** An identified candidate heard at [at], first heard long before. */
@@ -446,6 +468,9 @@ class ViewsTest {
     }
 
     private companion object {
+        /** The budget d the tests hold, the medium and high one, so that no bound may be the low one. */
+        const val LINKS = 5
+        const val LOW_LINKS = 6
         const val NOW = 100_000L
         const val STRONG = -60.0
         const val DIAL_FLOOR = -85.0

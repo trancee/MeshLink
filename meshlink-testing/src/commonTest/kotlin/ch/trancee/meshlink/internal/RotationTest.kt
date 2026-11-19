@@ -259,30 +259,6 @@ class RotationTest {
             (TestClock.WALL_CLOCK_START_MILLIS / MILLIS).toUInt() + DAY_SECONDS,
         )
 
-    /**
-     * Reads the frames but `REKEY` and `NEIGHBOR_LIST` [end] writes after its cleartext message 2, decrypted with
-     * [transport].
-     */
-    private class Sealed(
-        transport: NoiseTransport,
-        private val end: VirtualLinkEnd,
-        clock: Clock,
-    ) {
-        private val cipher = LinkCipher(transport, clock)
-        private val frames = mutableListOf<LinkFrame>()
-        private var opened = 0
-
-        /** Every frame [end] wrote so far. */
-        fun frames(): List<LinkFrame> {
-            written(end, 1).second.drop(opened).forEach { record ->
-                val frame = assertIs<LinkCipher.Opened.Frame>(cipher.open(record)).bytes
-                frames += assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(frame)).value
-                opened++
-            }
-            return frames.filter { it != LinkFrame.Rekey && it !is LinkFrame.NeighborList }
-        }
-    }
-
     private fun decodePayload(bytes: ByteArray): HandshakePayload =
         assertIs<Decoded.Valid<HandshakePayload>>(HandshakePayload.decode(bytes)).value
 

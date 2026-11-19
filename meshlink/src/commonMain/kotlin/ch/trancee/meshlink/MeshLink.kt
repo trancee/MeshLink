@@ -314,7 +314,7 @@ public class MeshLink private constructor(
                 }
             val policy = LinkPolicy(digest, identity.nodeId)
             val admission = LinkAdmission(policy, handshakes, coc) { diagnostics.tryEmit(it) }
-            val session = Links(port, admission, this, mutablePeers, post)
+            val session = Links(port, admission, this, mutablePeers, post) { scanner.density.links }
             links.value = session
             try {
                 val linking = launch { scanner.candidates.collect { session.connectTo(it, scanner::vet) } }
@@ -327,7 +327,7 @@ public class MeshLink private constructor(
                             session.announce(keys.announce(port.clock.wallClockMillis()))
                         }
                     }
-                val recognition = Recognition(keys, session.neighbors) { id -> id in session.roles.value }
+                val recognition = Recognition(keys, session.neighbors) { session.handles }
                 scanner.run(restrictedLinkRole, recognition, coc, session::accept, session.proximities::sighted)
                 linking.cancel()
                 announcing.cancel()

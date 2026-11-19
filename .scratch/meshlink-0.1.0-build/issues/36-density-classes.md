@@ -25,14 +25,21 @@ Each node estimates its own local density and moves between the low, medium and 
 
 ## Acceptance criteria
 
-- [ ] A unit test drives the estimator with scripted sightings and checks the 10 s window, the 0.3 smoothing, the unsmoothed first estimate and the counting of linked-but-unheard peers and identifier-less sightings.
-- [ ] A unit test walks the classifier across 8, 10, 12.5, 40, 50 and 62.5 in both directions and checks the hysteresis and the 60 s dwell.
-- [ ] A seeded `VirtualAir` test grows a mesh from 2 to 70 nodes in virtual time and back down. Each node reaches the expected class and changes its link budget to d = 6 / 5 / 5.
-- [ ] A seeded test checks the scan windows per class for both policies against the fake radio's scan start and stop calls.
-- [ ] A seeded mixed-class mesh test shows nodes in different classes still exchange and relay every link frame type built so far.
-- [ ] A pinned class never switches, whatever the estimate.
-- [ ] No public API changes in this ticket (the ABI dump is unchanged).
-- [ ] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+- [x] A unit test drives the estimator with scripted sightings and checks the 10 s window, the 0.3 smoothing, the unsmoothed first estimate and the counting of linked-but-unheard peers and identifier-less sightings.
+- [x] A unit test walks the classifier across 8, 10, 12.5, 40, 50 and 62.5 in both directions and checks the hysteresis and the 60 s dwell.
+- [x] A seeded `VirtualAir` test grows a mesh from 2 to 70 nodes in virtual time and back down. Each node reaches the expected class and changes its link budget to d = 6 / 5 / 5.
+- [x] A seeded test checks the scan windows per class for both policies against the fake radio's scan start and stop calls.
+- [x] A seeded mixed-class mesh test shows nodes in different classes still exchange and relay every link frame type built so far.
+- [x] A pinned class never switches, whatever the estimate.
+- [x] No public API changes in this ticket (the ABI dump is unchanged).
+- [x] `./gradlew check` passes with Kover at 100%, and `./gradlew iosSimulatorArm64Test` passes.
+
+## Outcome
+
+- **Owner decisions:** (1) `Responsive` low rests 2.5 s, not 2 s, so scan starts stay 6.5 s apart (R11). (2) Links over a lowered budget are freed by the existing 30 s full-node timer, not closed at once. (3) A linked backgrounded iPhone counts once. (4) The node estimates at the end of each scan window, a switch may jump two classes, and addresses that fail vetting don't count.
+- **Code:** `Density.kt` holds `DensityClass`, `ScanPolicy`, `DensityClassifier` and `DensityEstimator`. `Scanner` feeds the estimator, estimates after each window and schedules the next by class and policy. `Views`, `PassiveView` and `Links` read the budget from the class.
+- **Bug found:** a peer that linked during the first window was heard before its neighbor list resolved its identifier and counted twice, so a 6-node cluster started at medium for the 60 s dwell. The estimator now resolves each identifier again when it estimates.
+- **Tests:** `DensityEstimatorTest`, `DensityClassifierTest` and `ScannerScheduleTest` (both policies, pinning). `DensityTest` grows a `VirtualAir` mesh 2 → 8 → 30 → 70 → 30 → 8 → 2 and checks each node's scan gap, settled peers and budget refusals; it also covers the 30 s release after a budget drop and a linked peer no longer heard. `MixedDensityTest` shows a low and a medium node exchange every cleartext frame type and the medium one names the low one to its other peer, and a medium node sends its handshake, rekeys and next resolving key over 25 h. `BUSY` has no sender yet. Every estimator and wiring mutation fails a test.
 
 ## Proof commands
 

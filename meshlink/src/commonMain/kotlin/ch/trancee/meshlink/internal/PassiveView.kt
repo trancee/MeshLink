@@ -4,14 +4,16 @@ import ch.trancee.meshlink.NodeId
 import kotlinx.coroutines.delay
 
 /**
- * A node's passive view (ADR 0008 decision 1, spec "Shuffle"): up to [PASSIVE_MAX] identifiers of
- * sighted candidates and of entries received in shuffles, never one the node itself advertises
- * ([NeighborLists.advertises]); a new entry replaces a random one when it is full. Draws every
+ * A node's passive view (ADR 0008 decision 1, spec "Shuffle"): up to 4·d identifiers, for the link
+ * budget d that [links] gives, of sighted candidates and of entries received in shuffles, never one
+ * the node itself advertises ([NeighborLists.advertises]); a new entry replaces a random one when it
+ * is full. Draws every
  * choice from [random]. Not thread-safe: [Links] calls it on the node's serial dispatcher.
  */
 internal class PassiveView<T>(
     private val random: RandomSource,
     private val neighbors: NeighborLists,
+    private val links: () -> Int,
     private val linked: () -> Map<NodeId, T>,
 ) {
     private val entries = mutableListOf<ByteArray>()
@@ -19,13 +21,18 @@ internal class PassiveView<T>(
     /** The passive view's identifiers. */
     val identifiers: List<ByteArray> get() = entries.toList()
 
-    /** Adds each of [identifiers] the view doesn't hold and the node doesn't advertise. */
+    /**
+     * Adds each of [identifiers] the view doesn't hold and the node doesn't advertise, after dropping
+     * random entries beyond 4·d, as when d shrank.
+     */
     fun merge(identifiers: List<ByteArray>) {
+        val max = PASSIVE_PER_LINK * links()
+        while (entries.size > max) entries.removeAt(random.nextInt(0, entries.size))
         identifiers.filterNot(neighbors::advertises).forEach { id ->
             when {
                 entries.any { it.contentEquals(id) } -> Unit
-                entries.size < PASSIVE_MAX -> entries += id
-                else -> entries[random.nextInt(0, PASSIVE_MAX)] = id
+                entries.size < max -> entries += id
+                else -> entries[random.nextInt(0, max)] = id
             }
         }
     }
@@ -59,8 +66,8 @@ internal class PassiveView<T>(
     }
 
     companion object {
-        /** The passive view's size, 4·d. */
-        const val PASSIVE_MAX: Int = 4 * Views.LINKS
+        /** The passive view's entries per unit of the link budget d. */
+        const val PASSIVE_PER_LINK: Int = 4
 
         /** The most entries in a `SHUFFLE` or `SHUFFLE_REPLY` (spec `shuffle-entries-max`). */
         const val ENTRIES_MAX: Int = 5

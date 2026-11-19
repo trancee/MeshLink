@@ -24,8 +24,10 @@ import kotlinx.coroutines.launch
  * announce it to linked peers before (spec "Neighbor list"). A candidate whose mesh tag left the
  * accepted epochs is dropped with the next sighting.
  *
- * A central scans in windows of [SCAN_ON_MILLIS] every [SCAN_PERIOD_MILLIS], the low-density
- * `Balanced` schedule, and stops scanning whenever the run ends.
+ * A central scans in windows of [ScanPolicy.ON_MILLIS] and stops scanning whenever the run ends. At
+ * the end of each window it estimates its local density from the sightings of the last 10 s and its
+ * links, classifies it, or keeps [pinned], and rests as long as [policy] sets for its [density]
+ * class (ADR 0008 decisions 2 and 3). Each run starts in the low class.
  *
  * A sighting whose identifier names a peer this node has a link to is no candidate: in a gated mesh
  * its resolvable tag resolves to the peer (spec "Resolvable tag"), and in any mesh the peer's
@@ -42,7 +44,15 @@ internal class Scanner(
     private val clock: Clock,
     private val random: RandomSource,
     private val discovery: Discovery,
+    private val policy: ScanPolicy = ScanPolicy.BALANCED,
+    private val pinned: DensityClass? = null,
 ) {
+    private var estimator = DensityEstimator(clock)
+    private var classifier = DensityClassifier(clock, pinned)
+
+    /** This node's density class, which sets its link budget and scan schedule. */
+    val density: DensityClass get() = classifier.current
+
     private val mutableCandidates = MutableStateFlow<Map<PeerHandle, Candidate>>(emptyMap())
 
     /**
@@ -82,6 +92,8 @@ internal class Scanner(
     ) {
         try {
             stale.clear()
+            estimator = DensityEstimator(clock)
+            classifier = DensityClassifier(clock, pinned)
             val peripheral = role != LinkRole.CENTRAL
             val central = role != LinkRole.PERIPHERAL
             val listened = if (peripheral && coc) radio.listenForChannels() else null
@@ -152,22 +164,28 @@ internal class Scanner(
     ): Flow<RadioEvent> =
         channelFlow {
             val rotating = launch { if (peripheral) rotations(recognition).collect { send(it) } }
-            val windowing = launch { if (central) windows().collect { send(it) } }
+            val windowing = launch { if (central) windows(recognition).collect { send(it) } }
             radio.events.collect { send(it) }
             rotating.cancel()
             windowing.cancel()
         }
 
     /**
-     * Ends the scan window [run] started after [SCAN_ON_MILLIS], then scans again in a window of
-     * that length every [SCAN_PERIOD_MILLIS]; emits a [RadioEvent.Failed] if the radio refuses a start.
+     * Ends the scan window [run] started after [ScanPolicy.ON_MILLIS], classifies the node's density,
+     * rests as long as [policy] sets for its class and scans again for as long, and so on; emits a
+     * [RadioEvent.Failed] if the radio refuses a start. Counts the links [recognition] knows.
      */
-    private fun windows(): Flow<RadioEvent> =
+    private fun windows(recognition: Recognition): Flow<RadioEvent> =
         flow {
             while (true) {
-                delay(SCAN_ON_MILLIS)
+                delay(ScanPolicy.ON_MILLIS)
                 radio.stopScanning()
-                delay(SCAN_PERIOD_MILLIS - SCAN_ON_MILLIS)
+                val estimate =
+                    estimator.estimate(recognition.links()) { identifier, epoch ->
+                        recognition.recognize(identifier, epoch, clock.wallClockMillis())
+                    }
+                val density = classifier.classify(estimate)
+                delay(policy.offMillis(density))
                 (radio.startScanning() as? RadioResult.Failed)?.let { emit(RadioEvent.Failed(it.reason)) }
             }
         }
@@ -213,9 +231,11 @@ internal class Scanner(
         val accepted = payload?.let { discovery.accept(it, epoch) }
         val id = accepted?.let { recognition.recognize(it.resolvableTag, epoch, clock.wallClockMillis()) }
         onSighting(sighting.peer, id, sighting.rssi)
-        val linked = id != null && recognition.linked(id)
+        val linked = id != null && id in recognition.links().values
         val sighted = accepted?.takeUnless { linked }
         val anonymous = payload == null && fresh(sighting.peer)
+        accepted?.let { estimator.heard(it.resolvableTag, epoch) }
+        if (anonymous) estimator.heardAnonymous(sighting.peer)
         val heard = clock.monotonicMillis()
         mutableCandidates.update { candidates ->
             val current =
@@ -281,6 +301,7 @@ internal class Scanner(
         val accepted = advertisement?.let { discovery.accept(it, epoch()) } != null
         if (!accepted) {
             stale[handle] = clock.monotonicMillis()
+            estimator.forget(handle)
             mutableCandidates.update { it - handle }
         }
         return accepted
@@ -292,12 +313,6 @@ internal class Scanner(
     }
 
     private companion object {
-        /** How long each scan window lasts: the `Balanced` low-density schedule (ADR 0010 decision 6). */
-        const val SCAN_ON_MILLIS = 4_000L
-
-        /** How often a scan window starts, so at most four start in any 30 s (library rule R11). */
-        const val SCAN_PERIOD_MILLIS = 8_000L
-
         /** How long a stale address stays stale without a sighting (ticket 32, Q4). */
         const val STALE_FORGET_MILLIS = 600_000L
 
@@ -314,12 +329,12 @@ internal class Scanner(
 
 /**
  * How a run recognizes its peers: by their resolving [keys] in a gated mesh, else `null`, and by the
- * identifiers their [neighbors] lists announced; and whether it has a link to a peer ([linked]).
+ * identifiers their [neighbors] lists announced; and the peers it has a link to, by handle ([links]).
  */
 internal class Recognition(
     val keys: ResolvingKeys?,
     val neighbors: NeighborLists,
-    val linked: (NodeId) -> Boolean,
+    val links: () -> Map<PeerHandle, NodeId>,
 ) {
     /** The peer advertising [identifier] in [epoch], at [nowMillis], or `null`. */
     fun recognize(
