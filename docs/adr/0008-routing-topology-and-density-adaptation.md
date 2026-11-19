@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 10 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 11 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -173,3 +173,10 @@ Results for the v1 configuration:
 
 - **Energy model (Risks, "the power index"):** iOS now has a whole-phone figure instead of bounds only. On the iPhone 12 mini with the screen on, combined medium-density discovery in the foreground costs about 5–80 mW (three sessions; 4 of 4 blocks positive in session 2). Background discovery is not resolvable with Power Profiler: median about 0, at most about +17 mW in 3 of 4 blocks. The energy model keeps no iOS component coefficients; one phone, screen on.
 - **Background (Risks):** this replaces "iOS figures are bounds only" in the stage F amendment. iOS still owns background duty, so presets promise neither background latency nor background cost on iOS.
+
+2026-11-19, bridge rule and diversity replacement built (ticket 35b; host simulation in `VirtualAir`):
+
+- **Bridge rule (decision 1):** "newly discovered" means its current identifier was first heard 5 to 13 s ago, or heard again after at least 60 s unheard, and no linked peer's neighbor list names it. The 5 s settle is new. Each 5 min identifier rotation is heard before any neighbor list names the new identifier, so without the settle every rotation looked like a newcomer two hops away. That caused dials, evictions and lasting churn: about 110 link ends per node in 1 h in an 8-node mesh, against about 7 without the rule. A full node frees its most redundant link, if any link has redundancy, and dials the bridge into that slot. Once kept at the budget, the bridge frees the most redundant other link. The relaxed RSSI floor (−88 dBm) is deferred to ticket 35d.
+- **Neighbor lists (decision 1):** a node also resends its list when a linked peer's first list arrives or names a new identifier (spec "Neighbor list"). Neither the settle nor the resend alone stopped the churn; together they keep the 8-node mesh at 5 to 7 link ends per node.
+- **Diversity replacement (decision 1):** only a candidate first heard at least 5 s ago may replace a link, for the same reason as the settle.
+- **Degree (decision 1, "pending dials count"):** while its own bridge or replacement dial is in flight, a node accepts one bearer beyond its budget. Two full nodes that bridge to each other at once otherwise each refused the other with `RESOURCE_LIMIT`, which also stops both from redialing. In 100 split-mesh runs, 9 had not repaired 40 s after the move and 2 took 31 s. With the slack, all 100 repaired 13 s after the move. The duplicate-link rule, or freeing the most redundant link once the dial is kept, brings the node back within its budget.

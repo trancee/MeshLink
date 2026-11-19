@@ -110,6 +110,33 @@ class NeighborListTest {
         }
 
     @Test
+    fun aPeersFirstListOrNewIdentifierIsResentOnEveryLinkButAnUnchangedListIsNot() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            node(alice).start()
+            val rotating = connectFake(air, alice).also { it.write(hello(FAKE_ID)) }
+            val other = connectFake(air, alice)
+            other.write(record(LinkFrame.PlainHello(1, digest(MESH), OTHER_ID)))
+            grantCredits(other, alice.radio.ends[1])
+            advanceTimeBy(MIN_INTERVAL_MILLIS + SETTLE_MILLIS)
+            val onOther = { lists(alice.radio.ends[1]).map { (_, list) -> list.neighbors.map { it.toList() } } }
+            val before = onOther().size
+
+            // Act
+            rotating.write(record(LinkFrame.NeighborList(id(1), id(2), emptyList())))
+            advanceTimeBy(MIN_INTERVAL_MILLIS)
+            rotating.write(record(LinkFrame.NeighborList(id(1), id(2), emptyList())))
+            advanceTimeBy(MIN_INTERVAL_MILLIS)
+            rotating.write(record(LinkFrame.NeighborList(id(2), id(3), emptyList())))
+            advanceTimeBy(MIN_INTERVAL_MILLIS)
+
+            // Assert
+            assertEquals(listOf(listOf(id(1).toList()), listOf(id(2).toList())), onOther().drop(before))
+        }
+
+    @Test
     fun aCentralOnlyNodeAdvertisesNoIdentifierAndSendsNoList() =
         runTest {
             // Arrange
@@ -210,6 +237,83 @@ class NeighborListTest {
                 assertTrue(replies.all { it.entries.size <= ENTRIES_MAX })
             }
             assertTrue(newcomer.radio.ends.any { it.open }, "no slot for a newcomer")
+        }
+
+    @Test
+    fun eightNodesInRangeOfEachOtherKeepTheirLinksOnceSettled() =
+        runTest {
+            // Arrange
+            val air = air()
+            val platforms = List(NODES) { air.platform(StandardTestDispatcher(testScheduler)) }
+            platforms.forEach { node(it).start() }
+            advanceTimeBy(STABLE_AFTER_MILLIS)
+            val settled = platforms.map { it.radio.ends.size }
+
+            // Act
+            advanceTimeBy(STABLE_FOR_MILLIS)
+
+            // Assert
+            assertEquals(settled, platforms.map { it.radio.ends.size })
+        }
+
+    @Test
+    fun aRadioMovedBetweenTwoSplitCliquesBridgesThemWithOneDialPerNodeWithinTheBridgeWindow() =
+        runTest {
+            // Arrange
+            val air = air(SEED)
+            val platforms = List(MESH_NODES) { air.platform(StandardTestDispatcher(testScheduler)) }
+            val (left, right) = platforms.chunked(MESH_NODES / 2)
+            right.forEach { air.move(it.radio, APART, 0.0) }
+            platforms.forEach { node(it).start() }
+            advanceTimeBy(MESH_MILLIS + 1)
+            val split = components(platforms)
+            val crossing = { platform: VirtualPlatform ->
+                val other = if (platform in left) right else left
+                platform.radio.ends.count { end -> end is VirtualCentralEnd && other.any { it.radio === end.remote } }
+            }
+
+            // Act
+            air.move(right.first().radio, APART / 2, 0.0)
+            advanceTimeBy(REPAIR_MILLIS)
+
+            // Assert
+            assertEquals(listOf(2, 1), listOf(split, components(platforms)))
+            assertTrue(platforms.all { crossing(it) <= 1 }, "more than one bridge dial")
+        }
+
+    @Test
+    fun everyThirtySecondsANodeAtItsLastFreeSlotReplacesItsMostRedundantLinkForALessNamedCandidate() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            node(alice).start()
+            val fakes = List(BUDGET - 1) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n))) } }
+            fakes.forEachIndexed { n, fake ->
+                val others = fakes.indices.filter { it != n }.map { id(FAKE_TAG + it) }
+                fake.write(record(LinkFrame.NeighborList(id(FAKE_TAG + n), id(FAKE_NEXT + n), others)))
+            }
+            advanceTimeBy(SETTLE_MILLIS)
+            // A decoy that refuses the link takes the bridge dial, so the candidate is never one.
+            val decoy = advertiser(air, id(DECOY), versions = listOf(UNSUPPORTED_VERSION))
+            repeat(BRIDGE_WAIT_STEPS) { if (decoy.ends.isEmpty()) advanceTimeBy(SETTLE_MILLIS) }
+            decoy.stopAdvertising()
+            val candidate = advertiser(air, id(CANDIDATE))
+
+            // Act
+            val dialedAt =
+                (1..2 * REPLACE_INTERVAL_MILLIS / SETTLE_MILLIS).firstNotNullOfOrNull {
+                    advanceTimeBy(SETTLE_MILLIS)
+                    testScheduler.currentTime.takeIf { candidate.ends.isNotEmpty() }
+                }
+            candidate.ends.singleOrNull()?.write(record(LinkFrame.PlainHello(1, digest(MESH), CANDIDATE_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertTrue(dialedAt != null && dialedAt % REPLACE_INTERVAL_MILLIS <= SETTLE_MILLIS, "dialed at $dialedAt")
+            assertEquals(1, decoy.ends.size)
+            assertTrue(candidate.ends.single().open)
+            assertEquals(1, alice.radio.ends.count { closes(it) == listOf(CloseReason.NORMAL) })
         }
 
     @Test
@@ -473,6 +577,20 @@ class NeighborListTest {
         return radio
     }
 
+    /** How many connected parts the open links split [platforms] into. */
+    private fun components(platforms: List<VirtualPlatform>): Int {
+        val part = platforms.indices.toMutableList()
+
+        fun root(i: Int): Int = if (part[i] == i) i else root(part[i])
+        platforms.forEachIndexed { i, platform ->
+            platform.radio.ends.filter { it.open }.forEach { end ->
+                val j = platforms.indexOfFirst { it.radio === end.remote }
+                part[root(i)] = root(j)
+            }
+        }
+        return platforms.indices.count { root(it) == it }
+    }
+
     private fun decoded(body: ByteArray): LinkFrame = assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(body)).value
 
     private fun tagOf(payload: ByteArray): ByteArray =
@@ -484,6 +602,18 @@ class NeighborListTest {
 
     private companion object {
         const val NODES = 8
+        const val STABLE_AFTER_MILLIS = 10 * 60_000L
+        const val STABLE_FOR_MILLIS = 20 * 60_000L
+        const val APART = 40.0
+
+        // The bridge window's end, a settle and a scan period after the move, plus a second.
+        const val REPAIR_MILLIS = 14_000L
+        const val REPLACE_INTERVAL_MILLIS = 30_000L
+        const val FAKE_TAG = 20
+        const val FAKE_NEXT = 40
+        const val DECOY = 60
+        const val BRIDGE_WAIT_STEPS = 20
+        const val CANDIDATE = 61
         const val SHUFFLE_INTERVAL_MILLIS = 10_000L
         const val ENTRIES_MAX = 5
         const val BUDGET = 6
@@ -513,5 +643,6 @@ class NeighborListTest {
         const val ROTATION_SEED = 6L
         val OTHER_ID = ByteArray(32) { 0x7E }
         val GONE_ID = ByteArray(32) { 0x7D }
+        val CANDIDATE_ID = ByteArray(32) { 0x10 }
     }
 }

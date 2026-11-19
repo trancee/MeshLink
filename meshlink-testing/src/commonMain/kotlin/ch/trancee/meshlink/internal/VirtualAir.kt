@@ -17,14 +17,16 @@ import kotlin.math.min
 
 /**
  * Many [RadioPort]s sharing one simulated air in one process, in virtual time (ADR 0017 decisions
- * 1–3). Every radio is in range of every other; each advertisement, connection, capability read and
- * stream chunk arrives after a latency drawn from [random] within [latencyMillis], so one seed
- * always yields one event order.
+ * 1–3). Every radio starts at the origin, in range of every other; a test places one elsewhere with
+ * [move], and radios more than [range] apart neither sight nor reach each other. Each advertisement,
+ * connection, capability read and stream chunk arrives after a latency drawn from [random] within
+ * [latencyMillis], so one seed always yields one event order.
  *
  * A radio takes a fresh address each time it starts advertising, as a phone rotates its resolvable
  * private address, so a peer can't be reached at an address it no longer advertises; a link keeps
  * the address it was opened to. A radio may report a peripheral link cap, which the core enforces;
- * a test drops a link as a transient loss with [VirtualLinkEnd.drop]. It models no other loss.
+ * a test drops a link as a transient loss with [VirtualLinkEnd.drop] or by moving its radios apart.
+ * It models no other loss.
  * A scanning radio sees every advertisement in range at once and again each time it starts
  * scanning, and logs its scan starts and stops in [VirtualRadio.scanLog].
  *
@@ -48,6 +50,7 @@ internal class VirtualAir(
     internal val clock: Clock,
     private val random: RandomSource,
     private val latencyMillis: IntRange = DEFAULT_LATENCY_MILLIS,
+    private val range: Double = DEFAULT_RANGE,
 ) {
     private val radios = mutableListOf<VirtualRadio>()
     private val rssis = mutableMapOf<Set<VirtualRadio>, Int>()
@@ -107,21 +110,45 @@ internal class VirtualAir(
 
     internal fun latency(): Long = random.nextInt(latencyMillis.first, latencyMillis.last + 1).toLong()
 
-    internal fun pipe(): Pipe = Pipe()
+    /**
+     * Places [radio] at ([x], [y]); every radio starts at the origin. Each link of [radio] to a radio
+     * now out of range drops at once, as a transient loss.
+     */
+    fun move(
+        radio: VirtualRadio,
+        x: Double,
+        y: Double,
+    ) {
+        radio.x = x
+        radio.y = y
+        radio.ends.filter { it.open && !inRange(radio, it.remote) }.forEach { it.drop() }
+    }
 
-    internal fun wallClockMillis(): Long = clock.wallClockMillis()
+    /** Whether [a] and [b] are at most [range] apart. */
+    private fun inRange(
+        a: VirtualRadio,
+        b: VirtualRadio,
+    ): Boolean {
+        val dx = a.x - b.x
+        val dy = a.y - b.y
+        return dx * dx + dy * dy <= range * range
+    }
 
     internal fun announce(
         advertiser: VirtualRadio,
         payload: ByteArray,
     ) {
-        radios.forEach { if (it !== advertiser && it.scanning) sight(it, advertiser, payload) }
+        radios.forEach { scanner ->
+            if (scanner !== advertiser && scanner.scanning && inRange(scanner, advertiser)) {
+                sight(scanner, advertiser, payload)
+            }
+        }
     }
 
     internal fun listen(scanner: VirtualRadio) {
         radios.forEach { other ->
             val payload = other.advertisement
-            if (other !== scanner && payload != null) sight(scanner, other, payload)
+            if (other !== scanner && payload != null && inRange(scanner, other)) sight(scanner, other, payload)
         }
     }
 
@@ -129,8 +156,8 @@ internal class VirtualAir(
         central: VirtualRadio,
         peer: PeerHandle,
     ): RadioResult<CentralLink> {
-        val peripheral = radios.firstOrNull { it.handle === peer }
-        if (peripheral == null || peripheral === central || peripheral.advertisement == null) {
+        val peripheral = radios.firstOrNull { it.handle === peer && it !== central && it.advertisement != null }
+        if (peripheral == null || !inRange(central, peripheral)) {
             return RadioResult.Failed(RadioFailure.PEER_UNREACHABLE)
         }
         delay(latency())
@@ -180,6 +207,9 @@ internal class VirtualAir(
         const val DEFAULT_ATT_MTU: Int = 247
         const val RSSI_MIN: Int = -90
         const val RSSI_MAX: Int = -40
+
+        /** How far apart two radios may be and still hear each other, unless a test sets another range. */
+        const val DEFAULT_RANGE: Double = 30.0
     }
 }
 
@@ -227,6 +257,10 @@ internal class VirtualRadio(
     internal var capability: ByteArray? = null
         private set
 
+    /** Where the radio is on the air; see [VirtualAir.move]. */
+    internal var x: Double = 0.0
+    internal var y: Double = 0.0
+
     private val mutableAdvertisements = mutableListOf<Pair<Long, ByteArray>>()
 
     /** Every payload this radio started advertising, with the wall-clock milliseconds it started at. */
@@ -246,7 +280,7 @@ internal class VirtualRadio(
         val copy = payload.copyOf()
         if (!background) handle = VirtualPeer()
         advertisement = copy
-        mutableAdvertisements += air.wallClockMillis() to copy
+        mutableAdvertisements += air.clock.wallClockMillis() to copy
         air.announce(this, copy)
         return RadioResult.Ok(Unit)
     }
@@ -361,7 +395,7 @@ internal class VirtualChannelEnd(
     override val peer: PeerHandle,
 ) : RadioStream {
     private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
-    private val pipe = air.pipe()
+    private val pipe = air.Pipe()
     private var closed = false
 
     /** Every byte this end wrote, in order. */
@@ -403,10 +437,11 @@ internal open class VirtualLinkEnd(
     private val air: VirtualAir,
     private val connection: VirtualConnection,
     private val local: VirtualRadio,
-    protected val remote: VirtualRadio,
+    /** The radio at the link's other end. */
+    internal val remote: VirtualRadio,
 ) : RadioLink {
     private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
-    private val pipe = air.pipe()
+    private val pipe = air.Pipe()
 
     protected var closed: Boolean = false
         private set
@@ -455,7 +490,7 @@ internal open class VirtualLinkEnd(
     override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
         if (closed) return RadioResult.Failed(RadioFailure.LINK_CLOSED)
         written += bytes
-        mutableWrites += air.wallClockMillis() to bytes.copyOf()
+        mutableWrites += air.clock.wallClockMillis() to bytes.copyOf()
         val target = connection.oppositeOf(this)
         val chunkMax = attMtu - RadioPort.ATT_HEADER
         val received = CompletableDeferred<Unit>()

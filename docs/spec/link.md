@@ -351,7 +351,7 @@ Total: 1 B.
 Size: 18 to 274 B.
 
 - A node chooses its next advertisement identifier one rotation ahead: in a gated mesh it is the resolvable tag for the next epoch; otherwise 8 random bytes drawn in advance. At rotation it MUST advertise exactly the `next_id` it announced.
-- A node sends its neighbor list after the handshake, again when its link set changes, and before each rotation of its own identifier, at most once per `neighbor-list-min-interval`. Linked peers thus learn the next identifier in advance. After the rotation, `own_id` is the new identifier and `next_id` the one after.
+- A node sends its neighbor list after the handshake, again when its link set changes, when a linked peer's first list arrives or names a new `own_id`, and before each rotation of its own identifier, at most once per `neighbor-list-min-interval`. Linked peers thus learn the next identifier in advance, and nodes two hops away learn a peer's new identifier soon after it rotates. After the rotation, `own_id` is the new identifier and `next_id` the one after.
 - Only already-linked peers learn `next_id`; it is never advertised before the rotation. A receiver keeps it to recognize the sender's advertisements after rotation (v1 parameters, "Identifier rotation inflation").
 - A receiver uses the list only for local decisions (density estimate, redundant-link avoidance and the bridge rule). Lists are local hints; nothing is forwarded.
 

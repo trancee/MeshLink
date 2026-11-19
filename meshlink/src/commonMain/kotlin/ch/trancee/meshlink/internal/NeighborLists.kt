@@ -11,8 +11,10 @@ import kotlinx.coroutines.launch
  * every link, and the latest one each linked peer sent it. Not thread-safe: the node calls it, and
  * runs [scope], on its serial dispatcher.
  *
- * The node sends its list with [send] after each handshake, when its link set changes and before
- * each rotation of its own identifier, at most once per [MIN_INTERVAL_MILLIS]: a list due sooner
+ * The node sends its list with [send] after each handshake, when its link set changes, when a
+ * linked peer's list first names it or names it by a new identifier (so two-hop neighbors learn a
+ * rotated identifier before it can pass for a bridge), and before each rotation of its own
+ * identifier, at most once per [MIN_INTERVAL_MILLIS]: a list due sooner
  * waits for the interval and carries the state when it goes out. It carries the identifier the node
  * advertises, the one it advertises after its next rotation and its link peers' current ones, as
  * their latest lists named them. A node that doesn't advertise has no identifier and sends no list.
@@ -63,7 +65,8 @@ internal class NeighborLists(
         peer: NodeId,
         list: LinkFrame.NeighborList,
     ) {
-        heard[peer] = list
+        val previous = heard.put(peer, list)
+        if (previous == null || !previous.ownId.contentEquals(list.ownId)) changed()
     }
 
     /** [peer]'s link closed. */
@@ -76,6 +79,25 @@ internal class NeighborLists(
         heard.entries
             .firstOrNull { (_, list) -> list.ownId.contentEquals(id) || list.nextId.contentEquals(id) }
             ?.key
+
+    /** Whether a linked peer's latest list names [id]. */
+    fun nearby(id: ByteArray): Boolean = heard.values.any { it.names(id) }
+
+    /** How many linked peers' latest lists name [id] as their neighbor. */
+    fun overlap(id: ByteArray): Int = heard.values.count { list -> list.neighbors.any { it.contentEquals(id) } }
+
+    /**
+     * How many of linked [peer]'s neighbors another linked peer's latest list names too: the
+     * neighbors this node still reaches in two hops without [peer]. 0 if [peer] sent no list.
+     */
+    fun redundancy(peer: NodeId): Int {
+        val list = heard[peer] ?: return 0
+        val others = heard.filterKeys { it != peer }.values
+        return list.neighbors.count { id -> !advertises(id) && others.any { it.names(id) } }
+    }
+
+    private fun LinkFrame.NeighborList.names(id: ByteArray): Boolean =
+        ownId.contentEquals(id) || nextId.contentEquals(id) || neighbors.any { it.contentEquals(id) }
 
     private fun sendNow() {
         val current = own ?: return

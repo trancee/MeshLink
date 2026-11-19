@@ -34,8 +34,8 @@ import kotlin.time.Instant
  * hands it the routed frames it receives. A frame larger than one record travels as `FRAGMENT`s;
  * every link reassembles within the node's shared large-stream [budget] (spec "Fragments"). With
  * [LinkAdmission.coc], each kept link this node opens to a peer that offers a PSM moves to L2CAP CoC
- * (spec "Bearer switch"). Its [Views] bound the bearers it dials and accepts, and shuffle its passive
- * view with its peers (spec "Shuffle").
+ * (spec "Bearer switch"). Its [Views] bound the bearers it dials and accepts, and it shuffles its
+ * [PassiveView] with its peers (spec "Shuffle").
  *
  * Every link runs in [scope] and ends with it, sending `CLOSE` `SHUTTING_DOWN`. Not thread-safe: the
  * node calls it, and runs [scope], on its serial dispatcher.
@@ -63,8 +63,6 @@ internal class Links(
     /** This node's neighbor lists, sent on every kept link (spec "Neighbor list"). */
     val neighbors = NeighborLists(clock, scope) { list -> table.values.toList().forEach { post(it, list) } }
 
-    private val views = Views(clock, port.random, neighbors::advertises)
-
     /** This node's role on each kept link; for the lab apps. */
     val roles: StateFlow<Map<NodeId, LinkRole>> = mutableRoles.asStateFlow()
 
@@ -84,14 +82,17 @@ internal class Links(
     private var dialing: PeerHandle? = null
 
     // The kept links, and how the node frees one to make room: a cool-down, then CLOSE NORMAL.
-    private val linked: () -> List<Link> = { table.values.toList() }
+    private val linked: () -> Map<NodeId, Link> = { table.toMap() }
     private val free: (Link) -> Unit = { conn ->
-        views.coolDown(conn.link.peer)
+        views.backoff.coolDown(conn.link.peer)
         scope.launch { conn.close(CloseReason.NORMAL) }
     }
+    private val views = Views(clock, port.random, neighbors, linked, free)
+    private val passive = PassiveView(port.random, neighbors, linked)
 
     init {
-        scope.launch { views.shuffle(linked, ::post) }
+        scope.launch { passive.shuffle(::post) }
+        scope.launch { views.diversify { connectTo(candidates, vet) } }
     }
 
     /**
@@ -108,7 +109,7 @@ internal class Links(
     ) {
         this.candidates = candidates
         this.vet = vet
-        views.merge(candidates.values.mapNotNull { it.advertisement?.resolvableTag })
+        passive.merge(candidates.values.mapNotNull { it.advertisement?.resolvableTag })
         if (dialing != null) return
         val dialable = limits.dialable(candidates.keys).filter { it !in busy }
         val handle = views.dial(dialable, candidates, busy.values.sum()) ?: return
@@ -126,8 +127,8 @@ internal class Links(
     }
 
     /**
-     * Accepts the link a peer opened in [event] unless the node holds its link budget or the radio its
-     * peripheral link cap, and
+     * Accepts the link a peer opened in [event] unless the node holds its link budget ([Views.accepts])
+     * or the radio its peripheral link cap, and
      * the L2CAP CoC channel a peer opened to switch to; reconnects as central after a transient loss of
      * a central link. Other events need nothing.
      */
@@ -188,13 +189,13 @@ internal class Links(
         block: suspend () -> Unit,
     ) {
         busy[handle] = (busy[handle] ?: 0) + 1
-        views.held(busy.values.sum(), scope, linked, free)
+        views.held(busy.values.sum(), scope)
         scope.launch {
             try {
                 block()
             } finally {
                 busy.decrement(handle)
-                views.held(busy.values.sum(), scope, linked, free)
+                views.held(busy.values.sum(), scope)
             }
             connectTo(candidates, vet)
         }
@@ -470,12 +471,12 @@ internal class Links(
                 }
 
                 peer != null && frame is LinkFrame.Shuffle -> {
-                    post(conn, LinkFrame.ShuffleReply(views.sample()))
-                    views.merge(frame.entries)
+                    post(conn, LinkFrame.ShuffleReply(passive.sample()))
+                    passive.merge(frame.entries)
                 }
 
                 peer != null && frame is LinkFrame.ShuffleReply -> {
-                    views.merge(frame.entries)
+                    passive.merge(frame.entries)
                 }
 
                 peer != null && frame == LinkFrame.BearerSwitch -> {
@@ -632,6 +633,7 @@ internal class Links(
         conn.lastSeen = clock.now()
         if (conn.central && dialing === conn.link.peer) {
             dialing = null
+            views.kept(conn.link.peer, id, busy.values.sum())
             scope.launch { connectTo(candidates, vet) }
         }
         opening--
@@ -675,7 +677,7 @@ internal class Links(
             neighbors.unlinked(id)
             neighbors.changed()
             // A peer that closed its kept link isn't dialed again for a while, whatever the reason.
-            if (conn.received != null) views.coolDown(conn.link.peer)
+            if (conn.received != null) views.backoff.coolDown(conn.link.peer)
             if (conn.received == CloseReason.DUPLICATE_LINK) kept[id] = conn.toPeer(id, proximities.of(id))
             proximities.unlinked(id)
         }

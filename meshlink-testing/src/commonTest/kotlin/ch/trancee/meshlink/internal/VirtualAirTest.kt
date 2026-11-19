@@ -334,6 +334,45 @@ class VirtualAirTest {
         }
 
     @Test
+    fun radiosOutOfRangeNeitherSightNorReachEachOtherAndMovingApartDropsTheirLink() =
+        runTest {
+            // Arrange
+            val air = air()
+            val near = air.radio()
+            val far = air.radio()
+            val scanner = air.radio()
+            air.move(far, VirtualAir.DEFAULT_RANGE + 1, 0.0)
+            near.startAdvertising(PAYLOAD_A).ok()
+            far.startAdvertising(PAYLOAD_B).ok()
+            val link = scanner.connect(near.handle).ok()
+            val accepted = near.events.next<RadioEvent.Connected>().link
+
+            // Act
+            scanner.startScanning().ok()
+            val sighted =
+                scanner.events
+                    .next<RadioEvent.Sighted>()
+                    .sighting.peer
+            val unreachable = scanner.connect(far.handle).failure()
+            air.move(near, -VirtualAir.DEFAULT_RANGE - 1, 0.0)
+            val dropped = listOf(scanner, near).map { it.events.next<RadioEvent.Disconnected>() }
+            air.move(far, VirtualAir.DEFAULT_RANGE, 0.0)
+            far.startAdvertising(PAYLOAD_B).ok()
+            val inRange =
+                scanner.events
+                    .next<RadioEvent.Sighted>()
+                    .sighting.peer
+
+            // Assert
+            assertSame(near.handle, sighted)
+            assertEquals(RadioFailure.PEER_UNREACHABLE, unreachable)
+            assertEquals(listOf(link, accepted), dropped.map { it.link })
+            assertTrue(dropped.all { it.transient })
+            assertSame(far.handle, inRange)
+            assertNull(withTimeoutOrNull(QUIET_MILLIS) { scanner.events.first() })
+        }
+
+    @Test
     fun aBackgroundRadioIsSightedWithoutItsPayloadAndKeepsItsAddress() =
         runTest {
             val air = air()
