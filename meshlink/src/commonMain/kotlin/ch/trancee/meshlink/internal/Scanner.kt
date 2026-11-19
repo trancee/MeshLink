@@ -223,11 +223,30 @@ internal class Scanner(
                     candidate.advertisement.let { it == null || discovery.accept(it.encode(), epoch) != null }
                 }
             when {
-                sighted != null -> current + (sighting.peer to Candidate(sighted, heard))
+                sighted != null -> current + (sighting.peer to candidate(current[sighting.peer], sighted, heard, id))
                 anonymous -> current + (sighting.peer to Candidate(null, heard))
                 else -> current
             }
         }
+    }
+
+    /**
+     * The candidate [advertisement] makes, [heard] now: first heard when [prior] was if [prior]
+     * carried the same identifier and was heard less than [GAP_MILLIS] ago, else now; and known if
+     * its identifier resolved to the peer [id].
+     */
+    private fun candidate(
+        prior: Candidate?,
+        advertisement: Advertisement,
+        heard: Long,
+        id: NodeId?,
+    ): Candidate {
+        val tag = advertisement.resolvableTag
+        val since =
+            prior
+                ?.takeIf { heard - it.heard < GAP_MILLIS && it.advertisement?.resolvableTag.contentEquals(tag) }
+                ?.since ?: heard
+        return Candidate(advertisement, heard, since, known = id != null)
     }
 
     /**
@@ -273,6 +292,9 @@ internal class Scanner(
 
         /** How long a stale address stays stale without a sighting (ticket 32, Q4). */
         const val STALE_FORGET_MILLIS = 600_000L
+
+        /** How long a candidate may go unheard and keep when it was first heard (bridge rule). */
+        const val GAP_MILLIS = 60_000L
         const val MILLIS_PER_SECOND = 1_000
         const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * MILLIS_PER_SECOND.toLong()
     }
