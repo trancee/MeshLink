@@ -1,10 +1,14 @@
 package ch.trancee.meshlink.internal
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** The passive view and dial pool of a node (ADR 0008 decision 1, ticket 35a). */
+/** The passive view, dial pool, dial backoff and newcomer reservation of a node (ADR 0008 decision 1). */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ViewsTest {
     @Test
     fun aFullPassiveViewReplacesARandomEntryAndSkipsKnownAndOwnIdentifiers() {
@@ -66,12 +70,99 @@ class ViewsTest {
         assertTrue(!views.accepts(Views.LINKS))
     }
 
+    @Test
+    fun aFailedDialBacksOffThreeSecondsThenSixtyUntilAKeptLinkOrTheCandidateLeaves() {
+        // Arrange
+        val clock = FixedClock(0)
+        val views = Views(clock, SeededRandom(SEED)) { false }
+        val peer = Handle()
+        val dialAt = { at: Long ->
+            clock.now = at
+            views.dial(listOf(peer), mapOf(peer to Candidate(null, at)), used = 0)
+        }
+
+        // Act
+        views.dialed(peer, kept = false)
+        val first = listOf(dialAt(FIRST_MILLIS - 1), dialAt(FIRST_MILLIS))
+        views.dialed(peer, kept = false)
+        val repeated = listOf(dialAt(FIRST_MILLIS + REPEATED_MILLIS - 1), dialAt(FIRST_MILLIS + REPEATED_MILLIS))
+        views.dialed(peer, kept = true)
+        views.dialed(peer, kept = false)
+        val keptAt = 2 * FIRST_MILLIS + REPEATED_MILLIS
+        val afterKept = listOf(dialAt(keptAt - 1), dialAt(keptAt))
+        views.dialed(peer, kept = false)
+        clock.now += REPEATED_MILLIS
+        views.dial(emptyList(), emptyMap(), used = 0)
+        views.dialed(peer, kept = false)
+        val afterLeaving = dialAt(clock.now + FIRST_MILLIS)
+
+        // Assert
+        assertEquals(listOf(null, peer), first)
+        assertEquals(listOf(null, peer), repeated)
+        assertEquals(listOf(null, peer), afterKept)
+        assertEquals(peer, afterLeaving)
+    }
+
+    @Test
+    fun aCoolDownKeepsAPeerUndialedFor120SecondsAndAKeptLinkDoesNotEndIt() {
+        // Arrange
+        val clock = FixedClock(0)
+        val views = Views(clock, SeededRandom(SEED)) { false }
+        val peer = Handle()
+        val dialAt = { at: Long ->
+            clock.now = at
+            views.dial(listOf(peer), mapOf(peer to Candidate(null, at)), used = 0)
+        }
+
+        // Act
+        views.coolDown(peer)
+        views.dialed(peer, kept = true)
+        val dials = listOf(dialAt(COOL_DOWN_MILLIS - 1), dialAt(COOL_DOWN_MILLIS))
+
+        // Assert
+        assertEquals(listOf(null, peer), dials)
+    }
+
+    @Test
+    fun aNodeHoldingItsBudgetForThirtySecondsFreesOneRandomLinkAndADropBelowRestartsTheWait() =
+        runTest {
+            // Arrange
+            val views = Views(FixedClock(0), SeededRandom(SEED)) { false }
+            val links = List(Views.LINKS) { it }
+            val freed = mutableListOf<Pair<Long, Int>>()
+            val hold = { used: Int, held: List<Int> ->
+                views.held(used, backgroundScope, { held }) { freed += testScheduler.currentTime to it }
+            }
+
+            // Act
+            hold(Views.LINKS, links)
+            advanceTimeBy(FULL_MILLIS - 1)
+            hold(Views.LINKS - 1, links)
+            hold(Views.LINKS, links)
+            advanceTimeBy(1)
+            hold(Views.LINKS, links)
+            advanceTimeBy(FULL_MILLIS)
+            hold(Views.LINKS, emptyList())
+            advanceTimeBy(FULL_MILLIS + 1)
+            val frees =
+                List(SAMPLES) {
+                    hold(Views.LINKS, links)
+                    advanceTimeBy(FULL_MILLIS + 1)
+                    freed.last().second
+                }
+
+            // Assert
+            assertEquals(2 * FULL_MILLIS - 1, freed.first().first)
+            assertEquals(1 + SAMPLES, freed.size)
+            assertTrue(frees.toSet().size > 1, "always the same link")
+        }
+
     private fun id(n: Int): ByteArray = ByteArray(Advertisement.RESOLVABLE_TAG_LENGTH) { n.toByte() }
 
     private class Handle : PeerHandle
 
     private class FixedClock(
-        private val now: Long,
+        var now: Long,
     ) : Clock {
         override fun monotonicMillis(): Long = now
 
@@ -85,5 +176,9 @@ class ViewsTest {
         const val NEW = 98
         const val SAMPLES = 8
         const val HEARD_MILLIS = 4_000L
+        const val FIRST_MILLIS = 3_000L
+        const val REPEATED_MILLIS = 60_000L
+        const val COOL_DOWN_MILLIS = 120_000L
+        const val FULL_MILLIS = 30_000L
     }
 }

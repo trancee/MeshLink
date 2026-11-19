@@ -83,17 +83,24 @@ internal class Links(
     private var vet: (PeerHandle, ByteArray?) -> Boolean = { _, _ -> false }
     private var dialing: PeerHandle? = null
 
+    // The kept links, and how the node frees one to make room: a cool-down, then CLOSE NORMAL.
+    private val linked: () -> List<Link> = { table.values.toList() }
+    private val free: (Link) -> Unit = { conn ->
+        views.coolDown(conn.link.peer)
+        scope.launch { conn.close(CloseReason.NORMAL) }
+    }
+
     init {
-        scope.launch { views.shuffle({ table.values.toList() }, ::post) }
+        scope.launch { views.shuffle(linked, ::post) }
     }
 
     /**
      * Adds the identifiers of [candidates] to the passive view and, unless a dial is in flight, opens
      * a link as central to the one the [Views] pick among those that have no link and no link opening,
-     * unless they refused this node for their link cap (spec "Connect retries and link caps"). The
-     * next dial follows once the link opens or the dial fails. An identifier-less candidate,
-     * without an advertisement, links only if [vet] accepts the advertisement its capability record
-     * carries, or `null` when the connect or the read fails.
+     * unless they refused this node for their link cap (spec "Connect retries and link caps"), and
+     * tells the [Views] how the dial ended. The next dial follows once the link opens or the dial
+     * fails. An identifier-less candidate, without an advertisement, links only if [vet] accepts the
+     * advertisement its capability record carries, or `null` when the connect or the read fails.
      */
     fun connectTo(
         candidates: Map<PeerHandle, Candidate>,
@@ -111,13 +118,9 @@ internal class Links(
             if (identified) null else { advertisement -> vet(handle, advertisement) }
         track(handle) {
             try {
-                central(handle, vetting)
+                views.dialed(handle, central(handle, vetting))
             } finally {
-                // A failed dial tries the other candidates; a kept link's end redials in track.
-                if (dialing === handle) {
-                    dialing = null
-                    scope.launch { connectTo(this@Links.candidates - handle, this@Links.vet) }
-                }
+                if (dialing === handle) dialing = null
             }
         }
     }
@@ -139,7 +142,7 @@ internal class Links(
                 } else {
                     track(link.peer) {
                         try {
-                            serve(link, null, policy.versions, null).peer != null
+                            serve(link, null, policy.versions, null)
                         } finally {
                             limits.released()
                         }
@@ -176,22 +179,24 @@ internal class Links(
     }
 
     /**
-     * Runs [block] for [handle] and counts it against the link budget until it ends. A [block] that
-     * returns whether its link was kept frees that slot for the next dial.
+     * Runs [block] for [handle] and counts it against the link budget until it ends, which frees
+     * the slot for the next dial. The [Views] free a link once the node has held its whole budget for
+     * a while.
      */
     private fun track(
         handle: PeerHandle,
-        block: suspend () -> Boolean,
+        block: suspend () -> Unit,
     ) {
         busy[handle] = (busy[handle] ?: 0) + 1
+        views.held(busy.values.sum(), scope, linked, free)
         scope.launch {
-            val kept =
-                try {
-                    block()
-                } finally {
-                    busy.decrement(handle)
-                }
-            if (kept) connectTo(candidates, vet)
+            try {
+                block()
+            } finally {
+                busy.decrement(handle)
+                views.held(busy.values.sum(), scope, linked, free)
+            }
+            connectTo(candidates, vet)
         }
     }
 
@@ -669,6 +674,8 @@ internal class Links(
             mail.unlinked(id)
             neighbors.unlinked(id)
             neighbors.changed()
+            // A peer that closed its kept link isn't dialed again for a while, whatever the reason.
+            if (conn.received != null) views.coolDown(conn.link.peer)
             if (conn.received == CloseReason.DUPLICATE_LINK) kept[id] = conn.toPeer(id, proximities.of(id))
             proximities.unlinked(id)
         }

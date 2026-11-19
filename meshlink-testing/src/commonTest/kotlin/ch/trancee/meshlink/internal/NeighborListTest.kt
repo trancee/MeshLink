@@ -52,8 +52,10 @@ class NeighborListTest {
                 }
                 val firstSent = sent.first().first
                 own.zipWithNext().filter { (_, rotation) -> rotation.first > firstSent }.forEach { (before, after) ->
-                    val around = sent.filter { it.first == after.first }.map { it.second.ownId.toList() }
-                    assertTrue(before.second.toList() in around, "node $i: no list before rotating")
+                    // A list sent less than the interval before the rotation already announced the next identifier.
+                    val last = sent.last { it.first <= after.first }.second
+                    assertContentEquals(before.second, last.ownId, "node $i: no list before rotating")
+                    assertContentEquals(after.second, last.nextId, "node $i: next_id not announced before rotating")
                     assertTrue(sent.any { it.second.ownId.contentEquals(after.second) }, "node $i: no list after")
                 }
                 assertEquals(
@@ -282,6 +284,130 @@ class NeighborListTest {
         }
 
     @Test
+    fun aFailedDialIsNotRepeatedWithinThreeSecondsAndARepeatedFailureNotWithinSixty() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val refusing = advertiser(air, id(1), versions = listOf(UNSUPPORTED_VERSION))
+            node(alice).start()
+            val fakes = List(2) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n))) } }
+            advanceTimeBy(SETTLE_MILLIS)
+            val failed = refusing.ends.size
+
+            // Act
+            fakes[0].disconnect()
+            advanceTimeBy(SETTLE_MILLIS)
+            val backedOff = refusing.ends.size
+            // Past the backoff, while the sighting is still within the last four seconds.
+            advanceTimeBy(FIRST_BACKOFF_MILLIS - SETTLE_MILLIS - SETTLE_MILLIS / 2)
+            fakes[1].disconnect()
+            advanceTimeBy(SETTLE_MILLIS)
+            val again = refusing.ends.size
+            advanceTimeBy(REPEATED_BACKOFF_MILLIS - 2 * SETTLE_MILLIS)
+            val repeated = refusing.ends.size
+            advanceTimeBy(SCAN_PERIOD_MILLIS)
+
+            // Assert
+            assertEquals(listOf(1, 1, 2, 2), listOf(failed, backedOff, again, repeated))
+            assertEquals(3, refusing.ends.size)
+        }
+
+    @Test
+    fun aPeerThatClosedItsKeptLinkIsNotDialedAgainFor120Seconds() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val peer = advertiser(air, id(1))
+            node(alice).start()
+            advanceTimeBy(SETTLE_MILLIS)
+            val toAlice = peer.ends.single()
+            toAlice.write(record(LinkFrame.PlainHello(1, digest(MESH), OTHER_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Act
+            toAlice.write(record(LinkFrame.Close(CloseReason.NORMAL)))
+            advanceTimeBy(COOL_DOWN_MILLIS - SETTLE_MILLIS)
+            val cooled = peer.ends.size
+            advanceTimeBy(SCAN_PERIOD_MILLIS + SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(1, cooled)
+            assertEquals(2, peer.ends.size)
+        }
+
+    @Test
+    fun aNodeHoldingItsLinkBudgetForThirtySecondsFreesOneSlotWhichANewcomerTakes() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            node(alice).start()
+            List(BUDGET) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n))) } }
+            advanceTimeBy(FULL_MILLIS - SETTLE_MILLIS)
+            val held = alice.radio.ends.map { closes(it) }
+
+            // Act
+            advanceTimeBy(2 * SETTLE_MILLIS)
+            val freed = alice.radio.ends.map { closes(it) }
+            connectFake(air, alice).write(hello(fakeId(BUDGET)))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertTrue(held.all { it.isEmpty() })
+            assertEquals(1, freed.count { it == listOf(CloseReason.NORMAL) })
+            assertEquals(BUDGET - 1, freed.count { it.isEmpty() })
+            val newcomer = alice.radio.ends.last()
+            assertEquals(emptyList(), closes(newcomer))
+            assertTrue(newcomer.open)
+        }
+
+    @Test
+    fun aNodeThatDropsBelowItsLinkBudgetBeforeThirtySecondsFreesNothing() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            node(alice).start()
+            val fakes = List(BUDGET) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n))) } }
+            advanceTimeBy(FULL_MILLIS - SETTLE_MILLIS)
+
+            // Act
+            fakes.first().disconnect()
+            advanceTimeBy(2 * SETTLE_MILLIS)
+
+            // Assert
+            assertTrue(alice.radio.ends.all { closes(it).isEmpty() })
+        }
+
+    @Test
+    fun aPeerWhoseLinkTheNodeFreedIsNotDialedAgainFor120Seconds() =
+        runTest {
+            // Arrange
+            val air = air(ROTATION_SEED)
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val peer = advertiser(air, id(1))
+            node(alice).start()
+            advanceTimeBy(SETTLE_MILLIS)
+            peer.ends.single().write(record(LinkFrame.PlainHello(1, digest(MESH), OTHER_ID)))
+            val fakes = List(BUDGET - 1) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n + 2))) } }
+            advanceTimeBy(FULL_MILLIS + SETTLE_MILLIS)
+            val freed = closes(alice.radio.ends.first())
+
+            // Act
+            fakes.first().disconnect()
+            advanceTimeBy(COOL_DOWN_MILLIS - 2 * SETTLE_MILLIS)
+            val cooled = peer.ends.size
+            advanceTimeBy(SCAN_PERIOD_MILLIS + SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf(CloseReason.NORMAL), freed)
+            assertEquals(1, cooled)
+            assertEquals(2, peer.ends.size)
+        }
+
+    @Test
     fun aMalformedListOrShuffleAndAListBeforeTheHelloCloseTheLinkWithProtocolError() =
         runTest {
             // Arrange
@@ -333,15 +459,16 @@ class NeighborListTest {
     private fun hello(id: ByteArray): ByteArray =
         record(LinkFrame.PlainHello(1, digest(MESH), id)) + record(LinkFrame.Credit(CREDIT_WINDOW))
 
-    /** A raw radio advertising [MESH] with [identifier]. */
+    /** A raw radio advertising [MESH] with [identifier], whose capability record offers [versions]. */
     private fun TestScope.advertiser(
         air: VirtualAir,
         identifier: ByteArray,
+        versions: List<Int> = listOf(1),
     ): VirtualRadio {
         val radio = air.radio()
         val discovery = Discovery(SodiumCryptoProvider, MESH.encodeToByteArray(), WireProfile.UNSECURED)
         val epoch = Derivations.epoch(TestClock(testScheduler).wallClockMillis() / MILLIS)
-        radio.serveCapability(CapabilityRecord.of(listOf(1), ByteArray(RadioPort.ADVERTISEMENT_LENGTH)).encode())
+        radio.serveCapability(CapabilityRecord.of(versions, ByteArray(RadioPort.ADVERTISEMENT_LENGTH)).encode())
         radio.startAdvertising(discovery.advertisement(epoch, identifier = identifier))
         return radio
     }
@@ -376,6 +503,14 @@ class NeighborListTest {
         const val SHUFFLE: Byte = 0x08
         const val SHUFFLE_OVER: Byte = 6
         const val DUPLICATE = 3
+        const val UNSUPPORTED_VERSION = 99
+        const val FIRST_BACKOFF_MILLIS = 3_000L
+        const val REPEATED_BACKOFF_MILLIS = 60_000L
+        const val COOL_DOWN_MILLIS = 120_000L
+        const val FULL_MILLIS = 30_000L
+
+        // A seed whose node frees its link to the advertising peer, not one of the fakes' links.
+        const val ROTATION_SEED = 6L
         val OTHER_ID = ByteArray(32) { 0x7E }
         val GONE_ID = ByteArray(32) { 0x7D }
     }
