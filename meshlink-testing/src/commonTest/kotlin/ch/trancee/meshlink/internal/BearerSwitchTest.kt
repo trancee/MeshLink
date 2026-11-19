@@ -246,7 +246,8 @@ class BearerSwitchTest {
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            val end = alice.radio.ends.single()
+            // The freed slot dials the peripheral again (ticket 35a); the first link is the one closed.
+            val end = alice.radio.ends.first()
             assertEquals(LinkFrame.BearerSwitch, frames(end).last())
             assertEquals(listOf(CloseReason.PROTOCOL_ERROR), closes(frames(end.channels.single().written)))
             assertFalse(end.open)

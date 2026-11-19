@@ -109,7 +109,7 @@ class FragmentLinkTest {
     @Test
     fun aFatalFragmentOrRecordClosesTheLinkAndFreesItsBudget() =
         runTest {
-            // Link 0 holds an almost frame-max stream; the "above frame-max" case sends its last fragment.
+            // Each link holds an almost frame-max stream; the "above frame-max" case sends its last fragment.
             val held = LinkFrame.Fragment.split(STREAM, routed(Reassembly.FRAME_MAX + 1), LinkFrame.Fragment.DATA_MAX)
             val cases =
                 mapOf(
@@ -127,28 +127,27 @@ class FragmentLinkTest {
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
                 val node = node(alice).also { it.start() }
-                val fakes = List(FILLING_LINKS) { connectFake(air, alice) }
-                // With a large stream held on each of the other links, the last link's stream does not fit.
-                held.dropLast(1).forEach { fakes[0].write(record(it)) }
-                fakes.drop(1).dropLast(1).forEach { fake ->
-                    largeStream(STREAM).dropLast(1).forEach { fake.write(record(it)) }
-                }
-                advanceTimeBy(SETTLE_MILLIS)
-                largeStream(STREAM).forEach { fakes.last().write(record(it)) }
-                advanceTimeBy(SETTLE_MILLIS)
 
-                // Act
-                bodies.forEach { fakes[0].write(LinkRecord.encode(it)) }
-                advanceTimeBy(SETTLE_MILLIS)
-                largeStream(STREAM + 1).forEach { fakes.last().write(record(it)) }
+                // Act: the held streams of links closed one after another would exceed the node's budget.
+                repeat(FILLING_LINKS) {
+                    val fake = connectFake(air, alice)
+                    held.dropLast(1).forEach { fake.write(record(it)) }
+                    advanceTimeBy(SETTLE_MILLIS)
+                    bodies.forEach { fake.write(LinkRecord.encode(it)) }
+                    advanceTimeBy(SETTLE_MILLIS)
+                }
+                val last = connectFake(air, alice)
+                largeStream(STREAM).forEach { last.write(record(it)) }
                 advanceTimeBy(SETTLE_MILLIS)
 
                 // Assert
                 val ends = alice.radio.ends
-                val reasons = frames(ends[0]).map { (it as LinkFrame.Close).reason }
-                assertEquals(listOf(CloseReason.PROTOCOL_ERROR), reasons, case)
-                assertFalse(ends[0].open, case)
-                assertEquals(listOf(STREAM to BusyReason.LARGE_BUDGET.code), busies(ends.last()), case)
+                ends.dropLast(1).forEach { end ->
+                    val reasons = frames(end).map { (it as LinkFrame.Close).reason }
+                    assertEquals(listOf(CloseReason.PROTOCOL_ERROR), reasons, case)
+                    assertFalse(end.open, case)
+                }
+                assertEquals(emptyList(), busies(ends.last()), case)
                 assertTrue(ends.last().open, case)
                 node.close()
             }
@@ -405,11 +404,12 @@ class FragmentLinkTest {
         const val UNUSED_STREAM = 9
         const val UNKNOWN_REASON = 0x7F
 
-        // 127 whole fragments and one byte: seven held streams and link 0's leave under 8 KiB of the budget.
+        // 127 whole fragments and one byte: a large stream, which leaked held streams would leave no room for.
         const val LARGE_STREAM_BYTES = 129_541
 
-        // Link 0 holds a stream and fails; seven more hold one each; the last needs link 0's share.
-        const val FILLING_LINKS = 9
+        // Links that each hold an almost frame-max stream and fail: unfreed, their streams leave no
+        // room for a large one.
+        const val FILLING_LINKS = 8
         val PACED_LATENCY_MILLIS = 10..10
     }
 }

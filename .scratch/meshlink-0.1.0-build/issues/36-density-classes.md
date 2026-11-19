@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: AFK
-Blocked by: 35b
+Blocked by: 35b, 35c
 
 ## Behavior
 

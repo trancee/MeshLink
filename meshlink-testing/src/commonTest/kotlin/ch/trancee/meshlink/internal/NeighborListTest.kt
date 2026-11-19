@@ -14,7 +14,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 
-/** Neighbor lists and the shuffle answer of a node without a passive view (spec "Neighbor list", "Shuffle"). */
+/** Neighbor lists and shuffles (spec "Neighbor list", "Shuffle"). */
 @OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
 class NeighborListTest {
     @Test
@@ -126,7 +126,7 @@ class NeighborListTest {
         }
 
     @Test
-    fun anOpenLinkAnswersAShuffleWithAnEmptyReplyAndDropsAReply() =
+    fun aShuffleIsAnsweredWithASampleTakenBeforeMergingAndItsEntriesAreShuffledOnward() =
         runTest {
             // Arrange
             val air = air()
@@ -135,19 +135,150 @@ class NeighborListTest {
             val fake = connectFake(air, alice)
             fake.write(hello(FAKE_ID))
             advanceTimeBy(SETTLE_MILLIS)
+            val own =
+                tagOf(
+                    alice.radio.advertisements
+                        .last()
+                        .second,
+                )
 
             // Act
-            fake.write(record(LinkFrame.Shuffle(listOf(id(1)))))
+            fake.write(record(LinkFrame.Shuffle(listOf(id(1), own))))
             advanceTimeBy(SETTLE_MILLIS)
-            fake.write(record(LinkFrame.ShuffleReply(listOf(id(2)))))
+            fake.write(record(LinkFrame.Shuffle(listOf(id(2)))))
             advanceTimeBy(SETTLE_MILLIS)
+            fake.write(record(LinkFrame.ShuffleReply(listOf(id(3)))))
+            advanceTimeBy(SHUFFLE_INTERVAL_MILLIS)
 
             // Assert
             val end = alice.radio.ends.single()
             val replies = frames(end).filterIsInstance<LinkFrame.ShuffleReply>()
-            assertEquals(listOf(0), replies.map { it.entries.size })
+            val answered = replies.map { r -> r.entries.map { it.toList() } }
+            assertEquals(listOf(emptyList(), listOf(id(1).toList())), answered)
+            val shuffles = frames(end).filterIsInstance<LinkFrame.Shuffle>()
+            assertEquals(1, shuffles.size)
+            assertEquals(
+                (1..3).map { id(it).toList() }.toSet(),
+                shuffles
+                    .single()
+                    .entries
+                    .map { it.toList() }
+                    .toSet(),
+            )
             assertTrue(end.open)
-            assertEquals(emptyList(), closes(end))
+        }
+
+    @Test
+    fun twelveNodesHoldAtMostTheirLinkBudgetShuffleEveryTenSecondsAndLeaveANewcomerASlot() =
+        runTest {
+            // Arrange
+            val air = air(SEED)
+            val platforms = List(MESH_NODES) { air.platform(StandardTestDispatcher(testScheduler)) }
+            val nodes = platforms.map { node(it) }
+            val newcomer = air.platform(StandardTestDispatcher(testScheduler))
+
+            // Act
+            nodes.forEach { it.start() }
+            val held =
+                List((MESH_MILLIS / SETTLE_MILLIS).toInt()) {
+                    advanceTimeBy(SETTLE_MILLIS)
+                    nodes.maxOf { it.peers.value.size }
+                }
+            node(newcomer).start()
+            advanceTimeBy(NEWCOMER_MILLIS)
+
+            // Assert
+            assertTrue(held.all { it <= BUDGET }, "more than d links: $held")
+            assertTrue(platforms.all { p -> p.radio.ends.count { it.open } <= BUDGET })
+            val shuffles =
+                platforms.map { platform ->
+                    platform.radio.ends.flatMap { end -> written(end).filter { it.second is LinkFrame.Shuffle } }
+                }
+            assertTrue(shuffles.flatten().isNotEmpty(), "no shuffle")
+            shuffles.forEachIndexed { i, sent ->
+                val times = sent.map { it.first }.sorted()
+                val gaps = times.zipWithNext { a, b -> b - a }
+                assertTrue(gaps.all { it >= SHUFFLE_INTERVAL_MILLIS }, "node $i: interval")
+                assertTrue(sent.all { (it.second as LinkFrame.Shuffle).entries.size in 1..ENTRIES_MAX }, "node $i")
+            }
+            platforms.flatMap { it.radio.ends }.forEach { end ->
+                val asked = frames(end).count { it is LinkFrame.Shuffle }
+                val replies = frames(end.opposite).filterIsInstance<LinkFrame.ShuffleReply>()
+                assertEquals(asked, replies.size)
+                assertTrue(replies.all { it.entries.size <= ENTRIES_MAX })
+            }
+            assertTrue(newcomer.radio.ends.any { it.open }, "no slot for a newcomer")
+        }
+
+    @Test
+    fun aClosingLinkFreesItsSlotForACandidateHeardInTheLastFourSeconds() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            node(alice).start()
+            val fakes = List(BUDGET - 1) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n))) } }
+            advanceTimeBy(SETTLE_MILLIS)
+            val candidate = advertiser(air, id(1))
+            advanceTimeBy(SETTLE_MILLIS)
+            val full = candidate.ends.size
+
+            // Act
+            fakes.first().disconnect()
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(0, full)
+            assertEquals(1, candidate.ends.size)
+        }
+
+    @Test
+    fun aClosingCentralLinkFreesItsSlotForTheNextDial() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            val peripheral = advertiser(air, id(2))
+            node(alice).start()
+            advanceTimeBy(SETTLE_MILLIS)
+            val toAlice = peripheral.ends.single()
+            toAlice.write(record(LinkFrame.PlainHello(1, digest(MESH), OTHER_ID)))
+            List(BUDGET - 2) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n))) } }
+            advanceTimeBy(SETTLE_MILLIS)
+            val candidate = advertiser(air, id(1))
+            advanceTimeBy(SETTLE_MILLIS)
+            val full = candidate.ends.size
+
+            // Act
+            toAlice.disconnect()
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(0, full)
+            assertEquals(2, candidate.ends.size + peripheral.ends.size)
+        }
+
+    @Test
+    fun aCandidateLastHeardMoreThanFourSecondsAgoIsDialedOnlyAtItsNextSighting() =
+        runTest {
+            // Arrange
+            val air = air()
+            val alice = air.platform(StandardTestDispatcher(testScheduler))
+            node(alice).start()
+            val fakes = List(BUDGET - 1) { n -> connectFake(air, alice).also { it.write(hello(fakeId(n))) } }
+            advanceTimeBy(SETTLE_MILLIS)
+            val candidate = advertiser(air, id(1))
+            advanceTimeBy(STALE_MILLIS)
+
+            // Act
+            fakes.first().disconnect()
+            advanceTimeBy(SETTLE_MILLIS)
+            val stale = candidate.ends.size
+            advanceTimeBy(SCAN_PERIOD_MILLIS)
+
+            // Assert
+            assertEquals(0, stale)
+            assertEquals(1, candidate.ends.size)
         }
 
     @Test
@@ -190,6 +321,14 @@ class NeighborListTest {
         }
     }
 
+    /** Each frame [end] wrote, with the time of the write that completed it. */
+    private fun written(end: VirtualLinkEnd): List<Pair<Long, LinkFrame>> {
+        val reader = RecordReader()
+        return end.writes.flatMap { (at, bytes) ->
+            assertIs<Decoded.Valid<List<ByteArray>>>(reader.read(bytes)).value.map { at to decoded(it) }
+        }
+    }
+
     /** A `PlainHello` claiming [id], with the credit window a MeshLink central grants. */
     private fun hello(id: ByteArray): ByteArray =
         record(LinkFrame.PlainHello(1, digest(MESH), id)) + record(LinkFrame.Credit(CREDIT_WINDOW))
@@ -218,6 +357,15 @@ class NeighborListTest {
 
     private companion object {
         const val NODES = 8
+        const val SHUFFLE_INTERVAL_MILLIS = 10_000L
+        const val ENTRIES_MAX = 5
+        const val BUDGET = 6
+        const val SEED = 35L
+        const val MESH_NODES = 12
+        const val MESH_MILLIS = 60_000L
+        const val NEWCOMER_MILLIS = 20_000L
+        const val STALE_MILLIS = 5_000L
+        const val SCAN_PERIOD_MILLIS = 8_000L
         const val MIN_INTERVAL_MILLIS = 2_000L
         const val MILLIS = 1_000L
         const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * MILLIS

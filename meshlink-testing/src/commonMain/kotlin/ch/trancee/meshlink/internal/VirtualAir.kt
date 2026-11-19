@@ -445,6 +445,9 @@ internal open class VirtualLinkEnd(
 
     override val peer: PeerHandle = remote.handle
 
+    /** The other radio's end of the link. */
+    val opposite: VirtualLinkEnd get() = connection.oppositeOf(this)
+
     override val attMtu: Int get() = connection.attMtu
 
     override val incoming: Flow<ByteArray> = inbox.receiveAsFlow()

@@ -43,13 +43,13 @@ internal class Scanner(
     private val random: RandomSource,
     private val discovery: Discovery,
 ) {
-    private val mutableCandidates = MutableStateFlow<Map<PeerHandle, Advertisement?>>(emptyMap())
+    private val mutableCandidates = MutableStateFlow<Map<PeerHandle, Candidate>>(emptyMap())
 
     /**
-     * The peers whose latest advertisement belongs to this mesh, with that advertisement, and the
-     * identifier-less candidates, with `null`.
+     * The peers whose latest advertisement belongs to this mesh and the identifier-less candidates,
+     * each with when it was last heard; every sighting of one updates it.
      */
-    val candidates: StateFlow<Map<PeerHandle, Advertisement?>> = mutableCandidates
+    val candidates: StateFlow<Map<PeerHandle, Candidate>> = mutableCandidates
 
     /** The stale addresses, with when each was last sighted on the monotonic clock. */
     private val stale = mutableMapOf<PeerHandle, Long>()
@@ -216,11 +216,15 @@ internal class Scanner(
         val linked = id != null && recognition.linked(id)
         val sighted = accepted?.takeUnless { linked }
         val anonymous = payload == null && fresh(sighting.peer)
+        val heard = clock.monotonicMillis()
         mutableCandidates.update { candidates ->
-            val current = candidates.filterValues { it == null || discovery.accept(it.encode(), epoch) != null }
+            val current =
+                candidates.filterValues { candidate ->
+                    candidate.advertisement.let { it == null || discovery.accept(it.encode(), epoch) != null }
+                }
             when {
-                sighted != null -> current + (sighting.peer to sighted)
-                anonymous -> current + (sighting.peer to null)
+                sighted != null -> current + (sighting.peer to Candidate(sighted, heard))
+                anonymous -> current + (sighting.peer to Candidate(null, heard))
                 else -> current
             }
         }

@@ -39,6 +39,9 @@ internal class NeighborLists(
         this.next = next
     }
 
+    /** Whether [id] is the identifier this node advertises now or after its next rotation. */
+    fun advertises(id: ByteArray): Boolean = own?.contentEquals(id) == true || next.contentEquals(id)
+
     /** The node's link set or identifier changes: sends its list as soon as the interval allows. */
     fun changed() {
         if (due != null) return

@@ -158,6 +158,10 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 ## VirtualAir link tests
 
 - Neighbor lists use link credits. A fake central that reads a node's records for longer than one credit window must keep granting (`initiateGranting` in `SecuredFakes.kt`), or the node stalls; secured tests that count frames filter lists out with `sealedFrames` (2026-11-18).
+- The link budget (d = 6, kept plus opening bearers) bounds what multi-node tests can reach: inbound bearers can't reach the 8 half-open handshakes of D-20 (`HandshakesTest` in `meshlink/src/commonTest` covers that bound), and 6 links can't fill the 1 MiB large-reassembly budget (`ReassemblyTest` in `meshlink-core` covers it). Unit-test `meshlink` internals in `meshlink/src/commonTest` with local fakes; `meshlink-testing` can't see them (2026-11-19).
+- Dial one candidate at a time. With several dials in flight, two nodes that dialed each other each held a full budget of dials and refused each other's bearer with `RESOURCE_LIMIT`; that refusal blocks redial while the peer stays a candidate (spec "Connect retries and link caps"), so they never linked. Serialized dials make a 6-node mesh need a second 8 s scan window, because `VirtualAir` sights an advertiser once per window (2026-11-19).
+- A link's slot is free only after its tracked job ends: `serve`'s `coroutineScope` still waits for its cancelled children after `release`, so a redial launched from `release` saw the old count and never dialed. `track` redials after the decrement (2026-11-19).
+- Every periodic frame adds real-time cost to a long simulated run. Shuffles every 10 s made a simulated day of linked nodes take about 40 s, against 4 s without them, and the CI iOS simulator then passed `runTest`'s 60 s default and failed with `UncompletedCoroutinesError`. Give such tests an explicit `runTest(timeout = …)` with the reason (`RotationTest`) (2026-11-19).
 
 ## Apple packaging
 

@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.minutes
 class RotationTest {
     @Test
     fun eachNodeRotatesOncePerEpochAtItsOwnPhase() =
-        runTest {
+        runTest(timeout = DAY_TIMEOUT) {
             // Arrange
             val air = air()
             val platforms = List(3) { air.platform(StandardTestDispatcher(testScheduler)) }
@@ -51,7 +51,7 @@ class RotationTest {
 
     @Test
     fun aGatedPeerResolvesEveryRotationAcrossTheDailyKeyChange() =
-        runTest {
+        runTest(timeout = DAY_TIMEOUT) {
             // Arrange
             val air = air()
             val platforms = List(2) { air.platform(StandardTestDispatcher(testScheduler)) }
@@ -297,6 +297,9 @@ class RotationTest {
     private fun epochAt(millis: Long): UInt = Derivations.epoch(millis / MILLIS)
 
     private companion object {
+        // A simulated day of linked nodes carries about 50,000 encrypted shuffle frames: tens of
+        // seconds of real time on a CI simulator, past runTest's 60 s default.
+        val DAY_TIMEOUT = 5.minutes
         const val EPOCH_MILLIS = 300_000L
         const val DAY_EPOCHS = 288
         const val WINDOW_EPOCHS = 3

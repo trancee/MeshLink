@@ -27,9 +27,12 @@ public sealed interface LinkDiagnostic {
         override val code: String = "ML3003"
     }
 
-    /** `ML3004`: a central's bearer was refused with `RESOURCE_LIMIT`, as the node holds [cap] links as peripheral. */
+    /**
+     * `ML3004`: a central's bearer was refused with `RESOURCE_LIMIT`, as the node holds [cap] links as
+     * peripheral, or its link budget of [cap] bearers.
+     */
     public class LinkCapReached(
-        /** The radio's peripheral link cap. */
+        /** The radio's peripheral link cap, or the node's link budget. */
         public val cap: Int,
     ) : LinkDiagnostic {
         override val code: String = "ML3004"
