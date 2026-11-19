@@ -64,7 +64,11 @@ internal class Views<T>(
     ): PeerHandle? {
         val now = clock.monotonicMillis()
         backoff.update(candidates.keys, now)
-        val ready = dialable.filter { it !in backoff && now - candidates.getValue(it).heard <= HEARD_MILLIS }
+        val ready =
+            dialable.filter { handle ->
+                val candidate = candidates.getValue(handle)
+                handle !in backoff && now - candidate.heard <= HEARD_MILLIS && candidate.rssi >= BRIDGE_FLOOR_DBM
+            }
         val bridges = ready.filter { bridges(candidates.getValue(it), now) }
         val due = bridges.isNotEmpty() && bridgedAt.let { it == null || now - it >= BRIDGE_INTERVAL_MILLIS }
         if (used >= LINKS) {
@@ -120,7 +124,8 @@ internal class Views<T>(
         now: Long,
     ): PeerHandle? {
         val settled = { handle: PeerHandle -> now - candidates.getValue(handle).since >= SETTLE_MILLIS }
-        val eligible = if (used < LINKS - 1) ready else ready.filter(settled)
+        val strong = ready.filter { candidates.getValue(it).rssi >= DIAL_FLOOR_DBM }
+        val eligible = if (used < LINKS - 1) strong else strong.filter(settled)
         val overlaps =
             eligible
                 .mapNotNull { handle ->
@@ -253,17 +258,25 @@ internal class Views<T>(
 
         /** How many fewer lists must name a replacement than the redundancy of the link it replaces. */
         const val REPLACE_MARGIN: Int = 2
+
+        /** The weakest smoothed signal, in dBm, at which a node dials a candidate other than a bridge. */
+        const val DIAL_FLOOR_DBM: Double = -85.0
+
+        /** The weakest smoothed signal, in dBm, at which a node dials a bridge (the bridge rule's relaxed floor). */
+        const val BRIDGE_FLOOR_DBM: Double = -88.0
     }
 }
 
 /**
  * A link candidate: its latest mesh [advertisement], or `null` for an identifier-less one, when it
- * was last [heard] and first heard ([since]) on the monotonic clock, and whether the node knows its
- * peer ([known]): its identifier resolved to a peer's resolving key.
+ * was last [heard] and first heard ([since]) on the monotonic clock, whether the node knows its
+ * peer ([known]): its identifier resolved to a peer's resolving key, and its smoothed signal
+ * strength in dBm ([rssi]).
  */
 internal class Candidate(
     val advertisement: Advertisement?,
     val heard: Long,
-    val since: Long = heard,
-    val known: Boolean = false,
+    val since: Long,
+    val known: Boolean,
+    val rssi: Double,
 )

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -302,6 +303,27 @@ class VirtualAirTest {
             (third.inbound as VirtualLinkEnd).drop()
             assertEquals(emptyList(), lost.incoming.toList())
             assertEquals(emptyList(), lostAccepted.incoming.toList())
+        }
+
+    @Test
+    fun aCentralLinkKeepsTheHandleItDialedWhenThePeripheralRotatesItsAddressMeanwhile() =
+        runTest {
+            // Arrange
+            val air = air()
+            val central = air.radio()
+            val peripheral = air.radio()
+            peripheral.startAdvertising(PAYLOAD_A).ok()
+            val dialed = peripheral.handle
+
+            // Act
+            val connecting = async { central.connect(dialed).ok() }
+            testScheduler.runCurrent()
+            peripheral.startAdvertising(PAYLOAD_B).ok()
+            val link = connecting.await()
+
+            // Assert
+            assertNotEquals(dialed, peripheral.handle)
+            assertSame(dialed, link.peer)
         }
 
     @Test

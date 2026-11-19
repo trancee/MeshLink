@@ -240,6 +240,26 @@ class NeighborListTest {
         }
 
     @Test
+    fun twoNodesHeardBelowMinus88DbmNeverLinkAndTwoHeardBetweenMinus88AndMinus85LinkAsABridge() =
+        runTest {
+            // Arrange
+            val air = air(SEED)
+            val pairs = List(2) { List(2) { air.platform(StandardTestDispatcher(testScheduler)) } }
+            val (weak, bridged) = pairs
+            air.setRssi(weak[0].radio, weak[1].radio, BELOW_BRIDGE_FLOOR_DBM)
+            air.setRssi(bridged[0].radio, bridged[1].radio, BELOW_DIAL_FLOOR_DBM)
+            bridged.forEach { air.move(it.radio, 2 * VirtualAir.DEFAULT_RANGE, 0.0) }
+            pairs.flatten().forEach { node(it).start() }
+
+            // Act
+            advanceTimeBy(BRIDGE_WINDOW_MILLIS)
+
+            // Assert
+            assertTrue(weak.all { it.radio.ends.isEmpty() }, "a link below the bridge floor")
+            assertTrue(bridged.all { p -> p.radio.ends.any { it.open } }, "no bridge above its floor")
+        }
+
+    @Test
     fun eightNodesInRangeOfEachOtherKeepTheirLinksOnceSettled() =
         runTest {
             // Arrange
@@ -618,6 +638,11 @@ class NeighborListTest {
         const val ENTRIES_MAX = 5
         const val BUDGET = 6
         const val SEED = 35L
+        const val BELOW_BRIDGE_FLOOR_DBM = -89
+        const val BELOW_DIAL_FLOOR_DBM = -87
+
+        /** Settling, then one newcomer bridge window (`Views.NEW_MILLIS`), with a margin. */
+        const val BRIDGE_WINDOW_MILLIS = 30_000L
         const val MESH_NODES = 12
         const val MESH_MILLIS = 60_000L
         const val NEWCOMER_MILLIS = 20_000L
