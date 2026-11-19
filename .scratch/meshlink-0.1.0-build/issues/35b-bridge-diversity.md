@@ -1,6 +1,6 @@
 # Repair split meshes and diversify links
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 35a
 
