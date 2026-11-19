@@ -1,6 +1,6 @@
 # Dial only peers above the RSSI floor and reuse former neighbor lists
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 35b
 
