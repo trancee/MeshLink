@@ -1,6 +1,6 @@
 # Keep active and passive neighbor views with shuffles
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 35
 
