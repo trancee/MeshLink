@@ -1,6 +1,6 @@
 # Back off dials and free a slot on a full node
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 35a
 
