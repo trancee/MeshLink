@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 11 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 12 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -180,3 +180,8 @@ Results for the v1 configuration:
 - **Neighbor lists (decision 1):** a node also resends its list when a linked peer's first list arrives or names a new identifier (spec "Neighbor list"). Neither the settle nor the resend alone stopped the churn; together they keep the 8-node mesh at 5 to 7 link ends per node.
 - **Diversity replacement (decision 1):** only a candidate first heard at least 5 s ago may replace a link, for the same reason as the settle.
 - **Degree (decision 1, "pending dials count"):** while its own bridge or replacement dial is in flight, a node accepts one bearer beyond its budget. Two full nodes that bridge to each other at once otherwise each refused the other with `RESOURCE_LIMIT`, which also stops both from redialing. In 100 split-mesh runs, 9 had not repaired 40 s after the move and 2 took 31 s. With the slack, all 100 repaired 13 s after the move. The duplicate-link rule, or freeing the most redundant link once the dial is kept, brings the node back within its budget.
+
+2026-11-19, RSSI floor and former neighbor lists built (ticket 35d; host simulation in `VirtualAir`):
+
+- **RSSI floor (decision 1):** the −85 dBm dialing floor and the bridge rule's relaxed −88 dBm floor apply to a smoothed signal, not one sighting. Each sighting moves it 0.25 of the way to its own value, as proximity does. The smoothing restarts whenever the candidate's first-heard time does: a new identifier, or 60 s unheard. One weak sighting then can't hide a strong peer, nor one strong sighting admit a weak one. The owner chose this over the latest sighting alone.
+- **Former neighbor list reuse (decision 1):** a closed link's last list counts for 120 s in the bridge test ("no linked peer's list names it") and in the count of lists naming a candidate. It doesn't count in a link's redundancy, which describes current links. A peer that links again replaces its former list at once.

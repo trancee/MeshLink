@@ -60,19 +60,19 @@ class ViewsTest {
         // Arrange
         val node = Node()
         node.neighbors.received(nodeId(1), list(OWN_1, NEXT_1, 2))
-        val inside = Handle() to Candidate(ad(2), NOW, NOW - SETTLE_MILLIS)
-        val next = Handle() to Candidate(ad(NEXT_1), NOW, NOW - SETTLE_MILLIS)
-        val known = Handle() to Candidate(ad(3), NOW, NOW - SETTLE_MILLIS, known = true)
-        val stale = Handle() to Candidate(ad(4), NOW, NOW - NEW_MILLIS - 1)
-        val settling = Handle() to Candidate(ad(6), NOW, NOW - SETTLE_MILLIS + 1)
-        val fresh = Handle() to Candidate(ad(5), NOW, NOW - NEW_MILLIS)
+        val inside = Handle() to candidateOf(ad(2), NOW, NOW - SETTLE_MILLIS)
+        val next = Handle() to candidateOf(ad(NEXT_1), NOW, NOW - SETTLE_MILLIS)
+        val known = Handle() to candidateOf(ad(3), NOW, NOW - SETTLE_MILLIS, known = true)
+        val stale = Handle() to candidateOf(ad(4), NOW, NOW - NEW_MILLIS - 1)
+        val settling = Handle() to candidateOf(ad(6), NOW, NOW - SETTLE_MILLIS + 1)
+        val fresh = Handle() to candidateOf(ad(5), NOW, NOW - NEW_MILLIS)
         val later = Handle()
         val anonymous = Handle()
         val dialAt = { at: Long, used: Int, candidates: List<Pair<PeerHandle, Candidate>> ->
             node.clock.now = at
             node.views.dial(candidates.map { it.first }, candidates.toMap(), used)
         }
-        val heardAt = { at: Long -> later to Candidate(ad(LATER), at, at - SETTLE_MILLIS) }
+        val heardAt = { at: Long -> later to candidateOf(ad(LATER), at, at - SETTLE_MILLIS) }
 
         // Act
         val withoutNew = dialAt(NOW, Views.LINKS - 1, listOf(inside, next, known, stale, settling))
@@ -90,12 +90,73 @@ class ViewsTest {
     }
 
     @Test
+    fun aNodeDialsOnlyCandidatesHeardAtMinus85DbmOrStrongerAndBridgesDownToMinus88Dbm() {
+        // Arrange
+        val dial = { rssi: Double, since: Long, used: Int ->
+            val handle: PeerHandle = Handle()
+            val candidate = candidateOf(ad(NEW), NOW, since, known = since < NOW - NEW_MILLIS, rssi = rssi)
+            Node().views.dial(listOf(handle), mapOf(handle to candidate), used).let { it == handle }
+        }
+        val bridging = NOW - SETTLE_MILLIS
+        val ordinary = NOW - NEW_MILLIS - 1
+
+        // Act
+        val ordinaries = listOf(DIAL_FLOOR, DIAL_FLOOR - TENTH, BRIDGE_FLOOR).map { dial(it, ordinary, 0) }
+        val bridges = listOf(BRIDGE_FLOOR, BRIDGE_FLOOR - TENTH).map { dial(it, bridging, Views.LINKS - 1) }
+
+        // Assert
+        assertEquals(listOf(true, false, false), ordinaries)
+        assertEquals(listOf(true, false), bridges)
+    }
+
+    @Test
+    fun aClosedPeersListStillCountsForTwoMinutesUnlessThePeerLinksAgain() {
+        // Arrange
+        val node = Node()
+        node.neighbors.received(nodeId(1), list(OWN_1, NEXT_1, 2))
+        node.neighbors.unlinked(nodeId(1))
+        val named: PeerHandle = Handle()
+        val other: PeerHandle = Handle()
+        val dialAt = { at: Long, used: Int ->
+            node.clock.now = at
+            val candidates = mapOf(named to known(2, at), other to known(3, at))
+            List(MANY_SAMPLES) { node.views.dial(listOf(named, other), candidates, used) }.toSet()
+        }
+        val bridgeAt = { at: Long ->
+            node.clock.now = at
+            val bridge: PeerHandle = Handle()
+            val candidate = candidateOf(ad(2), at, at - SETTLE_MILLIS)
+            node.views.dial(listOf(bridge), mapOf(bridge to candidate), Views.LINKS - 1)
+        }
+
+        // Act
+        val overlapping = dialAt(NOW + FORMER_MILLIS - 1, 0)
+        val nearby = bridgeAt(NOW + FORMER_MILLIS - 1)
+        val expired = dialAt(NOW + FORMER_MILLIS, 0)
+        val bridge = bridgeAt(NOW + FORMER_MILLIS)
+        val relinked = Node()
+        relinked.neighbors.received(nodeId(1), list(OWN_1, NEXT_1, 2))
+        relinked.neighbors.unlinked(nodeId(1))
+        relinked.neighbors.received(nodeId(1), list(OWN_1, NEXT_1))
+        val handle: PeerHandle = Handle()
+        val candidates = mapOf(handle to candidateOf(ad(2), NOW, NOW - SETTLE_MILLIS))
+        val again = relinked.views.dial(listOf(handle), candidates, Views.LINKS - 1)
+
+        // Assert
+        assertEquals(setOf(other), overlapping)
+        assertEquals(null, nearby)
+        assertEquals(setOf(named, other), expired)
+        assertTrue(bridge != null)
+        assertEquals(handle, again)
+    }
+
+    @Test
     fun aFullNodeFreesItsMostRedundantLinkForABridgeWhichFreesTheMostRedundantOtherOnceKept() {
         // Arrange
         val node = Node()
         List(Views.LINKS) { n -> node.links[nodeId(n + 1)] = n + 1 }
         val bridge = Handle()
-        val candidates = mapOf<PeerHandle, Candidate>(bridge to Candidate(ad(NEW), NOW, NOW - SETTLE_MILLIS))
+        val candidates = mapOf<PeerHandle, Candidate>(bridge to candidateOf(ad(NEW), NOW, NOW - SETTLE_MILLIS))
         val noneRedundant = node.views.dial(listOf(bridge), candidates, used = Views.LINKS)
         val freedNone = node.freed.toList()
         node.neighbors.received(nodeId(1), list(OWN_1, NEXT_1, OWN_2, OWN_3))
@@ -130,7 +191,7 @@ class ViewsTest {
         val bridges = List(2) { Handle() }
         val dialAt = { at: Long, bridge: PeerHandle ->
             node.clock.now = at
-            val candidates = mapOf(bridge to Candidate(ad(NEW), at, at - SETTLE_MILLIS))
+            val candidates = mapOf(bridge to candidateOf(ad(NEW), at, at - SETTLE_MILLIS))
             node.views.dial(listOf(bridge), candidates, used = Views.LINKS - 1)
         }
         val before = node.views.accepts(Views.LINKS)
@@ -158,7 +219,7 @@ class ViewsTest {
         val bridges = List(2) { Handle() }
         val dialAt = { at: Long, bridge: PeerHandle ->
             node.clock.now = at
-            val candidates = mapOf(bridge to Candidate(ad(NEW), at, at - SETTLE_MILLIS))
+            val candidates = mapOf(bridge to candidateOf(ad(NEW), at, at - SETTLE_MILLIS))
             node.views.dial(listOf(bridge), candidates, used = Views.LINKS - 1)
         }
 
@@ -201,8 +262,8 @@ class ViewsTest {
                 val now = testScheduler.currentTime
                 val candidates =
                     mapOf<PeerHandle, Candidate>(
-                        candidate to Candidate(ad(NEW), now, now - SETTLE_MILLIS),
-                        unsettled to Candidate(ad(LATER), now, now - SETTLE_MILLIS + 1),
+                        candidate to candidateOf(ad(NEW), now, now - SETTLE_MILLIS),
+                        unsettled to candidateOf(ad(LATER), now, now - SETTLE_MILLIS + 1),
                     )
                 picks += now to node.views.dial(candidates.keys.toList(), candidates, Views.LINKS - 1)
             }
@@ -341,10 +402,18 @@ class ViewsTest {
         at: Long,
     ): Candidate = old(ad(n), at)
 
+    private fun candidateOf(
+        advertisement: Advertisement?,
+        heard: Long,
+        since: Long,
+        known: Boolean = false,
+        rssi: Double = STRONG,
+    ): Candidate = Candidate(advertisement, heard, since, known, rssi)
+
     private fun old(
         advertisement: Advertisement?,
         at: Long,
-    ): Candidate = Candidate(advertisement, at, at - NEW_MILLIS - 1)
+    ): Candidate = candidateOf(advertisement, at, at - NEW_MILLIS - 1)
 
     private fun ad(n: Int): Advertisement =
         Advertisement(0, ByteArray(Advertisement.MESH_TAG_LENGTH), id(n), ByteArray(Advertisement.RANDOM_LENGTH))
@@ -378,6 +447,11 @@ class ViewsTest {
 
     private companion object {
         const val NOW = 100_000L
+        const val STRONG = -60.0
+        const val DIAL_FLOOR = -85.0
+        const val BRIDGE_FLOOR = -88.0
+        const val TENTH = 0.1
+        const val FORMER_MILLIS = 120_000L
         const val SEED = 35L
         const val OWN = 99
         const val NEW = 98
@@ -391,6 +465,7 @@ class ViewsTest {
         const val NEXT_3 = 61
         const val NODE_ID_LENGTH = 32
         const val SAMPLES = 8
+        const val MANY_SAMPLES = 32
         const val HEARD_MILLIS = 4_000L
         const val NEW_MILLIS = 13_000L
         const val SETTLE_MILLIS = 5_000L

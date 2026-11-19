@@ -56,6 +56,46 @@ class ScannerCandidateTest {
         }
 
     @Test
+    fun aCandidatesSignalIsSmoothedAcrossSightingsAndRestartsWithItsFirstHeardTime() =
+        runTest {
+            // Arrange
+            val scanner = scanner(null)
+            val first = peers.advertisement(EPOCH)
+            val second = peers.advertisement(EPOCH)
+            val heard = mutableListOf<Pair<Long, Double>>()
+            val sightAt = { at: Long, payload: ByteArray?, rssi: Int ->
+                advanceTimeBy(at - testScheduler.currentTime)
+                runCurrent()
+                bluetooth.events.discovered(peripheral, listOfNotNull(payload), rssi = rssi)
+                runCurrent()
+                val candidate = scanner.candidates.value.getValue(ApplePeer(peripheral))
+                heard += candidate.since to candidate.rssi
+            }
+
+            // Act
+            sightAt(FIRST, first, -60)
+            sightAt(FIRST + 1, first, -80)
+            sightAt(FIRST + 2, first, -40)
+            sightAt(FIRST + 3, second, -70)
+            sightAt(AFTER_GAP, second, -50)
+            sightAt(RESET, null, -90)
+            sightAt(RESET + 1, null, -50)
+
+            // Assert
+            val expected =
+                listOf(
+                    FIRST to -60.0,
+                    FIRST to -65.0,
+                    FIRST to -58.75,
+                    FIRST + 3 to -70.0,
+                    AFTER_GAP to -50.0,
+                    RESET to -90.0,
+                    RESET to -80.0,
+                )
+            assertEquals(expected, heard)
+        }
+
+    @Test
     fun aCandidateWhoseResolvableTagResolvesIsKnownAndAStrangerIsNot() =
         runTest {
             // Arrange
@@ -117,5 +157,8 @@ class ScannerCandidateTest {
         const val DAY_SECONDS = 86_400L
         const val NODE_ID_LENGTH = 32
         const val RSSI = -60
+
+        /** The first scan window over [GAP_MILLIS] after `FIRST + 3`. */
+        const val AFTER_GAP = 64_000L
     }
 }

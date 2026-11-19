@@ -223,30 +223,38 @@ internal class Scanner(
                     candidate.advertisement.let { it == null || discovery.accept(it.encode(), epoch) != null }
                 }
             when {
-                sighted != null -> current + (sighting.peer to candidate(current[sighting.peer], sighted, heard, id))
-                anonymous -> current + (sighting.peer to Candidate(null, heard))
-                else -> current
+                sighted != null || anonymous -> {
+                    val candidate = candidate(current[sighting.peer], sighted, heard, id, sighting.rssi)
+                    current + (sighting.peer to candidate)
+                }
+
+                else -> {
+                    current
+                }
             }
         }
     }
 
     /**
-     * The candidate [advertisement] makes, [heard] now: first heard when [prior] was if [prior]
-     * carried the same identifier and was heard less than [GAP_MILLIS] ago, else now; and known if
-     * its identifier resolved to the peer [id].
+     * The candidate [advertisement] makes, or an identifier-less one if `null`, [heard] now at [rssi]
+     * dBm. If [prior] carried the same identifier, or none, and was heard less than [GAP_MILLIS] ago,
+     * it was first heard when [prior] was, and its signal moves [RSSI_ALPHA] of the way from
+     * [prior]'s to [rssi]; else it was first heard now, at [rssi]. Known if its identifier resolved
+     * to the peer [id].
      */
     private fun candidate(
         prior: Candidate?,
-        advertisement: Advertisement,
+        advertisement: Advertisement?,
         heard: Long,
         id: NodeId?,
+        rssi: Int,
     ): Candidate {
-        val tag = advertisement.resolvableTag
-        val since =
-            prior
-                ?.takeIf { heard - it.heard < GAP_MILLIS && it.advertisement?.resolvableTag.contentEquals(tag) }
-                ?.since ?: heard
-        return Candidate(advertisement, heard, since, known = id != null)
+        val tag = advertisement?.resolvableTag
+        val same =
+            prior?.takeIf { heard - it.heard < GAP_MILLIS && it.advertisement?.resolvableTag.contentEquals(tag) }
+        val since = same?.since ?: heard
+        val smoothed = same?.let { it.rssi + RSSI_ALPHA * (rssi - it.rssi) } ?: rssi.toDouble()
+        return Candidate(advertisement, heard, since, known = id != null, rssi = smoothed)
     }
 
     /**
@@ -295,6 +303,10 @@ internal class Scanner(
 
         /** How long a candidate may go unheard and keep when it was first heard (bridge rule). */
         const val GAP_MILLIS = 60_000L
+
+        /** How far each sighting moves a candidate's smoothed signal toward its own, as in [Proximities]. */
+        const val RSSI_ALPHA = 0.25
+
         const val MILLIS_PER_SECOND = 1_000
         const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * MILLIS_PER_SECOND.toLong()
     }

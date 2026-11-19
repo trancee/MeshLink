@@ -30,10 +30,11 @@ import kotlin.math.min
  * A scanning radio sees every advertisement in range at once and again each time it starts
  * scanning, and logs its scan starts and stops in [VirtualRadio.scanLog].
  *
- * Each sighting and RSSI read draws a signal strength from [random] unless a test fixes one for the
- * pair with [setRssi]. A test makes a radio advertise as a backgrounded iPhone with
- * [VirtualRadio.background], so its sightings carry no payload and it keeps its address, and
- * adds a radio that supports the LE 2M PHY with `le2MPhy = true`.
+ * Each sighting and RSSI read draws a signal strength from [random], above the weakest at which a
+ * node dials (`Views.DIAL_FLOOR_DBM`), unless a test fixes one for the pair with [setRssi]. A test
+ * makes a radio advertise as a backgrounded iPhone with [VirtualRadio.background], so its
+ * sightings carry no payload and it keeps its address, and adds a radio that supports the LE 2M
+ * PHY with `le2MPhy = true`.
  *
  * A radio supports L2CAP CoC only when a test adds it with `coc = true`; any other radio behaves as
  * an Android 8 or 9 phone, whose listener and channel opening are unsupported. A listening radio
@@ -161,7 +162,7 @@ internal class VirtualAir(
             return RadioResult.Failed(RadioFailure.PEER_UNREACHABLE)
         }
         delay(latency())
-        val connection = VirtualConnection(this, central, peripheral)
+        val connection = VirtualConnection(this, central, peripheral, peer)
         peripheral.emit(RadioEvent.Connected(connection.peripheralEnd))
         return RadioResult.Ok(connection.centralEnd)
     }
@@ -205,7 +206,7 @@ internal class VirtualAir(
         /** The latency range of every delivery unless a test sets another. */
         val DEFAULT_LATENCY_MILLIS: IntRange = 5..30
         const val DEFAULT_ATT_MTU: Int = 247
-        const val RSSI_MIN: Int = -90
+        const val RSSI_MIN: Int = -80
         const val RSSI_MAX: Int = -40
 
         /** How far apart two radios may be and still hear each other, unless a test sets another range. */
@@ -364,15 +365,19 @@ internal class VirtualEnds {
     }
 }
 
-/** One GATT link between two radios, holding both of its ends. */
+/**
+ * One GATT link between two radios, holding both of its ends. The central's end keeps the handle
+ * it [dialed], even if the peripheral rotated its address meanwhile, as a platform link does.
+ */
 internal class VirtualConnection(
     air: VirtualAir,
     central: VirtualRadio,
     peripheral: VirtualRadio,
+    dialed: PeerHandle,
 ) {
     val attMtu: Int = min(central.maxAttMtu, peripheral.maxAttMtu)
-    val centralEnd: VirtualCentralEnd = VirtualCentralEnd(air, this, central, peripheral)
-    val peripheralEnd: VirtualLinkEnd = VirtualLinkEnd(air, this, peripheral, central)
+    val centralEnd: VirtualCentralEnd = VirtualCentralEnd(air, this, central, peripheral, dialed)
+    val peripheralEnd: VirtualLinkEnd = VirtualLinkEnd(air, this, peripheral, central, central.handle)
 
     fun oppositeOf(end: VirtualLinkEnd): VirtualLinkEnd = if (end === centralEnd) peripheralEnd else centralEnd
 }
@@ -439,6 +444,8 @@ internal open class VirtualLinkEnd(
     private val local: VirtualRadio,
     /** The radio at the link's other end. */
     internal val remote: VirtualRadio,
+    /** The handle of [remote] this end knows. */
+    override val peer: PeerHandle,
 ) : RadioLink {
     private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
     private val pipe = air.Pipe()
@@ -477,8 +484,6 @@ internal open class VirtualLinkEnd(
     init {
         local.log.opened(this)
     }
-
-    override val peer: PeerHandle = remote.handle
 
     /** The other radio's end of the link. */
     val opposite: VirtualLinkEnd get() = connection.oppositeOf(this)
@@ -538,7 +543,8 @@ internal class VirtualCentralEnd(
     private val connection: VirtualConnection,
     private val local: VirtualRadio,
     remote: VirtualRadio,
-) : VirtualLinkEnd(air, connection, local, remote),
+    peer: PeerHandle,
+) : VirtualLinkEnd(air, connection, local, remote, peer),
     CentralLink {
     override suspend fun openChannel(psm: Int): RadioResult<RadioStream> {
         if (!local.coc) return RadioResult.Failed(RadioFailure.UNSUPPORTED)
