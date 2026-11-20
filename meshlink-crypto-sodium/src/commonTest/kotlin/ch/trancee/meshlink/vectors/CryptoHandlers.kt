@@ -5,7 +5,9 @@ import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.crypto.sodium.assertFailed
 import ch.trancee.meshlink.crypto.sodium.hex
 import ch.trancee.meshlink.crypto.sodium.ok
+import ch.trancee.meshlink.internal.BroadcastFrame
 import ch.trancee.meshlink.internal.CertificateCheck
+import ch.trancee.meshlink.internal.Container
 import ch.trancee.meshlink.internal.CryptoFailure
 import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.CryptoResult
@@ -29,6 +31,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -81,6 +84,35 @@ internal val linkPrologue: Handler =
     }
 
 internal val tombstoneCommitment: Handler = derivation { derivations.tombstoneCommitment(it["k"].string.hex()) }
+
+internal val broadcastSigningInput: Handler =
+    derivation { BroadcastFrame.signingInput(it["frame_without_signature"].string.hex()) }
+
+/**
+ * `broadcast-signatures.json` (tier 2): the signing input, then a verified origin with the test's
+ * `node_id` exactly for a valid test. A test with the signer's `ed25519_seed` must reproduce the
+ * signature byte for byte, and a valid one must be re-signed byte for byte from its parts.
+ */
+internal val broadcastVerify: Handler =
+    Handler("frame") { case ->
+        val bytes = case.hex("frame")
+        val frame = assertIs<Decoded.Valid<BroadcastFrame>>(BroadcastFrame.decode(bytes)).value
+        val signingInput = BroadcastFrame.signingInput(bytes.copyOf(bytes.size - SIGNATURE_LENGTH))
+        assertEquals(case.test["signing_input"].string, signingInput.hex(), "signing_input")
+        val origin = frame.verifiedOrigin(crypto)
+        if (case.test.has("ed25519_seed")) {
+            val signature = crypto.ed25519Sign(case.hex("ed25519_seed"), signingInput)
+            assertEquals(bytes.copyOfRange(bytes.size - SIGNATURE_LENGTH, bytes.size).hex(), signature.hex())
+        }
+        if (case.result == "valid") {
+            assertEquals(case.test["node_id"].string, origin?.hex(), "node_id")
+            val payload = (frame.container as Container.SignedBroadcast).payload
+            val identity = crypto.ed25519KeyPair(case.hex("ed25519_seed"))
+            assertContentEquals(bytes, BroadcastFrame.sign(crypto, frame.header, identity, payload).encode())
+        } else {
+            assertNull(origin, "origin")
+        }
+    }
 
 internal val certificateSigningInput: Handler =
     derivation { IdentityCertificate.signingInput(it["certificate_without_signature"].string.hex()) }

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.ReceivedMessage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -18,8 +19,8 @@ class RouterTest {
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
     private val endpoint = FakeEndpoint(OWN)
     private val delivered = endpoint.delivered
-    private val broadcasts = mutableListOf<Container.Unsecured>()
-    private val floods = Floods(lanes, true) { broadcasts += it }
+    private val broadcasts = mutableListOf<ReceivedMessage>()
+    private val floods = Floods(lanes, broadcastCodec()) { broadcasts += it }
 
     private fun TestScope.router(kinds: Set<Int> = setOf(Container.UNSECURED)): Router {
         endpoint.kinds = kinds

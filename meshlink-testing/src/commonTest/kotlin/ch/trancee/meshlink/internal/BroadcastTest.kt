@@ -10,6 +10,7 @@ import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendResult
+import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.meshLinkConfig
 import ch.trancee.meshlink.vectors.vectorFiles
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,7 +27,10 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
-/** Flooded `unsecured` broadcasts across nodes that hear their neighbors only (spec "Flood forwarding"). */
+/**
+ * Flooded broadcasts across nodes that hear their neighbors only (spec "Flood forwarding",
+ * "BROADCAST"): `unsecured` kind `0x04`, and signed kind `0x05` in the secured profiles.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class BroadcastTest {
     @Test
@@ -54,6 +58,38 @@ class BroadcastTest {
             val ends = platforms.flatMap { it.radio.ends }
             val copies = ends.map { end -> clearFrames(end).count { it[0] == BROADCAST } }
             assertTrue(copies.all { it <= 1 }, "copies per link end: $copies")
+        }
+
+    @Test
+    fun aClassicalBroadcastReachesEveryNodeOfATwelveNodeGridOnceFromItsOrigin() =
+        runTest(timeout = 5.minutes) { reachesEveryNodeOfAGridOnce(SecurityProfile.Classical) }
+
+    @Test
+    fun aPostQuantumBroadcastReachesEveryNodeOfATwelveNodeGridOnceFromItsOrigin() =
+        runTest(timeout = 5.minutes) { reachesEveryNodeOfAGridOnce(SecurityProfile.PostQuantum) }
+
+    @Test
+    fun aGatedMeshsBroadcastReachesMembersOnlyAndIsNeverInTheClear() =
+        runTest(timeout = 5.minutes) {
+            // Arrange: members Alice and Bob; Eve, in range of Alice only, holds another mesh key.
+            val air = air()
+            val (alice, bob) = line(air, 2)
+            val eve = air.platform(StandardTestDispatcher(testScheduler)).also { air.move(it.radio, 0.0, SPACING) }
+            val members = listOf(alice, bob).map { securedNode(it, SecurityProfile.Classical, MESH_KEY) }
+            val outsider = securedNode(eve, SecurityProfile.Classical, ByteArray(32) { 2 })
+            (members + outsider).forEach { it.start() }
+            advanceTimeBy(SETTLE_MILLIS)
+            val (bobInbox, eveInbox) = inbox(members[1]) to inbox(outsider)
+
+            // Act
+            members[0].broadcast(PAYLOAD)
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertContentEquals(PAYLOAD, bobInbox.single().payload)
+            assertEquals(emptyList(), eveInbox)
+            val bodies = listOf(alice, bob, eve).flatMap { it.radio.ends }.flatMap(::bodies)
+            assertTrue(bodies.none { PAYLOAD.toHexString() in it.toHexString() }, "the payload went out in the clear")
         }
 
     @Test
@@ -171,32 +207,67 @@ class BroadcastTest {
         }
 
     @Test
-    fun aClassicalRelayRelaysNoBroadcastButAnUnknownFloodTypeWithOneHopLess() =
+    fun aClassicalRelayDeliversAndRelaysOnlyAGenuineSignedBroadcastOnce() =
         runTest {
-            // Arrange: fake X sends routed-frames.json tcIds 11 (signed), 12 (unsecured) and 44 (type 0xbf).
+            // Arrange: fake X sends forgeries, routed-frames.json tcIds 11 (placeholder signature), 12
+            // (unsecured) and 44 (type 0xbf), kind 0x01, then a genuine signed broadcast twice.
             val air = air()
             val relay = air.platform(StandardTestDispatcher(testScheduler))
-            MeshLink
-                .create(
-                    meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) { meshId = MESH }.build(),
-                    meshPlatform(relay),
-                ).start()
+            val relayNode = securedNode(relay, SecurityProfile.Classical).also { it.start() }
+            val inbox = inbox(relayNode)
             val (x, y) = List(2) { FakePeer(WireProfile.CLASSICAL, TestClock(testScheduler)) }
             val xLink = connectFake(air, relay)
             val xTransport = initiate(x, xLink, relay.radio.ends.last())
             val yLink = connectFake(air, relay)
             val yEnd = relay.radio.ends.last()
             val yTransport = initiate(y, yLink, yEnd)
-            val frames = listOf(11, 12, 44).map { routedFrame(it) }
+            val genuine = signedBroadcast()
+            val other = SodiumCryptoProvider.ed25519KeyPair(ByteArray(32) { 2 }).publicKey
+            val forgeries =
+                listOf(
+                    genuine.flipped(FloodHeader.LENGTH + ORIGIN_KEY_END),
+                    genuine.flipped(genuine.size - 1),
+                    genuine.copyOf().also { other.copyInto(it, FloodHeader.LENGTH + 1) },
+                    genuine.copyOf(FloodHeader.LENGTH + 1 + 32) + byteArrayOf(4, 1) + ByteArray(PAYLOAD_MAX + 1 + 64),
+                    genuine.copyOf(FloodHeader.LENGTH) + Container.IkInitiator(ByteArray(48)).encode(),
+                ) + listOf(11, 12).map { routedFrame(it) }
+            val unknown = routedFrame(44)
 
             // Act
-            frames.forEach { xLink.write(seal(xTransport, it)) }
+            (forgeries + unknown + genuine + genuine).forEachIndexed { stream, frame ->
+                sealed(xTransport, stream, frame).forEach { xLink.write(it) }
+            }
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            val relayed = frames.last().copyOf().also { it[1] = (it[1] - 1).toByte() }
-            assertEquals(listOf(relayed.toHexString()), sealedFrames(yEnd, yTransport).map { it.toHexString() })
+            val relayed = listOf(unknown, genuine).map { it.hopSpent() }
+            assertEquals(relayed.map { it.toHexString() }, sealedFrames(yEnd, yTransport).map { it.toHexString() })
+            val origin = Derivations(SodiumCryptoProvider).nodeId(SIGNER.publicKey)
+            assertContentEquals(origin, inbox.single().sender.toByteArray())
+            assertContentEquals(PAYLOAD, inbox.single().payload)
         }
+
+    /** A 12-node grid of [profile] nodes: one broadcast reaches every other node once, intact, from its origin. */
+    private suspend fun TestScope.reachesEveryNodeOfAGridOnce(profile: SecurityProfile) {
+        // Arrange: a 4 × 3 grid whose nodes hear their row and column neighbors only.
+        val platforms = grid(air())
+        val nodes = platforms.map { securedNode(it, profile) }.onEach { it.start() }
+        advanceTimeBy(SETTLE_MILLIS)
+        val inboxes = nodes.drop(1).map { inbox(it) }
+
+        // Act
+        assertIs<SendResult.Accepted>(nodes[0].broadcast(PAYLOAD))
+        advanceTimeBy(SETTLE_MILLIS)
+
+        // Assert
+        val origin = nodeId(platforms[0])
+        inboxes.forEach { inbox ->
+            val message = inbox.single()
+            assertContentEquals(PAYLOAD, message.payload)
+            assertContentEquals(origin, message.sender.toByteArray())
+            assertTrue(message.broadcast)
+        }
+    }
 
     /** A 4 × 3 grid of platforms [SPACING] apart. */
     private fun TestScope.grid(air: VirtualAir): List<VirtualPlatform> =
@@ -214,6 +285,47 @@ class BroadcastTest {
         List(count) { index ->
             air.platform(StandardTestDispatcher(testScheduler)).also { air.move(it.radio, index * SPACING, 0.0) }
         }
+
+    /** A stopped node of [MESH] in [profile], gated with [meshKey] if set. */
+    private fun securedNode(
+        platform: VirtualPlatform,
+        profile: SecurityProfile,
+        meshKey: ByteArray? = null,
+    ): MeshLink =
+        MeshLink.create(
+            meshLinkConfig(Preset.OfflineChat, profile) {
+                meshId = MESH
+                this.meshKey = meshKey
+            }.build(),
+            meshPlatform(platform),
+        )
+
+    /** [PAYLOAD] broadcast and signed by [SIGNER], expiring a minute from now. */
+    private fun TestScope.signedBroadcast(): ByteArray {
+        val unsigned = routedFrame(11)
+        val header = (FloodFrame.decode(unsigned) as Decoded.Valid).value.header
+        return BroadcastFrame.sign(SodiumCryptoProvider, header, SIGNER, PAYLOAD).encode()
+    }
+
+    /** [frame] sealed as one record, or as records of `FRAGMENT`s of [stream] if longer than a record body. */
+    private fun sealed(
+        transport: NoiseTransport,
+        stream: Int,
+        frame: ByteArray,
+    ): List<ByteArray> {
+        val dataMax = LinkRecord.BODY_MAX - TAG - LinkFrame.Fragment.HEADER
+        val whole = frame.size <= LinkRecord.BODY_MAX - TAG
+        val parts = if (whole) listOf(frame) else LinkFrame.Fragment.split(stream, frame, dataMax).map { it.encode() }
+        return parts.map { seal(transport, it) }
+    }
+
+    private fun ByteArray.flipped(index: Int): ByteArray {
+        val copy = copyOf()
+        copy[index] = (copy[index].toInt() xor 1).toByte()
+        return copy
+    }
+
+    private fun ByteArray.hopSpent(): ByteArray = copyOf().also { it[1] = (it[1] - 1).toByte() }
 
     /** A stopped `unsecured` node whose messages live 120 s. */
     private fun shortLivedNode(platform: VirtualPlatform): MeshLink =
@@ -252,6 +364,12 @@ class BroadcastTest {
 
     private companion object {
         val PAYLOAD = "to everyone".encodeToByteArray()
+        val MESH_KEY = ByteArray(32) { 1 }
+        val SIGNER = SodiumCryptoProvider.ed25519KeyPair(ByteArray(32) { 3 })
+
+        /** The offset of the first payload byte in a signed broadcast container. */
+        const val ORIGIN_KEY_END = 35
+        const val TAG = 16
         const val PAYLOAD_MAX = 1_024
         const val BROADCAST: Byte = 0x80.toByte()
         const val GRID_COLUMNS = 4

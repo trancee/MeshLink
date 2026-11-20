@@ -1,0 +1,159 @@
+{
+  "$schema": "./broadcast-signatures.schema.json",
+  "tier": 2,
+  "algorithm": "MeshLink/1 signed broadcast",
+  "schema": "broadcast-signatures.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 12,
+  "notes": {
+    "ReferenceKeys": "Keys come from fixed labels in tools/reference. ed25519_seed is the RFC 8032 private key that signed the frame's signing input; it is absent when no single key signed the bytes shown.",
+    "HopLimit": "A relay lowers hop_limit; the signature leaves that byte out, so it stays valid (routing.md, BROADCAST).",
+    "Tampered": "Bytes changed after signing, another origin_key, or a signature by another identity key."
+  },
+  "testGroups": [
+    {
+      "type": "BroadcastVerify",
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "valid, hop limit 64",
+          "flags": [],
+          "result": "valid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "ed25519_seed": "ffd28f26a814d6f9dddb316963cd6dfa1c3d8c2f6268f271c84473f1eb4e44b1"
+        },
+        {
+          "tcId": 2,
+          "comment": "hop limit lowered to 63 by a relay",
+          "flags": [
+            "HopLimit"
+          ],
+          "result": "valid",
+          "frame": "803ffb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "ed25519_seed": "ffd28f26a814d6f9dddb316963cd6dfa1c3d8c2f6268f271c84473f1eb4e44b1"
+        },
+        {
+          "tcId": 3,
+          "comment": "signed at hop limit 1",
+          "flags": [
+            "HopLimit"
+          ],
+          "result": "valid",
+          "frame": "8001fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "ed25519_seed": "ffd28f26a814d6f9dddb316963cd6dfa1c3d8c2f6268f271c84473f1eb4e44b1"
+        },
+        {
+          "tcId": 4,
+          "comment": "signed at hop limit 255",
+          "flags": [
+            "HopLimit"
+          ],
+          "result": "valid",
+          "frame": "80fffb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "ed25519_seed": "ffd28f26a814d6f9dddb316963cd6dfa1c3d8c2f6268f271c84473f1eb4e44b1"
+        },
+        {
+          "tcId": 5,
+          "comment": "empty payload",
+          "flags": [],
+          "result": "valid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000098b065c2341ba8ad947c68dd7d367d11f20f121a8cdc2f16ec3fb455ed039a3ce2811249e96a778dfb543197cc60fb21a37f217e1f0fc4a0bbdb54f4645f6b01",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f340000",
+          "ed25519_seed": "ffd28f26a814d6f9dddb316963cd6dfa1c3d8c2f6268f271c84473f1eb4e44b1"
+        },
+        {
+          "tcId": 6,
+          "comment": "1,024 B payload",
+          "flags": [],
+          "result": "valid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f3404005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0b1f29d20d07e521d715838f60d8eaf7df646f0a4534ff3f3c0561aaf5759fdf373b809f432cb12cb6eed744e0fdd472bfb593be037f1e421ad150e963d12209",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f3404005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+          "ed25519_seed": "ffd28f26a814d6f9dddb316963cd6dfa1c3d8c2f6268f271c84473f1eb4e44b1"
+        },
+        {
+          "tcId": 7,
+          "comment": "flipped payload bit",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f566174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f566174657220617420676174652033",
+          "error": "bad-signature"
+        },
+        {
+          "tcId": 8,
+          "comment": "flipped signature bit",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033df9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "error": "bad-signature"
+        },
+        {
+          "tcId": 9,
+          "comment": "flipped message_id bit",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "frame": "8040fa8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fa8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "error": "bad-signature"
+        },
+        {
+          "tcId": 10,
+          "comment": "flipped expiry bit",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce9059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce9059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "error": "bad-signature"
+        },
+        {
+          "tcId": 11,
+          "comment": "origin_key swapped for another identity's",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce8051420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001c000f576174657220617420676174652033de9d99d223b8f398dcd1c3efe3ae0339bf3de889b9d244b546044ccce181637b77f46f201c161db546576ce86fdd12b7711c5d59ebb8745299d75b54d456150f",
+          "node_id": "df70679282986f0fe573cf55f90dc571324eef04f0896cdf21c656c5b252ac2d",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8051420ca59567bb08604afb21d79f3f367562cfe676290e5118716b20031b0001c000f576174657220617420676174652033",
+          "error": "bad-signature"
+        },
+        {
+          "tcId": 12,
+          "comment": "signed by another identity key",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "frame": "8040fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f57617465722061742067617465203349e42442dedc3c16ace9ba67544bc03c9e5a713f7b16c60b47b291d62e05ef0c0a0fcb949749f2bd7113838ffea0733c8d2b07b09e7ac09df9c8e05c3fb4430b",
+          "node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "signing_input": "144d6573684c696e6b2f312062726f61646361737480fb8d51a1b2af28c4ee80562f6b36fce8059a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34000f576174657220617420676174652033",
+          "ed25519_seed": "aa3044e04570c3e9ebc07248631d28ff592edb217fef90a89bb824de46c872c9",
+          "error": "bad-signature"
+        }
+      ]
+    }
+  ]
+}

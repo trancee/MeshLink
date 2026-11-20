@@ -55,9 +55,9 @@ internal enum class Settled {
  * forwarding"), and floods [broadcasts] (spec "Flood forwarding"). [density] is the node's current
  * density class.
  *
- * A [secured] mesh may not carry the unsecured container (spec "End-to-end"), and its own containers
- * come later: it keeps its messages `Queued` without writing them and processes no frame for itself,
- * but relays the secured containers of other nodes.
+ * A [secured] mesh may not carry the unsecured container (spec "End-to-end"), and its own unicast
+ * containers come later: it keeps its messages `Queued` without writing them and processes no unicast
+ * frame for itself, but relays the secured containers of other nodes. Its broadcasts are signed.
  *
  * [send] and [awaitCapacity] are thread-safe; everything else runs on [scope]'s serial dispatcher.
  */
@@ -90,18 +90,20 @@ internal class Post(
             routed.update()
             if (density() != DensityClass.LOW) outbox.found(FLUSH_GAP_MILLIS) { end.tag(it.to).contentEquals(tag) }
         }
-    private val floods = Floods(lanes, !secured, end::broadcast)
+    private val codec = BroadcastCodec(crypto, secured)
+    private val floods = Floods(lanes, codec) { inbox.offer(it) }
     private val router = Router(clock, lanes, routes, crypto::randomBytes, end, floods)
 
     /** This node's broadcasts. */
-    val broadcasts = Broadcasts(clock, scope, capacity, floods, crypto::randomBytes, lifetimeSeconds)
+    val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, lifetimeSeconds)
 
-    /** Starts a run of the node whose NodeId is [nodeId]. */
-    fun begin(nodeId: ByteArray) {
-        end.begin(nodeId)
-        self.value = NodeId(nodeId)
+    /** Starts a run of the node with [identity]. */
+    fun begin(identity: InstallationIdentity) {
+        end.begin(identity.nodeId)
+        codec.begin(identity)
+        self.value = NodeId(identity.nodeId)
         outbox.begin()
-        broadcasts.begin(nodeId)
+        broadcasts.begin()
     }
 
     /** Ends the run: unfinished messages and broadcasts fail with `Stopped`, and no routed peer is listed. */

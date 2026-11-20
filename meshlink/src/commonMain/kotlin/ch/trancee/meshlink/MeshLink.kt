@@ -126,7 +126,7 @@ public class MeshLink private constructor(
                         mutableState.compareAndSet(MeshState.Starting, IDENTITY_UNAVAILABLE)
                     } else {
                         identity = loaded
-                        post.begin(loaded.nodeId)
+                        post.begin(loaded)
                         watcher = scope.launch { watch() }
                         mutableState.first { it != MeshState.Starting }
                     }
@@ -220,9 +220,11 @@ public class MeshLink private constructor(
      * and [DeliveryStatus.Expired] at its expiry plus 30 s of clock skew. Broadcasts get no receipts.
      *
      * In [SecurityProfile.Unsecured] the receivers learn the sender's NodeId as it claims it, without
-     * authentication, and every node in range can read the payload. A node of a secured profile
-     * doesn't sign broadcasts yet: its broadcasts stay [DeliveryStatus.Queued] until they expire, and
-     * it neither delivers nor forwards another node's broadcast.
+     * authentication, and every node in range can read the payload. In [SecurityProfile.Classical] and
+     * [SecurityProfile.PostQuantum] this node signs the broadcast with its installation identity, and every
+     * node verifies the signature before it delivers or forwards it, so [ReceivedMessage.sender] is the
+     * NodeId of the signer. Every member can read the payload: in an open mesh anyone who joins, in a
+     * gated mesh the holders of its mesh key.
      *
      * Rejects the broadcast with [RejectionReason.NotRunning] as [send] does;
      * [RejectionReason.InvalidHopLimit] unless [hopLimit] is 1 to 255;

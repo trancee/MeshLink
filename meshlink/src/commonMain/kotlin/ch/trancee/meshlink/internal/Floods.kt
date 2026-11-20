@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.ReceivedMessage
 
 /**
  * Flood forwarding of every flood type but route requests (spec "Flood forwarding" and
@@ -8,10 +9,12 @@ import ch.trancee.meshlink.NodeId
  * other link with one hop less, if one remains. A node remembers each flood `message_id` until its
  * frame's expiry plus clock skew.
  *
- * A `BROADCAST` goes to [deliver] if this profile is [accepting] its container: the `unsecured`
- * profile takes kind `0x04`, and a secured profile takes none until broadcasts are signed, so it
- * neither delivers nor relays one. A flood type this version does not know is relayed by its header
- * alone, if it is a small frame (spec "Size classes"). Any other frame is dropped without a trace.
+ * A `BROADCAST` is carried only if [codec] opens it: the `unsecured` profile takes kind `0x04`, and a
+ * secured profile takes kind `0x05` with a valid signature, so a forged or tampered broadcast is
+ * neither delivered nor relayed. Its message goes to [deliver]. A flood type this version does not
+ * know is relayed by its header alone, if it is a small frame (spec "Size classes"). Any other frame
+ * is dropped without a trace, and its `message_id` is not remembered, so a forgery cannot shadow the
+ * genuine frame.
  *
  * It also places this node's own flood frames: on every link, or on the first link that opens if
  * there is none.
@@ -20,9 +23,8 @@ import ch.trancee.meshlink.NodeId
  */
 internal class Floods(
     private val lanes: Lanes,
-    /** Whether this profile takes the unsecured broadcast container, kind `0x04`. */
-    val accepting: Boolean,
-    private val deliver: (Container.Unsecured) -> Unit,
+    private val codec: BroadcastCodec,
+    private val deliver: (ReceivedMessage) -> Unit,
 ) {
     private val seen = MessageIds()
     private val waiting = mutableListOf<Parcel>()
@@ -34,12 +36,12 @@ internal class Floods(
         nowSeconds: Long,
     ) {
         val frame = (FloodFrame.decode(bytes) as? Decoded.Valid ?: return).value
-        val broadcast = frame.type == BroadcastFrame.TYPE
-        val container = if (broadcast) accepted(bytes) else null
-        val carried = if (broadcast) container != null else bytes.size <= Reassembly.FRAME_SMALL_MAX
-        if (!carried || !new(frame.header, nowSeconds)) return
-        container?.let(deliver)
-        relay(peer, frame)
+        val header = frame.header
+        // Freshness first, so a duplicate costs no signature check.
+        if (new(header, nowSeconds) && carried(frame.type, bytes)) {
+            remember(header.messageId, header.expiry.toLong())
+            relay(peer, frame)
+        }
     }
 
     /**
@@ -73,21 +75,25 @@ internal class Floods(
         seen.put(id, remembered(expiry))
     }
 
-    // The container of a BROADCAST this profile takes; null if it takes none or the frame is malformed.
-    private fun accepted(bytes: ByteArray): Container.Unsecured? {
-        val decoded = BroadcastFrame.decode(bytes) as? Decoded.Valid ?: return null
-        return (decoded.value.container as? Container.Unsecured)?.takeIf { accepting }
-    }
+    // Whether a frame of [type] is carried: a BROADCAST the codec opens, delivered here, or a small frame of
+    // another type.
+    private fun carried(
+        type: Int,
+        bytes: ByteArray,
+    ): Boolean =
+        if (type == BroadcastFrame.TYPE) {
+            codec.open(bytes)?.also(deliver) != null
+        } else {
+            bytes.size <= Reassembly.FRAME_SMALL_MAX
+        }
 
-    // Whether a frame with [header] is timely and not seen before; remembers it if so.
+    // Whether a frame with [header] is timely and not seen before.
     private fun new(
         header: FloodHeader,
         nowSeconds: Long,
     ): Boolean {
-        val expiry = header.expiry.toLong()
-        val fresh = timely(expiry, nowSeconds) && !seen.has(header.messageId, nowSeconds * MILLIS_PER_SECOND)
-        if (fresh) remember(header.messageId, expiry)
-        return fresh
+        val nowMillis = nowSeconds * MILLIS_PER_SECOND
+        return timely(header.expiry.toLong(), nowSeconds) && !seen.has(header.messageId, nowMillis)
     }
 
     private fun relay(

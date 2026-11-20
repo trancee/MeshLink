@@ -21,12 +21,52 @@ public class BroadcastFrame(
     /** The frame's bytes. */
     public fun encode(): ByteArray = header.encode(TYPE) + container.encode()
 
+    /**
+     * The origin's NodeId, `H("node-id", origin_key)`, if this is a signed broadcast whose signature
+     * by its `origin_key` verifies; `null` for any other frame.
+     */
+    public fun verifiedOrigin(crypto: CryptoProvider): ByteArray? {
+        val signed = container as? Container.SignedBroadcast ?: return null
+        return if (crypto.ed25519Verify(signed.originKey, signingInput(unsigned()), signed.signature)) {
+            Derivations(crypto).nodeId(signed.originKey)
+        } else {
+            null
+        }
+    }
+
+    /** Every byte of a signed broadcast before its signature. */
+    private fun unsigned(): ByteArray = encode().let { it.copyOf(it.size - SIGNATURE_LENGTH) }
+
     public companion object {
         /** The frame type, `0x80`. */
         public const val TYPE: Int = 0x80
 
         /** The most payload bytes a broadcast carries (ADR 0015 decision 2). */
         public const val PAYLOAD_MAX: Int = 1_024
+
+        private const val SIGNATURE_LENGTH = 64
+        private const val HOP_LIMIT = 1
+
+        /**
+         * `DS("broadcast") ‖ frame[0] ‖ frame[2..]`, the bytes a signed broadcast's signature covers;
+         * [unsigned] is every frame byte before the signature. The hop limit, `frame[1]`, is left
+         * out because relays lower it.
+         */
+        public fun signingInput(unsigned: ByteArray): ByteArray =
+            Domain.BROADCAST.encoded + unsigned[0] + unsigned.copyOfRange(HOP_LIMIT + 1, unsigned.size)
+
+        /** The broadcast of [payload] under [header] from [identity], signed by its seed. */
+        public fun sign(
+            crypto: CryptoProvider,
+            header: FloodHeader,
+            identity: Ed25519KeyPair,
+            payload: ByteArray,
+        ): BroadcastFrame {
+            val key = identity.publicKey
+            val blank = BroadcastFrame(header, Container.SignedBroadcast(key, payload, ByteArray(SIGNATURE_LENGTH)))
+            val signature = crypto.ed25519Sign(identity.seed, signingInput(blank.unsigned()))
+            return BroadcastFrame(header, Container.SignedBroadcast(key, payload, signature))
+        }
 
         private val KINDS = setOf(Container.UNSECURED, Container.SIGNED_BROADCAST)
 

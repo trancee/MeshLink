@@ -4,8 +4,10 @@ import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.OutgoingMessage
+import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.SendResult
+import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -27,14 +29,16 @@ class BroadcastsTest {
     private val b = nodeId(2)
     private val capacity = Capacity()
     private val lanes = Lanes()
-    private val received = mutableListOf<Container.Unsecured>()
-    private val floods = Floods(lanes, true) { received += it }
+    private val received = mutableListOf<ReceivedMessage>()
+    private val codec = broadcastCodec(nodeId = SELF, random = ::nextId)
+    private val floods = Floods(lanes, codec) { received += it }
 
     private fun TestScope.broadcasts(secured: Boolean = false): Broadcasts {
         val clock = SchedulerClock(testScheduler)
-        val flooding = if (secured) Floods(lanes, false) {} else floods
-        val broadcasts = Broadcasts(clock, backgroundScope, capacity, flooding, ::nextId, LIFETIME)
-        broadcasts.begin(SELF)
+        val writing = if (secured) broadcastCodec(secured = true, random = ::nextId) else codec
+        val flooding = if (secured) Floods(lanes, writing) {} else floods
+        val broadcasts = Broadcasts(clock, backgroundScope, capacity, flooding, writing, LIFETIME)
+        broadcasts.begin()
         return broadcasts
     }
 
@@ -207,8 +211,8 @@ class BroadcastsTest {
             // Arrange
             val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
             val clock = SchedulerClock(testScheduler)
-            val broadcasts = Broadcasts(clock, scope, capacity, floods, ::nextId, LIFETIME)
-            broadcasts.begin(SELF)
+            val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, LIFETIME)
+            broadcasts.begin()
             val message = (broadcasts.send(ByteArray(10), 255, MeshState.Running) as SendResult.Accepted).message
 
             // Act
@@ -220,24 +224,25 @@ class BroadcastsTest {
         }
 
     @Test
-    fun aSecuredNodesBroadcastStaysQueuedWithoutAFrameAndExpires() =
+    fun aSecuredNodesBroadcastIsSignedByItsIdentityAndSent() =
         runTest {
             // Arrange
             lanes.open(a)
-            val message = accepted(broadcasts(secured = true))
 
             // Act
-            val frames = lanes.drain(a)
-            advanceTimeBy((LIFETIME + SKEW) * 1_000L - 1)
-            runCurrent()
-            val beforeDeadline = message.status.value
-            advanceTimeBy(1)
-            runCurrent()
+            val message = accepted(broadcasts(secured = true), hopLimit = 7)
+            val copy = lanes.drain(a).single()
+            copy.settle(Settled.SENT)
 
             // Assert
-            assertEquals(emptyList(), frames)
-            assertEquals(DeliveryStatus.Queued, beforeDeadline)
-            assertEquals(DeliveryStatus.Expired, message.status.value)
+            val bytes = copy.render()
+            val frame = (BroadcastFrame.decode(bytes) as Decoded.Valid).value
+            val origin = Derivations(SodiumCryptoProvider).nodeId(identityKey(1).publicKey)
+            assertContentEquals(origin, frame.verifiedOrigin(SodiumCryptoProvider))
+            assertContentEquals(byteArrayOf(1, 2, 3), (frame.container as Container.SignedBroadcast).payload)
+            assertEquals(7, frame.header.hopLimit)
+            assertContentEquals(ByteArray(12) { 7 }, frame.header.messageId)
+            assertEquals(DeliveryStatus.Sent, message.status.value)
         }
 
     @Test
