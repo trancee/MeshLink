@@ -177,6 +177,15 @@ internal val linkFrame: Handler =
                 assertEquals(decoded["entries"].list.map { it["id"].string }, frame.entries.map { it.hex() }, "entries")
             }
 
+            is LinkFrame.CatchUp -> {
+                assertEquals(decoded["type"].code(), CATCH_UP, "type")
+                assertEquals(decoded["offered"].list.map { it["message_id"].string }, frame.offered.map { it.hex() })
+                val held = decoded["held"].list.map { it["message_id"].string to it["destination_tag"].string }
+                assertEquals(held, frame.held.map { it.messageId.hex() to it.destinationTag.hex() }, "held")
+                val tombstones = decoded["tombstones"].list.map { it["message_id"].string to it["k"].string }
+                assertEquals(tombstones, frame.tombstones.map { it.messageId.hex() to it.k.hex() }, "tombstones")
+            }
+
             is LinkFrame.Ihave -> {
                 assertEquals(decoded["type"].code(), IHAVE, "type")
                 val ids = decoded["message_ids"].list.map { it["message_id"].string }
@@ -343,6 +352,7 @@ private const val BUSY = 0x06
 private const val NEIGHBOR_LIST = 0x07
 private const val SHUFFLE = 0x08
 private const val SHUFFLE_REPLY = 0x09
+private const val CATCH_UP = 0x0A
 private const val IHAVE = 0x0B
 private const val GRAFT = 0x0C
 private const val PRUNE = 0x0D

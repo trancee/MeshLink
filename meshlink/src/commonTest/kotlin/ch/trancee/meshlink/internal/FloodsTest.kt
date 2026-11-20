@@ -326,6 +326,60 @@ class FloodsTest {
             assertEquals(listOf(broadcast().toList()), lanes.drain(b).map { it.render().toList() })
         }
 
+    @Test
+    fun theCatchUpOffersTheBroadcastsOfTheLastMinuteOldestFirst() =
+        runTest {
+            // Arrange
+            val floods = floods()
+            floods.received(a, broadcast(id = 1), NOW)
+            advanceTimeBy(Plumtree.HOLD_MILLIS / 2)
+            floods.received(a, broadcast(id = 2), NOW + HALF_MINUTE)
+            floods.originate(Parcel(messageId(3), relayed = false, { broadcast(id = 3) }) {}, NOW + LIFETIME)
+            advanceTimeBy(Plumtree.HOLD_MILLIS / 2)
+
+            // Act
+            val catchUp = floods.linked(b)
+
+            // Assert
+            assertEquals(listOf(messageId(2), messageId(3)).map { it.toList() }, catchUp.offered.map { it.toList() })
+            assertEquals(Pair(0, 0), catchUp.held.size to catchUp.tombstones.size)
+        }
+
+    @Test
+    fun aCatchUpGraftsTheOfferedIdsNotSeenFromItsSender() =
+        runTest {
+            // Arrange
+            val floods = floods()
+            floods.received(a, broadcast(id = 1), NOW)
+            waiting()
+            val catchUp = LinkFrame.CatchUp(listOf(messageId(1), messageId(2), messageId(3)), emptyList(), emptyList())
+
+            // Act
+            floods.plumtree(b, catchUp, NOW * MILLIS_PER_SECOND)
+            advanceTimeBy(Plumtree.GRAFT_BASE_MILLIS + 1)
+
+            // Assert
+            val grafts = listOf(2, 3).map { LinkFrame.Graft(messageId(it)).encode().toList() }
+            assertEquals(grafts, lanes.drain(b).map { it.render().toList() })
+            assertEquals(listOf(0, 0), listOf(a, c).map { lanes.drain(it).size })
+        }
+
+    @Test
+    fun aCatchUpOfTheMostUnknownIdsCostsAGraftEach() =
+        runTest {
+            // Arrange
+            val floods = floods()
+            val offered = List(LinkFrame.CatchUp.OFFERED_MAX) { messageId(it + 1) }
+
+            // Act
+            floods.plumtree(b, LinkFrame.CatchUp(offered, emptyList(), emptyList()), NOW * MILLIS_PER_SECOND)
+            advanceTimeBy(Plumtree.GRAFT_BASE_MILLIS + 1)
+
+            // Assert
+            val grafts = offered.map { LinkFrame.Graft(it).encode().toList() }
+            assertEquals(grafts, lanes.drain(b).map { it.render().toList() })
+        }
+
     private fun header(
         type: Int = BroadcastFrame.TYPE,
         hopLimit: Int = 5,
@@ -354,6 +408,7 @@ class FloodsTest {
         const val NOW = 1_767_225_600L
         const val MILLIS_PER_SECOND = 1_000L
         const val LIFETIME = 300L
+        const val HALF_MINUTE = 30L
         const val SKEW = 30L
         const val LIFETIME_MAX = 3_600L
         const val PAYLOAD_MAX = 1_024

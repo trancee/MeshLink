@@ -34,6 +34,7 @@ val fuzzTargets: List<FuzzTarget> =
                 "LinkFrame\$Close\$Companion.decode",
                 "LinkFrame\$Rekey.decode",
                 "LinkFrame\$BearerSwitch.decode",
+                "LinkFrame\$CatchUp\$Companion.decode",
                 "LinkFrame\$Ihave\$Companion.decode",
                 "LinkFrame\$Graft\$Companion.decode",
                 "LinkFrame\$Prune.decode",

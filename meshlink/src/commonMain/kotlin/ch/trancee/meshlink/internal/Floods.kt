@@ -17,7 +17,10 @@ import ch.trancee.meshlink.ReceivedMessage
  * genuine frame.
  *
  * A `BROADCAST` spreads through [tree] (spec "Plumtree"), which also takes the link-local `IHAVE`,
- * `GRAFT` and `PRUNE` frames; a duplicate `BROADCAST` goes to it too.
+ * `GRAFT` and `PRUNE` frames; a duplicate `BROADCAST` goes to it too. Each kept link opens with the
+ * one `CATCH_UP` from [linked] (spec "Catch-up") offering the broadcasts [tree] holds, and an offered
+ * ID not seen is grafted like one announced by `IHAVE`; the held messages and tombstones it may carry
+ * are ignored.
  *
  * It also places this node's own broadcasts: through [tree], or on the first link that opens if
  * there is none.
@@ -56,15 +59,19 @@ internal class Floods(
         }
     }
 
-    /** A link-local `IHAVE`, `GRAFT` or `PRUNE` arrived from linked [peer] at wall-clock [nowMillis]. */
+    /** A link-local `CATCH_UP`, `IHAVE`, `GRAFT` or `PRUNE` arrived from linked [peer] at wall-clock [nowMillis]. */
     fun plumtree(
         peer: NodeId,
         frame: LinkFrame,
         nowMillis: Long,
     ) {
         when (frame) {
+            is LinkFrame.CatchUp -> {
+                announced(peer, frame.offered, nowMillis)
+            }
+
             is LinkFrame.Ihave -> {
-                frame.messageIds.filterNot { seen.has(it, nowMillis) }.forEach { tree.announced(peer, it) }
+                announced(peer, frame.messageIds, nowMillis)
             }
 
             is LinkFrame.Graft -> {
@@ -94,15 +101,27 @@ internal class Floods(
         if (lanes.peers.isEmpty()) waiting += parcel else tree.spread(null, parcel, expiry)
     }
 
-    /** A link to [peer] completed its hello: the frames waiting for a link go to it. */
-    fun linked(peer: NodeId) {
+    /**
+     * A link to [peer] completed its hello: the frames waiting for a link go to it. Returns the
+     * `CATCH_UP` the link opens with if it is kept: the broadcasts [tree] holds, oldest first.
+     */
+    fun linked(peer: NodeId): LinkFrame.CatchUp {
         waiting.forEach { lanes.put(peer, it) }
         waiting.clear()
+        return LinkFrame.CatchUp.newest(tree.offered(), emptyList(), emptyList())
     }
 
     /** [parcel] ended: it no longer waits for a link. */
     fun withdraw(parcel: Parcel) {
         waiting -= parcel
+    }
+
+    private fun announced(
+        peer: NodeId,
+        ids: List<ByteArray>,
+        nowMillis: Long,
+    ) {
+        ids.filterNot { seen.has(it, nowMillis) }.forEach { tree.announced(peer, it) }
     }
 
     private fun remember(
