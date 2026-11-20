@@ -52,6 +52,11 @@ private val decapsKey: (Json, Json) -> String = { group, test ->
 internal val vectorSets: List<VectorSet> =
     listOf(
         VectorSet("vectors/advertisement.json", mapOf("advertisement" to advertisement), key = layoutKey),
+        VectorSet(
+            "vectors/broadcast-signatures.json",
+            mapOf("BroadcastVerify" to broadcastVerify),
+            key = groupType,
+        ),
         VectorSet("vectors/capability.json", mapOf("capability" to capability), key = layoutKey),
         VectorSet("vectors/certificate.json", mapOf("certificate" to certificate), key = layoutKey),
         VectorSet(
@@ -73,6 +78,7 @@ internal val vectorSets: List<VectorSet> =
                 "resolvable-tag" to resolvableTag,
                 "tombstone-commitment" to tombstoneCommitment,
                 "certificate-signing-input" to certificateSigningInput,
+                "broadcast-signing-input" to broadcastSigningInput,
             ),
         ) { group, _ -> group["derivation"].string },
         VectorSet("vectors/handshake-hfs.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
@@ -150,7 +156,6 @@ internal val vectorSkips: List<Skip> =
         pending("derivations.json", "45", "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
         pending("derivations.json", "45", "hpke-info") +
         pending("derivations.json", "44", "lookup-tag", "lookup-reply-key") +
-        pending("derivations.json", "39a", "broadcast-signing-input") +
         pending("link-frames.json", "41", "0x0a") +
         pending("link-frames.json", "40", "0x0b", "0x0c", "0x0d") +
         pending("routed-frames.json", "47", "0x41") +

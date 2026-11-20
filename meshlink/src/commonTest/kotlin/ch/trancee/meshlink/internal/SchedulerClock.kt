@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -39,6 +40,23 @@ internal suspend fun Lanes.drain(peer: NodeId): List<Parcel> =
 
 /** A NodeId of 32 bytes [n]. */
 internal fun nodeId(n: Int): NodeId = NodeId(ByteArray(32) { n.toByte() })
+
+/** The Ed25519 identity from a seed of 32 bytes [n]. */
+internal fun identityKey(n: Int): Ed25519KeyPair = SodiumCryptoProvider.ed25519KeyPair(ByteArray(32) { n.toByte() })
+
+/**
+ * A begun broadcast codec, signing if [secured], of the node with [identityKey] 1 and [nodeId]: by
+ * default the NodeId of that key, as a secured node needs.
+ */
+internal fun broadcastCodec(
+    secured: Boolean = false,
+    nodeId: ByteArray = Derivations(SodiumCryptoProvider).nodeId(identityKey(1).publicKey),
+    random: (Int) -> ByteArray = SodiumCryptoProvider::randomBytes,
+): BroadcastCodec {
+    val codec = BroadcastCodec(SodiumCryptoProvider, secured, random)
+    codec.begin(InstallationIdentity(identityKey(1), nodeId))
+    return codec
+}
 
 /** A tag of 8 bytes [n]. */
 internal fun tag(n: Int): ByteArray = ByteArray(8) { n.toByte() }

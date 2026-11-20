@@ -63,11 +63,6 @@ internal class UnsecuredEnd(
         return inbox.offer(ReceivedMessage(sender, delivery.payload, broadcast = false))
     }
 
-    /** Hands a broadcast's [container] to [inbox]; a full inbox drops it. */
-    fun broadcast(container: Container.Unsecured) {
-        inbox.offer(ReceivedMessage(NodeId(container.senderNodeId), container.plaintext, broadcast = true))
-    }
-
     /** This node's routing tag for the current epoch; `null` in a secured mesh. */
     override fun carries(kind: Int): Boolean = kind in if (secured) SECURED_KINDS else UNSECURED_KINDS
 

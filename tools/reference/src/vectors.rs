@@ -1,5 +1,6 @@
 //! The tier 2 vector files and their schemas, in the vectors README format.
 
+use crate::broadcast::{self, Header};
 use crate::certificate::{self, CLASSICAL, CLOCK_SKEW, Identity, POST_QUANTUM, VALIDITY_MAX};
 use crate::handshake::{self, KemInput, Rejected, Side};
 use crate::json::{Value, hex, int, object, text, texts};
@@ -37,6 +38,7 @@ impl Document {
 #[must_use]
 pub fn all() -> Vec<Document> {
     vec![
+        broadcast_signatures(),
         certificate_signatures(),
         handshake_xx(),
         handshake_hfs(),
@@ -245,6 +247,105 @@ fn vector_schema(
         ),
         ("additionalProperties", Value::Bool(false)),
     ])
+}
+
+// ---------------------------------------------------------------------------
+// Signed broadcasts (ticket 39a)
+// ---------------------------------------------------------------------------
+
+fn broadcast_signatures() -> Document {
+    let alice = Identity::new("alice");
+    let bob = Identity::new("bob");
+    document(
+        "broadcast-signatures.json",
+        "MeshLink/1 signed broadcast",
+        &[
+            (
+                "ReferenceKeys",
+                "Keys come from fixed labels in tools/reference. ed25519_seed is the RFC 8032 private key that signed the frame's signing input; it is absent when no single key signed the bytes shown.",
+            ),
+            (
+                "HopLimit",
+                "A relay lowers hop_limit; the signature leaves that byte out, so it stays valid (routing.md, BROADCAST).",
+            ),
+            (
+                "Tampered",
+                "Bytes changed after signing, another origin_key, or a signature by another identity key.",
+            ),
+        ],
+        vec![Group {
+            attributes: vec![("type", text("BroadcastVerify"))],
+            tests: broadcast_tests(&alice, &bob),
+        }],
+        vec![
+            ("frame", s_hex()),
+            ("node_id", s_hex_of(32)),
+            ("signing_input", s_hex()),
+            ("ed25519_seed?", s_hex_of(32)),
+        ],
+        vec![("type", s_const(text("BroadcastVerify")))],
+    )
+}
+
+fn broadcast_tests(alice: &Identity, bob: &Identity) -> Vec<Test> {
+    let header = Header {
+        hop_limit: 64,
+        message_id: seed("broadcast message id")[..12].try_into().expect("12 B"),
+        expiry: NOW + 600,
+    };
+    let payload = b"Water at gate 3";
+    let good = broadcast::sign(header, &alice.signing, &alice.signing, payload);
+    let at_hop =
+        |hop_limit: u8| broadcast::sign(Header { hop_limit, ..header }, &alice.signing, &alice.signing, payload);
+    let mut lowered = good.clone();
+    lowered[1] = 63;
+    let mut swapped = good.clone();
+    swapped[19..51].copy_from_slice(&bob.ed25519_key());
+    let largest = vec![0x5a; broadcast::PAYLOAD_MAX];
+    let signature = good.len() - 64;
+    let hop = &["HopLimit"];
+    let tampered = &["Tampered"];
+    let case = |comment: &str, flags: &[&'static str], frame: Vec<u8>, signer: Option<&Identity>| {
+        let result = broadcast::verify(&frame);
+        let mut fields = vec![
+            ("frame", hex(&frame)),
+            ("node_id", hex(&crate::spec::node_id(&broadcast::origin_key(&frame)))),
+            ("signing_input", hex(&broadcast::signing_input(&frame))),
+        ];
+        if let Some(signer) = signer {
+            fields.push(("ed25519_seed", hex(signer.signing.as_bytes())));
+        }
+        test(comment, flags, fields, result.err())
+    };
+    vec![
+        case("valid, hop limit 64", &[], good.clone(), Some(alice)),
+        case("hop limit lowered to 63 by a relay", hop, lowered, Some(alice)),
+        case("signed at hop limit 1", hop, at_hop(1), Some(alice)),
+        case("signed at hop limit 255", hop, at_hop(255), Some(alice)),
+        case(
+            "empty payload",
+            &[],
+            broadcast::sign(header, &alice.signing, &alice.signing, b""),
+            Some(alice),
+        ),
+        case(
+            "1,024 B payload",
+            &[],
+            broadcast::sign(header, &alice.signing, &alice.signing, &largest),
+            Some(alice),
+        ),
+        case("flipped payload bit", tampered, flip(&good, 18 + 35), None),
+        case("flipped signature bit", tampered, flip(&good, signature), None),
+        case("flipped message_id bit", tampered, flip(&good, 2), None),
+        case("flipped expiry bit", tampered, flip(&good, 17), None),
+        case("origin_key swapped for another identity's", tampered, swapped, None),
+        case(
+            "signed by another identity key",
+            tampered,
+            broadcast::sign(header, &alice.signing, &bob.signing, payload),
+            Some(bob),
+        ),
+    ]
 }
 
 // ---------------------------------------------------------------------------

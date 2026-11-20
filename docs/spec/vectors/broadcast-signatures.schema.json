@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "broadcast-signatures.schema.json",
+  "title": "MeshLink protocol 1 test vectors: broadcast-signatures.json",
+  "type": "object",
+  "required": [
+    "tier",
+    "algorithm",
+    "schema",
+    "generatorVersion",
+    "numberOfTests",
+    "notes",
+    "testGroups"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "tier": {
+      "const": 2
+    },
+    "algorithm": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "broadcast-signatures.schema.json"
+    },
+    "generatorVersion": {
+      "type": "string"
+    },
+    "numberOfTests": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "notes": {
+      "type": "object"
+    },
+    "testGroups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "tests"
+        ],
+        "properties": {
+          "type": {
+            "const": "BroadcastVerify"
+          },
+          "tests": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "tcId",
+                "comment",
+                "flags",
+                "result",
+                "frame",
+                "node_id",
+                "signing_input"
+              ],
+              "properties": {
+                "tcId": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "result": {
+                  "enum": [
+                    "valid",
+                    "invalid"
+                  ]
+                },
+                "frame": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "node_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "signing_input": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "ed25519_seed": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

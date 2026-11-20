@@ -354,6 +354,24 @@ def tier2_certificate(g, t, where):
         fail("%s: signing_input mismatch" % where)
 
 
+def tier2_broadcast(g, t, where):
+    frame = b(t["frame"])
+    try:
+        fields, _ = m.decode_frame(frame)
+        container = fields["container"]
+    except m.DecodeError as e:
+        return fail("%s: frame %s" % (where, e.code))
+    if fields["type"] != "0x80" or container["kind"] != "0x05":
+        fail("%s: not a signed broadcast" % where)
+    elif t["signing_input"] != m.broadcast_signing_input(frame[:-64]).hex():
+        fail("%s: signing_input mismatch" % where)
+    elif t["node_id"] != m.node_id(b(container["origin_key"])).hex():
+        fail("%s: node_id mismatch" % where)
+    # Only Ed25519 can confirm the signature, so the file may only claim a bad one.
+    elif t.get("error") not in (None, "bad-signature") or t["result"] != ("invalid" if t.get("error") else "valid"):
+        fail("%s: unexpected result %s/%s" % (where, t["result"], t.get("error")))
+
+
 def tier2_prologue(side, profile, where):
     pro = b(side["prologue"])
     head = m.ds("link-prologue")
@@ -496,7 +514,7 @@ def tier2_link(g, t, where):
         )
 
 
-TIER2 = {"CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal,
+TIER2 = {"BroadcastVerify": tier2_broadcast, "CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal,
          "LinkTransport": tier2_link}
 
 

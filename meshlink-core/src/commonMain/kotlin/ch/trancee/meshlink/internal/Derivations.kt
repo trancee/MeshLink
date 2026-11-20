@@ -138,6 +138,7 @@ public enum class Domain(
     UNSECURED_TAG("unsecured-tag"),
     TOMBSTONE("tombstone"),
     CERTIFICATE("certificate"),
+    BROADCAST("broadcast"),
     ;
 
     /** `DS(purpose) = u8(len(s)) ‖ s`, where `s = "MeshLink/1 " ‖ purpose`. */

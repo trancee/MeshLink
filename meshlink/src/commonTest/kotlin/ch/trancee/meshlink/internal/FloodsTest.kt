@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.ReceivedMessage
+import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -11,9 +13,9 @@ class FloodsTest {
     private val b = nodeId(2)
     private val c = nodeId(3)
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
-    private val delivered = mutableListOf<Container.Unsecured>()
+    private val delivered = mutableListOf<ReceivedMessage>()
 
-    private fun floods(accepting: Boolean = true) = Floods(lanes, accepting) { delivered += it }
+    private fun floods(secured: Boolean = false) = Floods(lanes, broadcastCodec(secured)) { delivered += it }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
 
@@ -30,7 +32,7 @@ class FloodsTest {
             // Assert
             val relayed = frame.copyOf().also { it[1] = 4 }
             val waiting = waiting()
-            assertContentEquals(SENDER, delivered.single().senderNodeId)
+            assertContentEquals(SENDER, delivered.single().sender.toByteArray())
             assertEquals("hello", delivered.single().text())
             assertEquals(emptyList(), waiting.getValue(a))
             listOf(b, c).forEach { assertContentEquals(relayed, waiting.getValue(it).single()) }
@@ -79,6 +81,7 @@ class FloodsTest {
                     valid.copyOf(FloodHeader.LENGTH - 1),
                     broadcast(container = Container.Unsecured(SENDER, ByteArray(PAYLOAD_MAX + 1))),
                     broadcast(container = Container.SignedBroadcast(ByteArray(32), byteArrayOf(1), ByteArray(64))),
+                    signed(),
                     header() + byteArrayOf(Container.IK_INITIATOR.toByte()) + ByteArray(48),
                 )
 
@@ -113,7 +116,7 @@ class FloodsTest {
     fun aSecuredNodeNeitherDeliversNorRelaysAnUnsecuredBroadcast() =
         runTest {
             // Arrange
-            val floods = floods(accepting = false)
+            val floods = floods(secured = true)
 
             // Act
             floods.received(a, broadcast(), NOW)
@@ -121,6 +124,42 @@ class FloodsTest {
             // Assert
             assertEquals(emptyList(), delivered)
             assertEquals(listOf(a, b, c).associateWith { emptyList<ByteArray>() }, waiting())
+        }
+
+    @Test
+    fun aSecuredNodeDeliversAndRelaysASignedBroadcastFromItsOriginsNodeId() =
+        runTest {
+            // Arrange
+            val floods = floods(secured = true)
+            val frame = signed()
+
+            // Act
+            floods.received(a, frame, NOW)
+
+            // Assert
+            val origin = Derivations(SodiumCryptoProvider).nodeId(identityKey(2).publicKey)
+            assertContentEquals(origin, delivered.single().sender.toByteArray())
+            assertEquals("hello", delivered.single().text())
+            assertEquals(listOf(0, 1, 1), waiting().values.map { it.size })
+        }
+
+    @Test
+    fun aForgedSignedBroadcastIsDroppedAndDoesNotShadowTheGenuineOne() =
+        runTest {
+            // Arrange
+            val floods = floods(secured = true)
+            val genuine = signed()
+            val forged = genuine.copyOf().also { it[it.size - 1] = (it[it.size - 1].toInt() xor 1).toByte() }
+
+            // Act
+            floods.received(a, forged, NOW)
+            val nothing = waiting()
+            floods.received(a, genuine, NOW)
+
+            // Assert
+            assertEquals(listOf(a, b, c).associateWith { emptyList<ByteArray>() }, nothing)
+            assertEquals(1, delivered.size)
+            assertEquals(listOf(0, 1, 1), waiting().values.map { it.size })
         }
 
     @Test
@@ -210,7 +249,12 @@ class FloodsTest {
         container: Container = Container.Unsecured(SENDER, "hello".encodeToByteArray()),
     ): ByteArray = header(BroadcastFrame.TYPE, hopLimit, id, expiry) + container.encode()
 
-    private fun Container.Unsecured.text() = plaintext.decodeToString()
+    private fun signed(): ByteArray {
+        val header = FloodHeader(5, messageId(1), (NOW + LIFETIME).toUInt())
+        return BroadcastFrame.sign(SodiumCryptoProvider, header, identityKey(2), "hello".encodeToByteArray()).encode()
+    }
+
+    private fun ReceivedMessage.text() = payload.decodeToString()
 
     private companion object {
         const val NOW = 1_767_225_600L

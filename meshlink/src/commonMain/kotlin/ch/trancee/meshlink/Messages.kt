@@ -78,7 +78,10 @@ public enum class FailureReason {
 
 /** A message another node sent to this one, or to every node if [broadcast]. */
 public class ReceivedMessage internal constructor(
-    /** The NodeId the sender claims; the `unsecured` profile does not authenticate it. */
+    /**
+     * The sender's NodeId. The `unsecured` profile does not authenticate it; in the `classical` and
+     * `post-quantum` profiles a broadcast's sender is the NodeId of its verified origin signature.
+     */
     public val sender: NodeId,
     /** The message bytes. */
     public val payload: ByteArray,
