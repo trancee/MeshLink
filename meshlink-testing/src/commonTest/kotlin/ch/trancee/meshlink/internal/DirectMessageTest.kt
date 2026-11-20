@@ -86,7 +86,7 @@ class DirectMessageTest {
         }
 
     @Test
-    fun sendToANodeIdThatNeverLinkedIsRejectedAsUnknownPeer() =
+    fun sendToTheNodesOwnNodeIdIsRejectedAsUnknownPeer() =
         runTest {
             // Arrange
             val (nodes) = linkedPair()
@@ -101,6 +101,29 @@ class DirectMessageTest {
 
             // Assert
             assertEquals(SendResult.Rejected(RejectionReason.UnknownPeer), result)
+        }
+
+    @Test
+    fun sendToANodeIdThatNeverLinkedIsAcceptedAndFloodedToTheLinkedPeers() =
+        runTest {
+            // Arrange
+            val (nodes) = linkedPair()
+            val (elsewhere) = linkedPair()
+            val stranger =
+                elsewhere[0]
+                    .peers.value
+                    .single()
+                    .nodeId
+            val received = mutableListOf<ReceivedMessage>()
+            backgroundScope.launch { nodes[1].messages.toList(received) }
+
+            // Act
+            val status = accepted(nodes[0].send(stranger, PAYLOAD))
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(DeliveryStatus.Sent, status.value)
+            assertEquals(emptyList(), received)
         }
 
     @Test

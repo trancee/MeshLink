@@ -108,8 +108,14 @@ The origin's retries reuse the `message_id`, so a retry passes relays once the s
 | route-active-timeout | 30 | s | - |
 | forward-route-timeout | 60 | s | - |
 | reverse-route-timeout | 6 | s | - |
+| relay-queue-max | 32 | messages | - |
+| seen-ids-max | 4,096 | entries | - |
+| routes-max | 4,096 | entries | - |
 
 - An active route expires `route-active-timeout` after it was last used. A route learned from a route reply first holds `forward-route-timeout`. A reverse route holds `reverse-route-timeout` unless used.
+- A node keeps at most `seen-ids-max` `message_id`s it forwarded, and as many it processed, and at most `routes-max` routes. Past that, it forgets the oldest.
+- Each link queues at most `relay-queue-max` relayed frames; a frame that arrives at a full queue is dropped. A newer copy of a queued `message_id` replaces the queued one. The origin's own frames don't count toward this bound: the send-queue cap bounds them (ADR 0007).
+- A frame whose write fails because its link closed goes back to the front of that peer's queue, so another link to the same peer, if one is kept, writes it first. A frame the peer refuses with `BUSY` is not sent again on that hop by a relay; the origin's next retry carries the message again.
 - The delivery receipt travels the reverse route and refreshes the route on every hop (ADR 0008 amendment, "K2 delivery ack").
 
 ### Origin behavior
@@ -121,7 +127,7 @@ How the origin sends depends on its local density class. These are local choices
 - **Low class:** send with `hop_limit` 255 (flood).
 - **Medium and high class:** with an active route, send on it. Without one, send with `hop_limit` `u6-flood-radius` and at once send a `ROUTE_REQUEST` with `hop_limit` `route-request-radius`.
 - After sending on a route, if no delivery receipt arrives within `resend-base` + `resend-per-hop` × the route's hop count, send once more by a new search.
-- Then retry with doubling intervals: from `retry-min-low` to `retry-max-low` in the low and medium classes, from `retry-min-high` to `retry-max-high` in the high class. Low and medium also retry on each new link.
+- Then retry with doubling intervals: from `retry-min-low` to `retry-max-low` in the low and medium classes, from `retry-min-high` to `retry-max-high` in the high class. Retries at the maximum interval go on until the message expires. Low and medium also retry on each new link, at most once per destination within `link-retry-gap`.
 - A retry keeps `message_id`, `expiry`, the commitment and the container, but uses the destination's and the origin's tags for the current epoch. Relays cannot re-tag (ADR 0014 decision 7).
 - A direct-only send (ADR 0013 decision 8) uses `hop_limit` 1, so no relay forwards or holds it [D-27].
 - Running out of retries does not fail a message: it expires at `expiry` plus `clock-skew` (ADR 0013 amendment to ADR 0008).
@@ -138,6 +144,7 @@ How the origin sends depends on its local density class. These are local choices
 | retry-max-low | 30 | s | - |
 | retry-min-high | 5 | s | - |
 | retry-max-high | 60 | s | - |
+| link-retry-gap | 5,000 | ms | - |
 
 ### Holding
 

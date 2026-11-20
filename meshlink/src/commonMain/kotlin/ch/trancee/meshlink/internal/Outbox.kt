@@ -7,17 +7,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
 /**
- * The messages this node accepted and has not finished (ADR 0013 decisions 5, 6, 8 and 9): a queue
- * per destination that outlives links and each message's lifetime. A message frees its bytes in
- * [capacity] once written or finished.
+ * The messages this node accepted and has not finished (ADR 0013 decisions 5, 6, 8 and 9; spec
+ * "Origin behavior"). Each one is sent with [transmit] at once, then again after doubling intervals
+ * for the node's [density] class until its deadline; in the low and medium classes also on each new
+ * link, at most once per [LINK_RETRY_GAP_MILLIS] per destination. A message holds its bytes in
+ * [capacity] until it finishes.
  *
  * Runs on [scope]'s serial dispatcher.
  */
@@ -25,10 +27,11 @@ internal class Outbox(
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val capacity: Capacity,
+    private val density: () -> DensityClass,
+    private val transmit: (Entry) -> Unit,
 ) {
-    private val queues = mutableMapOf<NodeId, ArrayDeque<Entry>>()
-    private val linked = mutableSetOf<NodeId>()
-    private val changes = MutableStateFlow(0L)
+    private val entries = mutableListOf<Entry>()
+    private val linkRetries = mutableMapOf<NodeId, Long>()
     private lateinit var run: CoroutineScope
 
     /** Starts a run of the node: messages added from now on live until it [end]s. */
@@ -41,65 +44,53 @@ internal class Outbox(
         run.coroutineContext.job.cancelAndJoin()
     }
 
-    /** Queues [entry], whose bytes are reserved, or fails it if the run has ended. */
+    /** Sends [entry], whose bytes are reserved, or fails it if the run has ended. */
     fun add(entry: Entry) {
         if (!run.isActive) return finish(entry, DeliveryStatus.Failed(FailureReason.Stopped))
+        entries += entry
         // Started at once so it is inside live's try before a stop can cancel it.
         run.launch(start = CoroutineStart.UNDISPATCHED) { live(entry) }
-        queues.getOrPut(entry.to) { ArrayDeque() }.addLast(entry)
-        if (entry.to !in linked) entry.status.value = DeliveryStatus.Held
-        changes.value++
     }
 
-    /** A link to [peer] completed its hello. */
-    fun linked(peer: NodeId) {
-        linked += peer
-    }
-
-    /** The link to [peer] closed: its waiting messages are `Held`. */
-    fun unlinked(peer: NodeId) {
-        linked -= peer
-        queues[peer]?.forEach { it.status.value = DeliveryStatus.Held }
-    }
-
-    /** Takes the next message for [peer], waiting for one. */
-    suspend fun next(peer: NodeId): Entry {
-        while (true) {
-            val seen = changes.value
-            take(peer)?.let { return it }
-            changes.first { it != seen }
+    /** A link completed its hello: low and medium classes send each destination's messages again. */
+    fun linked() {
+        if (density() == DensityClass.HIGH) return
+        val now = clock.monotonicMillis()
+        linkRetries.keys.retainAll(entries.map { it.to }.toSet())
+        entries.groupBy { it.to }.forEach { (to, waiting) ->
+            val last = linkRetries[to]
+            if (last == null || now - last >= LINK_RETRY_GAP_MILLIS) {
+                linkRetries[to] = now
+                waiting.forEach(transmit)
+            }
         }
     }
 
-    /** Ends a write of [entry] taken by [next]: `Sent`, or back to the front of its queue. */
-    fun settle(
-        entry: Entry,
-        sent: Boolean,
-    ) {
-        if (entry.done) return
-        if (sent) {
-            entry.status.value = DeliveryStatus.Sent
-            release(entry)
-        } else {
-            queues.getOrPut(entry.to) { ArrayDeque() }.addFirst(entry)
-            if (entry.to !in linked) entry.status.value = DeliveryStatus.Held
-            changes.value++
-        }
-    }
-
-    private fun take(peer: NodeId): Entry? {
-        val queue = queues[peer]
-        val entry = queue?.removeFirstOrNull()
-        if (queue?.isEmpty() == true) queues -= peer
-        return entry
+    /** The node has no link left: messages not yet sent are `Held`. */
+    fun unreachable() {
+        entries.forEach { it.hold() }
     }
 
     private suspend fun live(entry: Entry) {
         try {
-            delay(entry.deadlineMillis - clock.wallClockMillis())
+            coroutineScope {
+                val retries = launch(start = CoroutineStart.UNDISPATCHED) { retry(entry) }
+                delay(entry.deadlineMillis - clock.wallClockMillis())
+                retries.cancel()
+            }
             finish(entry, DeliveryStatus.Expired)
         } finally {
             finish(entry, DeliveryStatus.Failed(FailureReason.Stopped))
+        }
+    }
+
+    private suspend fun retry(entry: Entry) {
+        var doublings = 0
+        while (true) {
+            transmit(entry)
+            val (min, max) = if (density() == DensityClass.HIGH) HIGH else LOW
+            delay(minOf(min shl doublings, max))
+            doublings = minOf(doublings + 1, DOUBLINGS_MAX)
         }
     }
 
@@ -110,14 +101,8 @@ internal class Outbox(
         if (entry.done) return
         entry.done = true
         entry.status.value = status
-        queues[entry.to]?.remove(entry)
-        if (queues[entry.to]?.isEmpty() == true) queues -= entry.to
-        release(entry)
-    }
-
-    private fun release(entry: Entry) {
-        if (entry.reserved) capacity.release(entry.size)
-        entry.reserved = false
+        entries -= entry
+        capacity.release(entry.size)
     }
 
     /** One message to [to] whose [size] payload bytes are reserved, ending at [deadlineMillis] wall-clock time. */
@@ -128,7 +113,28 @@ internal class Outbox(
         val status: MutableStateFlow<DeliveryStatus>,
         val deadlineMillis: Long,
     ) {
-        var reserved = true
         var done = false
+
+        /** A write of this message succeeded. */
+        fun sent() {
+            if (!done) status.value = DeliveryStatus.Sent
+        }
+
+        /** No link can take this message now. */
+        fun hold() {
+            if (status.value == DeliveryStatus.Queued) status.value = DeliveryStatus.Held
+        }
+    }
+
+    companion object {
+        /** `link-retry-gap`: the least time between two new-link retries to one destination. */
+        const val LINK_RETRY_GAP_MILLIS: Long = 5_000
+
+        // retry-min-low to retry-max-low (low and medium) and retry-min-high to retry-max-high.
+        private val LOW = 2_000L to 30_000L
+        private val HIGH = 5_000L to 60_000L
+
+        // Enough doublings to reach either maximum.
+        private const val DOUBLINGS_MAX = 5
     }
 }

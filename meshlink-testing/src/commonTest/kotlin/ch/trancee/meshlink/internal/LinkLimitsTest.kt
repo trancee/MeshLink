@@ -393,7 +393,9 @@ class LinkLimitsTest {
             val nodes = listOf(hubNode, node(platformWith(slow, slowRadio)), node(fast))
             nodes.forEach { it.start() }
             advanceTimeBy(MESH_SETTLE_MILLIS)
-            val toSlow = List(MESSAGES) { sendTo(hubNode, slow, LARGE_PAYLOAD) }
+            var fastReceived = 0
+            backgroundScope.launch { nodes[2].messages.collect { fastReceived++ } }
+            repeat(MESSAGES) { sendTo(hubNode, slow, LARGE_PAYLOAD) }
             val toFast = List(MESSAGES) { sendTo(hubNode, fast, LARGE_PAYLOAD) }
             val slowEnd = hub.radio.ends.single { it.open && it.peer === slow.radio.handle }
             var outstanding = 0
@@ -405,8 +407,9 @@ class LinkLimitsTest {
             }
 
             // Assert
+            // A low-class origin floods every message on each link, so the stalled link holds only its own.
             assertTrue(toFast.all { it.value == DeliveryStatus.Sent })
-            assertTrue(toSlow.any { it.value == DeliveryStatus.Queued })
+            assertEquals(MESSAGES, fastReceived)
             assertTrue(outstanding in 1..CREDIT_WINDOW, "outstanding $outstanding")
         }
 

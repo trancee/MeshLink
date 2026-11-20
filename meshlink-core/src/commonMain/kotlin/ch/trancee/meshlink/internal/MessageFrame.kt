@@ -102,3 +102,54 @@ public class MessageFrame(
             }
     }
 }
+
+/**
+ * Any unicast frame, types `0x40`–`0x7F` (spec "Routing headers"): its [type], unicast [header] and
+ * the [body] after it, which only the destination reads. A relay forwards every unicast type by
+ * its header, an unknown one included.
+ */
+public class UnicastFrame(
+    public val type: Int,
+    public val header: UnicastHeader,
+    public val body: ByteArray,
+) {
+    init {
+        require(type in FIRST..LAST) { "a unicast type is 0x40..0x7F, not $type" }
+    }
+
+    /** The frame's bytes. */
+    public fun encode(): ByteArray = header.encode(type) + body
+
+    public companion object {
+        private const val FIRST = 0x40
+        private const val LAST = 0x7F
+
+        /**
+         * Decodes one unicast frame by its header; never throws. A type outside `0x40`–`0x7F` is
+         * [DecodeError.UNKNOWN_TYPE].
+         */
+        public fun decode(bytes: ByteArray): Decoded<UnicastFrame> =
+            when {
+                bytes.isEmpty() -> {
+                    Decoded.Invalid(DecodeError.TRUNCATED)
+                }
+
+                bytes.u8(0) !in FIRST..LAST -> {
+                    Decoded.Invalid(DecodeError.UNKNOWN_TYPE)
+                }
+
+                bytes.size < UnicastHeader.LENGTH -> {
+                    Decoded.Invalid(DecodeError.TRUNCATED)
+                }
+
+                UnicastHeader.spent(bytes) -> {
+                    Decoded.Invalid(DecodeError.OUT_OF_RANGE)
+                }
+
+                else -> {
+                    val body = bytes.copyOfRange(UnicastHeader.LENGTH, bytes.size)
+                    Decoded.Valid(UnicastFrame(bytes.u8(0), UnicastHeader.of(bytes), body))
+                }
+            }
+    }
+}

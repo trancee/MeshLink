@@ -12,6 +12,7 @@ import ch.trancee.meshlink.internal.MessageFrame
 import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.RecordReader
 import ch.trancee.meshlink.internal.ResolvingKey
+import ch.trancee.meshlink.internal.UnicastFrame
 
 // Jazzer targets (ADR 0017 decision 9). A decoder returns a value or a typed error; anything it
 // throws, a hang or an unbounded allocation is a finding. A value must re-encode to its input,
@@ -65,6 +66,11 @@ object IdentityCertificateFuzzer {
 object MessageFrameFuzzer {
     @JvmStatic
     fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, MessageFrame.decode(data)) { it.encode() }
+}
+
+object UnicastFrameFuzzer {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, UnicastFrame.decode(data)) { it.encode() }
 }
 
 /** Both the secured and the unsecured framing. */

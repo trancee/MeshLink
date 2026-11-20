@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 13 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 14 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -195,3 +195,11 @@ Results for the v1 configuration:
   - The node resolves each heard identifier again when it estimates. A peer that links during the window is heard before its neighbor list resolves its identifier, so it counted twice: as an identifier and as a linked peer not heard. A 6-node cluster's first estimate was then about 10, which held every node at medium for the 60 s dwell.
 - **Link budget (decision 1):** a switch that lowers d closes no link at once. A node holding the new d frees a random link after 30 s, as any full node does for newcomers. The passive view holds 4·d and drops random entries once d shrinks.
 - **Adaptation (decision 2):** in `VirtualAir`, a low and a medium node exchange every cleartext link frame type on one link, and a medium node sends its handshake, hourly rekeys and next resolving key over 25 h. `BUSY` has no sender yet, so it isn't exchanged. The 2 → 70 → 2 node mesh keeps each node's scan schedule and peer count within its class's settings.
+
+2026-11-19, routed unicast built (0.1.0 backlog ticket "Route a unicast message over several hops"; host simulation in `VirtualAir`):
+
+- **Retry on a new link (decision 3):** low and medium origins retry a waiting message on each new link, but at most once per destination per 5 s (`link-retry-gap`). Without the gap, link churn in a dense cluster resent every waiting message on every new link (owner decision).
+- **Retry schedule (decision 3):** once the doubling interval reaches its maximum, retries go on at that interval until the message expires, as in the routing simulation.
+- **Bounds (decision 4):** each link queues at most 32 relayed frames and drops a frame that arrives at a full queue; a newer copy of a queued `message_id` replaces it. A node remembers at most 4,096 forwarded `message_id`s and 4,096 routes, forgetting the oldest. The origin's own frames are exempt from the 32 bound; the 1 MiB send-queue cap bounds them (ADR 0007) (owner decisions).
+- **Failed writes (decision 4):** a frame whose write fails because its link broke or closed goes back to the front of that peer's queue, for the origin and for relays. A frame refused with `BUSY` is not re-sent on that hop; the origin's next retry carries the message again, and relays never retry (owner decision).
+- **Relays read headers only:** a relay forwards unicast types `0x41` to `0x44` by their 34 B header, and a `MESSAGE` also by its container kind, without opening the payload. It drops a `MESSAGE` whose container kind the mesh's profile doesn't carry, such as an `unsecured` container in a secured mesh.

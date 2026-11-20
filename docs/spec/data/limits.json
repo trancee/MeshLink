@@ -374,6 +374,27 @@
       "source": "ADR 0008 decision 4; v1-parameters"
     },
     {
+      "name": "relay-queue-max",
+      "value": 32,
+      "unit": "messages",
+      "decision": "-",
+      "source": "ADR 0008 amendment of 2026-11-19, routed unicast"
+    },
+    {
+      "name": "seen-ids-max",
+      "value": 4096,
+      "unit": "entries",
+      "decision": "-",
+      "source": "ADR 0008 amendment of 2026-11-19, routed unicast"
+    },
+    {
+      "name": "routes-max",
+      "value": 4096,
+      "unit": "entries",
+      "decision": "-",
+      "source": "ADR 0008 amendment of 2026-11-19, routed unicast"
+    },
+    {
       "name": "unicast-seen-window",
       "value": 1000,
       "unit": "ms",
@@ -456,6 +477,13 @@
       "unit": "s",
       "decision": "-",
       "source": "v1-parameters"
+    },
+    {
+      "name": "link-retry-gap",
+      "value": 5000,
+      "unit": "ms",
+      "decision": "-",
+      "source": "ADR 0008 amendment of 2026-11-19, routed unicast"
     },
     {
       "name": "resend-base",
