@@ -28,7 +28,7 @@ import kotlin.time.Instant
 /**
  * A running node's links (spec "Version selection", "Unsecured link", "Link handshake", "Keep one
  * link per neighbor", "Close"): opens a link to each candidate as central, accepts the links peers
- * open, keeps one link per NodeId and lists every linked peer in [peers]. A link opens with
+ * open, keeps one link per NodeId and lists every linked peer in [roster]. A link opens with
  * `PLAIN_HELLO`s in `unsecured`, or with a Noise handshake and encrypted records once
  * [LinkAdmission.handshakes] is set. Each kept link writes the messages [mail] has for its peer and
  * hands it the routed frames it receives. A frame larger than one record travels as `FRAGMENT`s;
@@ -44,7 +44,7 @@ internal class Links(
     port: PlatformPort,
     admission: LinkAdmission,
     private val scope: CoroutineScope,
-    private val peers: MutableStateFlow<List<Peer>>,
+    private val roster: Roster,
     private val mail: Mail,
     private val links: () -> Int,
 ) {
@@ -695,7 +695,7 @@ internal class Links(
         val listed = table.map { (id, conn) -> conn.toPeer(id, proximities.of(id)) } + kept.values
         mutableRoles.value =
             table.mapValues { (_, conn) -> if (conn.central) LinkRole.CENTRAL else LinkRole.PERIPHERAL }
-        peers.value = listed.sortedBy { it.nodeId.toString() }
+        roster.direct(listed)
     }
 
     /** One link and what this node knows about it. */

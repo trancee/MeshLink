@@ -2,22 +2,44 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.NodeId
 
+/** What [Router] needs from the node's end-to-end layer; called on the node's dispatcher. */
+internal interface Endpoint {
+    /** Whether routing [tag] is this node's at Unix second [nowSeconds]. */
+    fun owns(
+        tag: ByteArray,
+        nowSeconds: Long,
+    ): Boolean
+
+    /** Takes a `MESSAGE` [frame] for this node; says whether it accepted it. */
+    fun deliver(
+        frame: ByteArray,
+        nowSeconds: Long,
+    ): Boolean
+
+    /** This node's current routing tag to answer and send route requests from; `null` if it has none. */
+    fun tag(): ByteArray?
+
+    /** A route discovery found a route to [tag]. */
+    fun found(tag: ByteArray)
+}
+
 /**
- * Unicast routing (spec "Unicast forwarding" and "Origin behavior"): processes the frames for this
- * node, relays the others by their header alone, and places this node's own frames in [lanes].
+ * Unicast routing (spec "Unicast forwarding", "Origin behavior" and "Route discovery"): processes
+ * the frames for this node, relays the others by their header alone, runs route discovery, and
+ * places this node's own frames in [lanes].
  *
- * [kinds] are the `MESSAGE` container kinds the mesh's profile carries; [owns] says whether a
- * routing tag is this node's at a Unix second; [deliver] takes a `MESSAGE` for this node and says
- * whether it accepted it. Runs on the node's serial dispatcher.
+ * [kinds] are the `MESSAGE` container kinds the mesh's profile carries; [routes] are the node's
+ * routes; [random] makes message ids. Runs on the node's serial dispatcher.
  */
 internal class Router(
     private val clock: Clock,
     private val lanes: Lanes,
     private val kinds: Set<Int>,
-    private val owns: (tag: ByteArray, nowSeconds: Long) -> Boolean,
-    private val deliver: (frame: ByteArray, nowSeconds: Long) -> Boolean,
+    private val routes: Routes,
+    random: (size: Int) -> ByteArray,
+    private val endpoint: Endpoint,
 ) {
-    private val routes = Routes()
+    private val discovery = RouteDiscovery(clock, lanes, routes, random, endpoint)
     private val seen = MessageIds()
     private val delivered = MessageIds()
 
@@ -27,32 +49,37 @@ internal class Router(
         bytes: ByteArray,
     ) {
         val nowSeconds = clock.wallClockMillis() / MILLIS_PER_SECOND
+        val flood = bytes.isNotEmpty() && bytes[0].toInt() and FLOOD_MASK == FLOOD_TYPES
+        if (flood) return flooded(peer, bytes, nowSeconds)
         val frame = admitted(bytes, nowSeconds) ?: return
-        if (owns(frame.header.destinationTag, nowSeconds)) {
-            accept(frame, bytes, nowSeconds)
+        if (endpoint.owns(frame.header.destinationTag, nowSeconds)) {
+            accept(peer, frame, bytes, nowSeconds)
         } else {
-            relay(peer, frame, bytes.size)
+            relay(peer, frame, bytes)
         }
     }
 
     /**
-     * Places this node's message [messageId] for the destination whose current tag is [tag], from a
-     * node of class [density]: on an active route, else flooded to every link. [render] makes the
-     * frame's bytes for a hop limit at write time; [settle] hears how each write ended.
+     * Places this node's [parcel] for the destination whose current tag is [tag], from a node of
+     * class [density]: on an active route unless [search], else flooded to every link with a route
+     * request alongside in the medium and high classes. [parcel] makes the frame for a hop limit.
+     * Returns the hop count of the route it went on, 0 for a route without one, or `null` if flooded.
      */
     fun originate(
-        messageId: ByteArray,
         tag: ByteArray,
         density: DensityClass,
-        render: (hopLimit: Int) -> ByteArray,
-        settle: (Settled) -> Unit,
-    ) {
+        search: Boolean,
+        parcel: (hopLimit: Int) -> Parcel,
+    ): Int? {
         val now = clock.monotonicMillis()
-        seen.put(messageId, now + SEEN_WINDOW_MILLIS)
-        val route = if (density == DensityClass.LOW) null else routes.use(tag, now)
-        val hopLimit = if (density == DensityClass.LOW || route != null) HOP_LIMIT_MAX else FLOOD_RADIUS
-        val targets = if (route != null) listOf(route) else lanes.peers
-        targets.forEach { lanes.put(it, Parcel(messageId, relayed = false, { render(hopLimit) }, settle)) }
+        val low = density == DensityClass.LOW
+        val route = if (low || search) null else routes.use(tag, now)
+        if (!low && route == null) discovery.search(tag, clock.wallClockMillis() / MILLIS_PER_SECOND)
+        val made = parcel(if (low || route != null) HOP_LIMIT_MAX else FLOOD_RADIUS)
+        seen.put(made.messageId, now + SEEN_WINDOW_MILLIS)
+        val targets = if (route != null) listOf(route.peer) else lanes.peers
+        targets.forEach { lanes.put(it, made) }
+        return route?.hops
     }
 
     /** The link to [peer] closed: routes through it go. */
@@ -79,63 +106,93 @@ internal class Router(
         }
     }
 
+    // A flood frame: route requests go to route discovery; other flood types come later.
+    private fun flooded(
+        peer: NodeId,
+        bytes: ByteArray,
+        nowSeconds: Long,
+    ) {
+        val decoded = RouteRequest.decode(bytes)
+        if (decoded is Decoded.Valid) discovery.requested(peer, decoded.value, nowSeconds)
+    }
+
     // Steps 2 to 6 of spec "Unicast forwarding". A relay does not retry: a refused write drops the frame.
     private fun relay(
         peer: NodeId,
         frame: UnicastFrame,
-        size: Int,
+        bytes: ByteArray,
     ) {
         val now = clock.monotonicMillis()
         routes.learn(frame.header.sourceTag, peer, now)
         if (seen.has(frame.header.messageId, now) || frame.header.hopLimit - 1 < 1) return
-        val route = routes.use(frame.header.destinationTag, now)
+        val relayed = relayed(peer, frame, bytes)
+        val route = relayed?.let { routes.use(frame.header.destinationTag, now)?.peer }
         val targets =
             when {
+                relayed == null -> null
                 route != null -> listOf(route)
-                size <= Reassembly.FRAME_SMALL_MAX -> lanes.peers - peer
-                else -> return
+                bytes.size <= Reassembly.FRAME_SMALL_MAX -> lanes.peers - peer
+                else -> null
             }
+        if (relayed == null || targets == null) return
         seen.put(frame.header.messageId, now + SEEN_WINDOW_MILLIS)
-        val relayed = relayed(frame)
         targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }) {}) }
     }
 
-    // Past expiry plus clock skew, or more than a lifetime plus skew ahead, a frame is dropped.
-    private fun timely(
-        expiry: Long,
-        nowSeconds: Long,
-    ): Boolean =
-        nowSeconds <= expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS &&
-            expiry <= nowSeconds + UnsecuredMessaging.LIFETIME_MAX_SECONDS + UnsecuredMessaging.CLOCK_SKEW_SECONDS
-
-    // A MESSAGE must decode and carry a container kind the profile allows; other unicast types pass by header.
+    // A MESSAGE must decode and carry a container kind the profile allows, a ROUTE_REPLY must decode;
+    // other unicast types pass by header.
     private fun carried(
         type: Int,
         bytes: ByteArray,
-    ): Boolean {
-        if (type != MessageFrame.TYPE) return true
-        val decoded = MessageFrame.decode(bytes)
-        return decoded is Decoded.Valid && decoded.value.container.kind in kinds
-    }
+    ): Boolean =
+        when (type) {
+            MessageFrame.TYPE -> {
+                val message = MessageFrame.decode(bytes)
+                message is Decoded.Valid && message.value.container.kind in kinds
+            }
 
-    // A destination processes each MESSAGE once until its expiry plus clock skew; other types come later.
+            RouteReply.TYPE -> {
+                RouteReply.decode(bytes) is Decoded.Valid
+            }
+
+            else -> {
+                true
+            }
+        }
+
+    // A destination processes each MESSAGE once while it is timely, and learns the route
+    // each ROUTE_REPLY found; other types come later.
     private fun accept(
+        peer: NodeId,
         frame: UnicastFrame,
         bytes: ByteArray,
         nowSeconds: Long,
     ) {
+        if (frame.type == RouteReply.TYPE) return discovery.replied(peer, reply(bytes))
         val id = frame.header.messageId
         val now = nowSeconds * MILLIS_PER_SECOND
-        if (frame.type != MessageFrame.TYPE || delivered.has(id, now) || !deliver(bytes, nowSeconds)) return
-        delivered.put(id, (frame.header.expiry.toLong() + UnsecuredMessaging.CLOCK_SKEW_SECONDS) * MILLIS_PER_SECOND)
+        if (frame.type != MessageFrame.TYPE || delivered.has(id, now) || !endpoint.deliver(bytes, nowSeconds)) return
+        delivered.put(id, remembered(frame.header.expiry.toLong()))
     }
 
-    private fun relayed(frame: UnicastFrame): ByteArray {
+    // The frame one hop on; a ROUTE_REPLY also teaches its route and counts the hop, or is dropped
+    // (null) if its hop count can't grow.
+    private fun relayed(
+        peer: NodeId,
+        frame: UnicastFrame,
+        bytes: ByteArray,
+    ): ByteArray? {
         val header = frame.header
         val hopLimit = header.hopLimit - 1
         val next = UnicastHeader(hopLimit, header.messageId, header.expiry, header.destinationTag, header.sourceTag)
-        return UnicastFrame(frame.type, next, frame.body).encode()
+        if (frame.type != RouteReply.TYPE) return UnicastFrame(frame.type, next, frame.body).encode()
+        return discovery.relaying(peer, reply(bytes))?.let {
+            RouteReply(next, it.targetTag, it.targetSequence, it.hopCount).encode()
+        }
     }
+
+    // A ROUTE_REPLY that carried() admitted.
+    private fun reply(bytes: ByteArray): RouteReply = (RouteReply.decode(bytes) as Decoded.Valid).value
 
     companion object {
         /** The hop limit of a frame on a route, or flooded by a low-class origin. */
@@ -147,6 +204,21 @@ internal class Router(
         /** `unicast-seen-window`. */
         const val SEEN_WINDOW_MILLIS: Long = 1_000
 
-        private const val MILLIS_PER_SECOND = 1_000L
+        // Flood frames have types 0x80 to 0xBF (spec "Routing").
+        private const val FLOOD_MASK = 0xc0
+        private const val FLOOD_TYPES = 0x80
     }
 }
+
+/** Past [expiry] plus clock skew, or more than a lifetime plus skew ahead of [nowSeconds], a frame is dropped. */
+internal fun timely(
+    expiry: Long,
+    nowSeconds: Long,
+): Boolean =
+    nowSeconds <= expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS &&
+        expiry <= nowSeconds + UnsecuredMessaging.LIFETIME_MAX_SECONDS + UnsecuredMessaging.CLOCK_SKEW_SECONDS
+
+/** The wall-clock millisecond until which a frame of [expiry] is [timely]: the end of its last timely second. */
+internal fun remembered(expiry: Long): Long = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS + 1) * MILLIS_PER_SECOND
+
+private const val MILLIS_PER_SECOND = 1_000L

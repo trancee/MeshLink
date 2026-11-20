@@ -55,7 +55,7 @@ class RoutedUnicastTest {
         }
 
     @Test
-    fun aMediumClassOriginFloodsThreeHops() =
+    fun aMediumClassOriginFloodsThreeHopsAndReachesFartherByRouteRequest() =
         runTest(timeout = 5.minutes) {
             // Arrange: thirteen advertisers heard by A alone move it up to medium.
             val air = air()
@@ -76,7 +76,7 @@ class RoutedUnicastTest {
             // Assert
             assertEquals(MEDIUM_OFF_MILLIS, lastGap(platforms[0]))
             assertEquals(1, dInbox.size)
-            assertEquals(0, fInbox.size)
+            assertEquals(1, fInbox.size)
         }
 
     @Test

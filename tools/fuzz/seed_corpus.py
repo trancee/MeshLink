@@ -33,6 +33,8 @@ TARGETS = {
     "IdentityCertificate": lambda: encoded("certificate.json"),
     "MessageFrame": lambda: encoded("routed-frames.json"),
     "UnicastFrame": lambda: encoded("routed-frames.json"),
+    "RouteRequest": lambda: encoded("routed-frames.json"),
+    "RouteReply": lambda: encoded("routed-frames.json"),
     "MessageContent": lambda: encoded("inner-plaintext.json", "inner-message"),
     "ReceiptContent": lambda: encoded("inner-plaintext.json", "inner-receipt"),
     "ResolvingKey": lambda: [

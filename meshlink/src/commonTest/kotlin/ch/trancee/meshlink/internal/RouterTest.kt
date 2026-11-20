@@ -16,14 +16,11 @@ class RouterTest {
     private val b = nodeId(2)
     private val c = nodeId(3)
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
-    private val delivered = mutableListOf<ByteArray>()
-    private var accepting = true
+    private val endpoint = FakeEndpoint(OWN)
+    private val delivered = endpoint.delivered
 
     private fun TestScope.router(kinds: Set<Int> = setOf(Container.UNSECURED)) =
-        Router(SchedulerClock(testScheduler), lanes, kinds, { tag, _ -> tag.contentEquals(OWN) }) { frame, _ ->
-            delivered += frame
-            accepting
-        }
+        Router(SchedulerClock(testScheduler), lanes, kinds, Routes(), { ByteArray(it) }, endpoint)
 
     private fun TestScope.nowSeconds() = SchedulerClock(testScheduler).wallClockMillis() / 1_000
 
@@ -42,6 +39,14 @@ class RouterTest {
         source,
         messageBody(container),
     )
+
+    // Originates message [id] whose frame is its hop limit.
+    private fun Router.send(
+        id: Int,
+        tag: ByteArray,
+        density: DensityClass,
+        search: Boolean = false,
+    ) = originate(tag, density, search) { Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {} }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
 
@@ -175,6 +180,19 @@ class RouterTest {
         }
 
     @Test
+    fun aUnicastTypeThisVersionDoesNotKnowIsRelayedByItsHeader() =
+        runTest {
+            // Arrange
+            val router = router()
+
+            // Act
+            router.received(a, unicast(0x42, 5, messageId(1), nowSeconds(), tag(9), tag(8)))
+
+            // Assert
+            assertEquals(1, waiting().getValue(b).size)
+        }
+
+    @Test
     fun aSecuredMeshRelaysItsContainerKindsOnly() =
         runTest {
             // Arrange
@@ -263,9 +281,9 @@ class RouterTest {
         runTest {
             // Arrange
             val router = router()
-            accepting = false
+            endpoint.accepting = false
             router.received(a, message(destination = OWN))
-            accepting = true
+            endpoint.accepting = true
 
             // Act
             router.received(a, message(destination = OWN))
@@ -277,21 +295,19 @@ class RouterTest {
         }
 
     @Test
-    fun aDeliveredMessageIdIsRememberedUntilItsExpiryPlusClockSkew() =
+    fun aDeliveredMessageIdIsRememberedThroughTheLastSecondItsFrameIsTimely() =
         runTest {
             // Arrange
             val router = router()
             val frame = message(destination = OWN)
             router.received(a, frame)
 
-            // Act
-            advanceTimeBy((60 + 30) * 1_000L - 1)
-            router.received(a, frame)
-            advanceTimeBy(1)
+            // Act: the last millisecond of expiry plus clock skew.
+            advanceTimeBy((60 + 30) * 1_000L + 999)
             router.received(a, frame)
 
             // Assert
-            assertEquals(2, delivered.size)
+            assertEquals(1, delivered.size)
         }
 
     @Test
@@ -303,7 +319,7 @@ class RouterTest {
             waiting()
 
             // Act
-            router.originate(messageId(2), tag(9), DensityClass.LOW, { byteArrayOf(it.toByte()) }) {}
+            router.send(2, tag(9), DensityClass.LOW)
 
             // Assert
             assertEquals(listOf(255, 255, 255), waiting().values.map { it.single()[0].toInt() and 0xFF })
@@ -318,14 +334,14 @@ class RouterTest {
             waiting()
 
             // Act
-            router.originate(messageId(2), tag(9), DensityClass.MEDIUM, { byteArrayOf(it.toByte()) }) {}
+            router.send(2, tag(9), DensityClass.MEDIUM)
             val routed = waiting()
-            router.originate(messageId(3), tag(6), DensityClass.HIGH, { byteArrayOf(it.toByte()) }) {}
+            router.send(3, tag(6), DensityClass.HIGH)
 
-            // Assert
+            // Assert: without a route, a route request goes first on every link.
             val hopLimits = routed.values.map { frames -> frames.map { it[0].toInt() and 0xFF } }
             assertEquals(listOf(emptyList(), listOf(255), emptyList()), hopLimits)
-            assertEquals(listOf(3, 3, 3), waiting().values.map { it.single()[0].toInt() })
+            assertEquals(listOf(3, 3, 3), waiting().values.map { it.last()[0].toInt() })
         }
 
     @Test
@@ -333,7 +349,7 @@ class RouterTest {
         runTest {
             // Arrange
             val router = router()
-            router.originate(messageId(1), tag(9), DensityClass.LOW, { byteArrayOf() }) {}
+            router.send(1, tag(9), DensityClass.LOW)
             waiting()
 
             // Act

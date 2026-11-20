@@ -3,8 +3,9 @@ package ch.trancee.meshlink
 import kotlin.time.Instant
 
 /**
- * A node this node can reach, as [MeshLink.peers] lists it (ADR 0007 decision 10). A peer whose
- * last link closes leaves the list.
+ * A node this node can reach, as [MeshLink.peers] lists it (ADR 0007 decision 10): a neighbor while
+ * it has a link, or in `Unsecured` a node it sent to or heard from while a route found by route
+ * discovery leads to it. A peer leaves the list when its last link closes and no such route is left.
  */
 public class Peer internal constructor(
     /** The NodeId the peer claimed when the link opened. */
@@ -13,7 +14,7 @@ public class Peer internal constructor(
     public val reachability: Reachability,
     /** Whether the link to the peer is encrypted and the peer authenticated; `false` in `Unsecured`. */
     public val secured: Boolean,
-    /** When this node last heard from the peer, by the platform's wall clock. */
+    /** When this node last heard from the peer or a route to it, by the platform's wall clock. */
     public val lastSeen: Instant,
     /** How close the peer is by received signal strength, for a [Reachability.Direct] peer; else `null`. */
     public val proximity: Proximity?,
@@ -51,4 +52,13 @@ public enum class ProximityBucket {
 public sealed interface Reachability {
     /** Over a link of its own: the peer is a neighbor. */
     public data object Direct : Reachability
+
+    /**
+     * Through other nodes, on a route of [hops] links. Only `Unsecured` nodes report routed peers for
+     * now; a routed peer leaves `peers` when its last route expires.
+     */
+    public data class Routed(
+        /** The route's hop count: the links between this node and the peer, at least 2. */
+        public val hops: Int,
+    ) : Reachability
 }

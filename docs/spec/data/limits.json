@@ -500,6 +500,13 @@
       "source": "v1-parameters"
     },
     {
+      "name": "route-flush-gap",
+      "value": 1200,
+      "unit": "ms",
+      "decision": "-",
+      "source": "ADR 0008 amendment of 2026-11-20, route discovery"
+    },
+    {
       "name": "receipt-batch-max",
       "value": 32,
       "unit": "entries",

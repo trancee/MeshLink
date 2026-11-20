@@ -3,45 +3,101 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.NodeId
 
 /**
- * The routes this node knows (spec "Unicast forwarding"): for a routing tag, the linked peer that
- * leads to it, until an expiry on the monotonic clock. At most [CAPACITY], the oldest learned
+ * The routes this node knows (spec "Unicast forwarding" and "Route discovery"): for a routing tag,
+ * the linked peer that leads to it until an expiry on the monotonic clock, and for a route learned
+ * by route discovery its destination sequence and hop count. At most [CAPACITY], the oldest learned
  * forgotten first. Runs on the node's serial dispatcher.
  */
 internal class Routes {
     private val byTag = LinkedHashMap<String, Route>()
 
-    /** A frame from [tag] arrived from [peer] at [nowMillis]: a reverse route to [tag] through [peer]. */
+    /**
+     * A frame from [tag] arrived from [peer] at [nowMillis]: a reverse route to [tag] through [peer],
+     * without a sequence. It refreshes a live route on the same link, and never replaces a live
+     * sequenced route on another link.
+     */
     fun learn(
         tag: ByteArray,
         peer: NodeId,
         nowMillis: Long,
     ) {
         val key = tag.toHexString()
-        val old = byTag.remove(key)
+        val live = byTag[key]?.takeIf { it.expiry > nowMillis }
         val expiry = nowMillis + REVERSE_MILLIS
-        byTag[key] = Route(peer, if (old != null && old.peer == peer) maxOf(old.expiry, expiry) else expiry)
-        if (byTag.size > CAPACITY) byTag -= byTag.keys.first()
+        when {
+            live == null -> put(key, Route(peer, expiry))
+            live.peer == peer -> put(key, live.also { it.expiry = maxOf(it.expiry, expiry) })
+            live.sequence == 0u -> put(key, Route(peer, expiry))
+        }
     }
 
-    /** The peer of the active route to [tag] at [nowMillis], refreshing it, or `null` if there is none. */
+    /**
+     * A route discovery found [route] to [tag] at [nowMillis]. It replaces a live route with an older
+     * sequence, the same sequence and more hops, or no sequence; the same route offered again keeps
+     * the later expiry. Returns whether [route] is now the route to [tag].
+     */
+    fun offer(
+        tag: ByteArray,
+        route: Route,
+        nowMillis: Long,
+    ): Boolean {
+        val key = tag.toHexString()
+        val live = byTag[key]?.takeIf { it.expiry > nowMillis }
+        val taken =
+            when {
+                live == null || live.sequence == 0u -> true
+                route.sequence != live.sequence -> Sequence.newer(route.sequence, live.sequence)
+                route.hops != live.hops -> route.hops < live.hops
+                else -> route.peer == live.peer
+            }
+        if (taken) put(key, route.also { if (live?.peer == route.peer) it.expiry = maxOf(it.expiry, live.expiry) })
+        return taken
+    }
+
+    /**
+     * The active route to [tag] at [nowMillis], or `null` if there is none. Using it keeps it active
+     * at least [ACTIVE_MILLIS] more.
+     */
     fun use(
         tag: ByteArray,
         nowMillis: Long,
-    ): NodeId? {
-        val route = byTag[tag.toHexString()]?.takeIf { it.expiry > nowMillis } ?: return null
-        // A learned or used route never holds past `nowMillis + ACTIVE_MILLIS`.
-        route.expiry = nowMillis + ACTIVE_MILLIS
-        return route.peer
-    }
+    ): Route? = active(tag, nowMillis)?.also { it.expiry = maxOf(it.expiry, nowMillis + ACTIVE_MILLIS) }
+
+    /** The active route to [tag] at [nowMillis], unchanged, or `null` if there is none. */
+    fun active(
+        tag: ByteArray,
+        nowMillis: Long,
+    ): Route? = byTag[tag.toHexString()]?.takeIf { it.expiry > nowMillis }
+
+    /** The last sequence this node knows for [tag], even if its route expired; 0 if none. */
+    fun sequence(tag: ByteArray): UInt = byTag[tag.toHexString()]?.sequence ?: 0u
 
     /** The link to [peer] closed: its routes go. */
     fun unlinked(peer: NodeId) {
         byTag.values.removeAll { it.peer == peer }
     }
 
-    private class Route(
+    // Re-inserted as the newest; past capacity the oldest goes.
+    private fun put(
+        key: String,
+        route: Route,
+    ) {
+        byTag.remove(key)
+        byTag[key] = route
+        if (byTag.size > CAPACITY) byTag -= byTag.keys.first()
+    }
+
+    /**
+     * A route through [peer] until [expiry]: one route discovery found has a [sequence] of at least 1,
+     * [hops] of at least 1, and the wall-clock millisecond it was [heardMillis]; a reverse route has
+     * none of them, all 0.
+     */
+    class Route(
         val peer: NodeId,
         var expiry: Long,
+        val sequence: UInt = 0u,
+        val hops: Int = 0,
+        val heardMillis: Long = 0,
     )
 
     companion object {
@@ -50,6 +106,9 @@ internal class Routes {
 
         /** `route-active-timeout`. */
         const val ACTIVE_MILLIS: Long = 30_000
+
+        /** `forward-route-timeout`: how long a route a reply found first holds. */
+        const val FORWARD_MILLIS: Long = 60_000
 
         /** The most routes kept. */
         const val CAPACITY: Int = 4_096

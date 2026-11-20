@@ -66,6 +66,36 @@ internal class Outbox(
         }
     }
 
+    /**
+     * Sends again the unfinished messages that [match], each once [gapMillis] have passed since it was
+     * last sent: next if they have, else when they have. A message waits for one such send at a time.
+     */
+    fun found(
+        gapMillis: Long,
+        match: (Entry) -> Boolean,
+    ) {
+        val now = clock.monotonicMillis()
+        entries.filter { !it.flushing && match(it) }.forEach { entry ->
+            entry.flushing = true
+            after(entry, entry.sentMillis + gapMillis - now) {
+                entry.flushing = false
+                transmit(entry)
+            }
+        }
+    }
+
+    /** Runs [action] after [delayMillis] unless [entry] has finished by then. */
+    fun after(
+        entry: Entry,
+        delayMillis: Long,
+        action: () -> Unit,
+    ) {
+        run.launch {
+            delay(delayMillis)
+            if (!entry.done) action()
+        }
+    }
+
     /** The node has no link left: messages not yet sent are `Held`. */
     fun unreachable() {
         entries.forEach { it.hold() }
@@ -114,6 +144,15 @@ internal class Outbox(
         val deadlineMillis: Long,
     ) {
         var done = false
+
+        /** Whether this message was sent once more by a new search (spec "Origin behavior"). */
+        var resent = false
+
+        /** When this message was last sent, by the monotonic clock; 0 before its first send. */
+        var sentMillis = 0L
+
+        /** Whether this message waits to be sent on a route just found. */
+        var flushing = false
 
         /** A write of this message succeeded. */
         fun sent() {

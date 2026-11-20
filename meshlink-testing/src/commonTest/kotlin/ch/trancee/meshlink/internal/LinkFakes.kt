@@ -144,7 +144,7 @@ internal fun frames(end: VirtualLinkEnd): List<LinkFrame> = frames(end.written)
 internal fun frames(written: ByteArray): List<LinkFrame> {
     val bodies = assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(written)).value
     return bodies
-        .filter { it[0] != ROUTED_MESSAGE }
+        .filter { it[0].toInt() and 0xFF < ROUTED_MIN }
         .map { assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value }
 }
 
@@ -154,7 +154,8 @@ internal fun closes(end: VirtualLinkEnd): List<CloseReason> {
     return closes.map { it.reason }
 }
 
-private const val ROUTED_MESSAGE: Byte = 0x40
+// Routed frame types start at 0x40.
+private const val ROUTED_MIN = 0x40
 private const val MILLIS_PER_SECOND = 1_000L
 
 /** The last gap, in ms, between a scan window of [platform]'s radio and the next: its scan off time. */

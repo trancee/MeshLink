@@ -98,7 +98,7 @@ When a node receives a unicast frame:
 5. Otherwise, if the frame is small, it forwards on every other link (flooding, bounded by the hop limit). It MAY also hold the frame ([Holding](#holding)).
 6. A large frame without a route is dropped.
 
-The origin's retries reuse the `message_id`, so a retry passes relays once the seen window has elapsed. A destination processes each `message_id` once until its expiry but answers every copy with a delivery receipt (ADR 0013 decision 3).
+The origin's retries reuse the `message_id`, so a retry passes relays once the seen window has elapsed. A destination processes each `message_id` once until its `expiry` plus `clock-skew`, the last moment a copy can still arrive, but answers every copy with a delivery receipt (ADR 0013 decision 3).
 
 <!-- data: limits.json -->
 
@@ -126,7 +126,8 @@ How the origin sends depends on its local density class. These are local choices
 
 - **Low class:** send with `hop_limit` 255 (flood).
 - **Medium and high class:** with an active route, send on it. Without one, send with `hop_limit` `u6-flood-radius` and at once send a `ROUTE_REQUEST` with `hop_limit` `route-request-radius`.
-- After sending on a route, if no delivery receipt arrives within `resend-base` + `resend-per-hop` × the route's hop count, send once more by a new search.
+- After its first send on a route, if no delivery receipt arrives within `resend-base` + `resend-per-hop` × the route's hop count, send the message once more by a new search. A route learned from a frame's source tag has no hop count and counts as 0.
+- When a route to a destination is found, a medium or high class origin sends each message waiting for that destination on it, once that message's last send is at least `route-flush-gap` old, so relays have forgotten the earlier copy (`unicast-seen-window` and one hop). A low class origin floods and does not use found routes.
 - Then retry with doubling intervals: from `retry-min-low` to `retry-max-low` in the low and medium classes, from `retry-min-high` to `retry-max-high` in the high class. Retries at the maximum interval go on until the message expires. Low and medium also retry on each new link, at most once per destination within `link-retry-gap`.
 - A retry keeps `message_id`, `expiry`, the commitment and the container, but uses the destination's and the origin's tags for the current epoch. Relays cannot re-tag (ADR 0014 decision 7).
 - A direct-only send (ADR 0013 decision 8) uses `hop_limit` 1, so no relay forwards or holds it [D-27].
@@ -140,6 +141,7 @@ How the origin sends depends on its local density class. These are local choices
 | route-request-radius | 64 | hops | - |
 | resend-base | 1,000 | ms | - |
 | resend-per-hop | 200 | ms | - |
+| route-flush-gap | 1,200 | ms | - |
 | retry-min-low | 2 | s | - |
 | retry-max-low | 30 | s | - |
 | retry-min-high | 5 | s | - |
@@ -213,11 +215,12 @@ Total: 47 B.
 ### Rules
 
 - Each node keeps one `u32` sequence number, starting at 1. It increments it before each route request it originates and before each reply it sends as target. Sequence numbers are compared with serial-number arithmetic (RFC 1982), and 0 is skipped.
-- The origin sets the request's `expiry` to `message-lifetime-min` after the current time.
-- A relay that receives a request floods it on (flood rules below), after incrementing `hop_count`, and records a reverse route to `origin_tag`.
+- The origin sets the request's `expiry` to `message-lifetime-min` after the current time. A reply has `hop_limit` `hop-limit-default` and the same lifetime.
+- A relay that receives a request floods it on (flood rules below), after incrementing `hop_count`, and records a route to `origin_tag` through the link it came from, with `origin_sequence` and that hop count, for `reverse-route-timeout`. It forwards the request on every link but that one. A node drops a request or reply whose incremented `hop_count` would exceed 255.
 - The node that owns `target_tag` answers with a `ROUTE_REPLY` and does not forward the request.
-- An intermediate node with an active route to `target_tag` whose sequence is at least `target_sequence` MAY answer instead, with its route's sequence and hop count, and then does not forward the request.
-- Each relay of a reply increments `hop_count` and records a forward route to `target_tag` through the link the reply came from. A node prefers the route with the newest sequence number, then the fewest hops.
+- An intermediate node with an active route to `target_tag` whose sequence is at least `target_sequence` MAY answer instead, with its route's sequence and hop count, and then does not forward the request. It never answers from a route without a sequence, or from one through the link the request came from (split horizon). `target_sequence` 0 accepts any sequence.
+- Each relay of a reply increments `hop_count` and records a forward route to `target_tag` through the link the reply came from. A node prefers the route with the newest sequence number, then the fewest hops. Any discovered route replaces a route without a sequence; a route without a sequence never replaces a live one with a sequence through another link.
+- A node that answers or searches needs a tag this route discovery can use. Until certificate lookup lands (ADR 0018), a node of a secured profile forwards requests and replies but neither originates nor answers them.
 - v1 has no route error message. Broken routes expire, and the origin's resend uses a new search.
 - v1 has no route-request rate limit (ADR 0008 amendment, "Route-request rate limit").
 
@@ -229,7 +232,7 @@ Vectors: `routed-frames.json`.
 
 A node that receives a flood frame:
 
-1. Drops it if it has already seen `message_id` and that entry has not expired. A node remembers each flood `message_id` until the frame's `expiry`.
+1. Drops it if it has already seen `message_id` and that entry has not expired. A node remembers each flood `message_id` until the frame's `expiry` plus `clock-skew`.
 2. Processes it if it is addressed to the node (a route request for its tag, a lookup for its NodeId or a cached certificate, any broadcast).
 3. Unless it answered a route request or lookup, forwards it on every other link if the hop limit allows. Broadcasts in the medium and high classes use [Plumtree](#plumtree) instead of plain flooding.
 

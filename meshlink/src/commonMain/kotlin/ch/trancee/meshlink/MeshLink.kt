@@ -77,7 +77,6 @@ public class MeshLink private constructor(
     private val profile = config.securityProfile.wireProfile
     private val meshKey = config.meshKey
     private val scanner = Scanner(port.radio, port.clock, port.random, Discovery(crypto, meshId, profile, meshKey))
-    private val mutablePeers = MutableStateFlow<List<Peer>>(emptyList())
     private val links = MutableStateFlow<Links?>(null)
     private val secured = profile != WireProfile.UNSECURED
     private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds, secured) { scanner.density }
@@ -87,11 +86,13 @@ public class MeshLink private constructor(
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()
 
     /**
-     * The peers this node has a link to, ordered by NodeId; empty while the node is not running. A
-     * peer leaves the list when its last link closes, whether it closed the link, stopped, or went
-     * out of range.
+     * The peers this node reaches, ordered by NodeId; empty while the node is not running. A
+     * [Reachability.Direct] peer leaves the list when its last link closes, whether it closed the
+     * link, stopped, or went out of range. In `Unsecured`, a node this node sent to or heard from is
+     * listed as [Reachability.Routed] while a route found by route discovery leads to it, and leaves
+     * when the route expires.
      */
-    public val peers: StateFlow<List<Peer>> = mutablePeers.asStateFlow()
+    public val peers: StateFlow<List<Peer>> = post.roster.peers
 
     /**
      * The messages other nodes sent to this one (ADR 0007 decision 9). They wait in a bounded
@@ -313,7 +314,7 @@ public class MeshLink private constructor(
                 }
             val policy = LinkPolicy(digest, identity.nodeId)
             val admission = LinkAdmission(policy, handshakes, coc) { diagnostics.tryEmit(it) }
-            val session = Links(port, admission, this, mutablePeers, post) { scanner.density.links }
+            val session = Links(port, admission, this, post.roster, post) { scanner.density.links }
             links.value = session
             try {
                 val linking = launch { scanner.candidates.collect { session.connectTo(it, scanner::vet) } }
