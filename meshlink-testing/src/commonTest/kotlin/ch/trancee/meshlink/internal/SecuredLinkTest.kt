@@ -574,9 +574,9 @@ abstract class SecuredLinkTest(
 
             // Assert
             val opened = written(end, 1).second.map { assertIs<LinkCipher.Opened.Frame>(fake.open(it)).bytes.copyOf() }
-            val frames = opened.withoutNeighborLists().map { it.toList() }
+            val frames = opened.withoutUpkeep().map { it.toList() }
             assertEquals(List(HOURS) { LinkFrame.Rekey.encode().toList() }, frames)
-            assertEquals(listOf(0, 1, 1, 2, 2, 3), writtenByNode.map { opened.take(it).withoutNeighborLists().size })
+            assertEquals(listOf(0, 1, 1, 2, 2, 3), writtenByNode.map { opened.take(it).withoutUpkeep().size })
             assertEquals(List(HOURS) { "ML3007 $UNKNOWN_LINK_LOCAL" }, diagnostics.map { it.label() })
             assertEquals(1, node.peers.value.size)
             assertTrue(end.open)

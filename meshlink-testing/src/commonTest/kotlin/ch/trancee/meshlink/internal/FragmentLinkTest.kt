@@ -373,7 +373,7 @@ class FragmentLinkTest {
 
     /** The record bodies [end] wrote, neighbor lists aside. */
     private fun bodies(end: VirtualLinkEnd): List<ByteArray> =
-        assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value.withoutNeighborLists()
+        assertIs<Decoded.Valid<List<ByteArray>>>(RecordReader().read(end.written)).value.withoutUpkeep()
 
     /** The link-local frames [end] wrote, fragments aside. */
     private fun frames(end: VirtualLinkEnd): List<LinkFrame> =

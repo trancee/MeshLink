@@ -504,7 +504,7 @@ internal class Links(
                     passive.merge(frame.entries)
                 }
 
-                is LinkFrame.Ihave, is LinkFrame.Graft, LinkFrame.Prune -> {
+                is LinkFrame.CatchUp, is LinkFrame.Ihave, is LinkFrame.Graft, LinkFrame.Prune -> {
                     mail.plumtree(peer, frame)
                 }
 
@@ -664,7 +664,7 @@ internal class Links(
         }
         opening--
         kept.remove(id)
-        mail.linked(id)
+        val catchUp = mail.linked(id)
         val other = table[id]
         // Both ends keep the link whose central has the lower NodeId; same direction keeps the first.
         val ownCentral = policy.keepsOwnCentral(id.toByteArray())
@@ -674,6 +674,8 @@ internal class Links(
             proximities.linked(id, conn.link.peer, (conn.link as? CentralLink)?.let { it::readRssi })
             conn.chosen.complete(id)
             neighbors.changed()
+            // Each kept link opens with one CATCH_UP; a link closed as duplicate sends none (spec "Catch-up").
+            scope.launch { conn.send(catchUp) }
         }
         // The loser's CLOSE may wait for a message write; closing it apart keeps this link reading.
         // The loser drains until the peer's CLOSE, at most DRAIN_TIMEOUT_MILLIS (spec "Duplicate links").

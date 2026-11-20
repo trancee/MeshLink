@@ -119,6 +119,7 @@ class NeighborListTest {
             val rotating = connectFake(air, alice).also { it.write(hello(FAKE_ID)) }
             val other = connectFake(air, alice)
             other.write(record(LinkFrame.PlainHello(1, digest(MESH), OTHER_ID)))
+            advanceTimeBy(SETTLE_MILLIS)
             grantCredits(other, alice.radio.ends[1])
             advanceTimeBy(MIN_INTERVAL_MILLIS + SETTLE_MILLIS)
             val onOther = { lists(alice.radio.ends[1]).map { (_, list) -> list.neighbors.map { it.toList() } } }
@@ -665,7 +666,7 @@ class NeighborListTest {
         const val FULL_MILLIS = 30_000L
 
         // A seed whose node frees its link to the advertising peer, not one of the fakes' links.
-        const val ROTATION_SEED = 6L
+        const val ROTATION_SEED = 41L
         val OTHER_ID = ByteArray(32) { 0x7E }
         val GONE_ID = ByteArray(32) { 0x7D }
         val CANDIDATE_ID = ByteArray(32) { 0x10 }

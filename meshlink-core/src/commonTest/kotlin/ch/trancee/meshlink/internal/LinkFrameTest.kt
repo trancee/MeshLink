@@ -38,7 +38,7 @@ class LinkFrameTest {
 
     @Test
     fun typesThisDecoderDoesNotHandleAreUnknownAndAnEmptyFrameIsTruncated() {
-        listOf("0a00", "40", "80", "bf").forEach {
+        listOf("1100", "40", "80", "bf").forEach {
             assertEquals(DecodeError.UNKNOWN_TYPE, (LinkFrame.decode(it.hex()) as Decoded.Invalid).error, it)
         }
         assertEquals(DecodeError.TRUNCATED, (LinkFrame.decode(ByteArray(0)) as Decoded.Invalid).error)
@@ -119,6 +119,58 @@ class LinkFrameTest {
         assertFailsWith<IllegalArgumentException> { LinkFrame.Graft(ByteArray(MESSAGE_ID - 1)) }
     }
 
+    @Test
+    fun aCatchUpOverItsMaximumKeepsTheNewestEntriesOfEachList() {
+        val offered = List(LinkFrame.CatchUp.OFFERED_MAX + 2) { id(it, MESSAGE_ID) }
+        val held = List(LinkFrame.CatchUp.HELD_MAX + 2) { LinkFrame.CatchUp.Held(id(it, MESSAGE_ID), id(it, ID)) }
+        val tombstones =
+            List(LinkFrame.CatchUp.TOMBSTONES_MAX + 2) { LinkFrame.CatchUp.Tombstone(id(it, MESSAGE_ID), id(it, K)) }
+
+        val frame = LinkFrame.CatchUp.newest(offered, held, tombstones)
+
+        assertEquals(offered.drop(2).map { it.toList() }, frame.offered.map { it.toList() })
+        assertEquals(held.drop(2).map { it.destinationTag.toList() }, frame.held.map { it.destinationTag.toList() })
+        assertEquals(tombstones.drop(2).map { it.k.toList() }, frame.tombstones.map { it.k.toList() })
+        assertEquals(CATCH_UP_MAX, frame.encode().size)
+    }
+
+    @Test
+    fun aCatchUpRejectsListsOverTheirMaximumAndEntriesOfTheWrongSize() {
+        val empty = LinkFrame.CatchUp(emptyList(), emptyList(), emptyList()).encode()
+        val heldOver = byteArrayOf(CATCH_UP, 0, 0, 0, (LinkFrame.CatchUp.HELD_MAX + 1).toByte())
+        val tombstonesOver = byteArrayOf(CATCH_UP, 0, 0, 0, 0, 0, (LinkFrame.CatchUp.TOMBSTONES_MAX + 1).toByte())
+
+        val decoded = listOf(heldOver, tombstonesOver).map { (LinkFrame.decode(it) as Decoded.Invalid).error }
+
+        assertEquals(listOf(DecodeError.OUT_OF_RANGE, DecodeError.OUT_OF_RANGE), decoded)
+        assertEquals(listOf(CATCH_UP, 0, 0, 0, 0, 0, 0), empty.toList())
+        assertFailsWith<IllegalArgumentException> {
+            LinkFrame.CatchUp(List(LinkFrame.CatchUp.OFFERED_MAX + 1) { id(0, MESSAGE_ID) }, emptyList(), emptyList())
+        }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp(listOf(id(0, ID)), emptyList(), emptyList()) }
+        assertFailsWith<IllegalArgumentException> {
+            LinkFrame.CatchUp(
+                emptyList(),
+                List(LinkFrame.CatchUp.HELD_MAX + 1) { LinkFrame.CatchUp.Held(id(0, MESSAGE_ID), id(0, ID)) },
+                emptyList(),
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            val tombstone = LinkFrame.CatchUp.Tombstone(id(0, MESSAGE_ID), id(0, K))
+            LinkFrame.CatchUp(emptyList(), emptyList(), List(LinkFrame.CatchUp.TOMBSTONES_MAX + 1) { tombstone })
+        }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Held(id(0, ID), id(0, ID)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Held(id(0, MESSAGE_ID), id(0, MESSAGE_ID)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Tombstone(id(0, ID), id(0, K)) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Tombstone(id(0, MESSAGE_ID), id(0, ID)) }
+    }
+
+    // [size] bytes of [value].
+    private fun id(
+        value: Int,
+        size: Int,
+    ) = ByteArray(size) { value.toByte() }
+
     private companion object {
         const val ID = 8
         const val MESSAGE_ID = 12
@@ -126,5 +178,8 @@ class LinkFrameTest {
         const val UNKNOWN_REASON = 0x7F
         const val DIGEST = 32
         const val STREAM = 0xFE
+        const val K = 16
+        const val CATCH_UP: Byte = 0x0A
+        const val CATCH_UP_MAX = 7_127
     }
 }

@@ -221,12 +221,15 @@ class PlumtreeTest {
             advanceTimeBy(Plumtree.HOLD_MILLIS - 1)
             tree.grafted(b, messageId(1))
             val last = waiting(b)
+            val offered = tree.offered()
             advanceTimeBy(1)
             tree.grafted(b, messageId(1))
 
             // Assert
             assertEquals(listOf(full(1)), last.getValue(b))
             assertEquals(emptyList(), waiting(b).getValue(b))
+            assertEquals(listOf(messageId(1).toList()), offered.map { it.toList() })
+            assertEquals(emptyList(), tree.offered())
         }
 
     @Test
@@ -242,12 +245,15 @@ class PlumtreeTest {
             advanceTimeBy(MILLIS_PER_SECOND - 1)
             tree.grafted(b, messageId(1))
             val last = waiting(b)
+            val offered = tree.offered()
             advanceTimeBy(1)
             tree.grafted(b, messageId(1))
 
             // Assert
             assertEquals(listOf(full(1)), last.getValue(b))
             assertEquals(emptyList(), waiting(b).getValue(b))
+            assertEquals(listOf(messageId(1).toList()), offered.map { it.toList() })
+            assertEquals(emptyList(), tree.offered())
         }
 
     @Test
@@ -267,6 +273,8 @@ class PlumtreeTest {
 
             // Assert
             assertEquals(listOf(full(1), full(3)), waiting(b).getValue(b))
+            val offered = (3..Plumtree.HELD_MAX) + 1 + (Plumtree.HELD_MAX + 1)
+            assertEquals(offered.map { messageId(it).toList() }, tree.offered().map { it.toList() })
         }
 
     @Test

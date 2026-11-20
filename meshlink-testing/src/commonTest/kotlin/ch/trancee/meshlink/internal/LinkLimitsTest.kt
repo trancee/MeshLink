@@ -333,8 +333,9 @@ class LinkLimitsTest {
             listOf(idleFake, starvedFake).forEach { it.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID))) }
             advanceTimeBy(SETTLE_MILLIS)
             sendTo(nodes[1], LARGE_PAYLOAD)
-            // One credit for the neighbor list's chunk, one for the message record's first chunk.
-            starvedFake.write(record(LinkFrame.Credit(2)))
+            // One credit each for the catch-up's and the neighbor list's chunk, one for the message
+            // record's first chunk.
+            starvedFake.write(record(LinkFrame.Credit(3)))
             advanceTimeBy(SETTLE_MILLIS)
             val starvedEnd = starved.radio.ends.single()
             val written = starvedEnd.written.size

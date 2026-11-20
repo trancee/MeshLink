@@ -54,6 +54,12 @@ internal class Plumtree(
         }
     }
 
+    /** The IDs of the frames held for grafts now, oldest first: what a `CATCH_UP` offers. */
+    fun offered(): List<ByteArray> {
+        val nowMillis = clock.wallClockMillis()
+        return held.values.filter { it.untilMillis > nowMillis }.map { it.parcel.messageId }
+    }
+
     /** The broadcast [id] arrived or was sent: no graft for it is pending any more. */
     fun arrived(id: ByteArray) {
         pending[id.toHexString()]?.cancel()

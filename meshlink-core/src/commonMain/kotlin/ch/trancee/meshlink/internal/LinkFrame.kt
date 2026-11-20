@@ -217,6 +217,127 @@ public sealed interface LinkFrame {
     }
 
     /**
+     * `CATCH_UP` (spec "Catch-up", D-25): what the sender offers a new link, each list oldest first: the
+     * `message_id`s of the broadcasts it received in the last `catch-up-window` ([offered]), the unicasts it
+     * [held] and its [tombstones].
+     */
+    public class CatchUp(
+        public val offered: List<ByteArray>,
+        public val held: List<Held>,
+        public val tombstones: List<Tombstone>,
+    ) : LinkFrame {
+        init {
+            require(offered.size <= OFFERED_MAX) { "a CATCH_UP offers $OFFERED_MAX IDs at most, not ${offered.size}" }
+            require(offered.all { it.size == MESSAGE_ID }) { "every message ID must be $MESSAGE_ID bytes" }
+            require(held.size <= HELD_MAX) { "a CATCH_UP lists $HELD_MAX held unicasts at most, not ${held.size}" }
+            require(tombstones.size <= TOMBSTONES_MAX) {
+                "a CATCH_UP lists $TOMBSTONES_MAX tombstones at most, not ${tombstones.size}"
+            }
+        }
+
+        override fun encode(): ByteArray =
+            byteArrayOf(TYPE.toByte()) +
+                section(offered) +
+                section(held.map { it.messageId + it.destinationTag }) +
+                section(tombstones.map { it.messageId + it.k })
+
+        /** A unicast the sender holds: its [messageId] and [destinationTag]. */
+        public class Held(
+            public val messageId: ByteArray,
+            public val destinationTag: ByteArray,
+        ) {
+            init {
+                require(messageId.size == MESSAGE_ID) { "message_id must be $MESSAGE_ID bytes" }
+                require(destinationTag.size == TAG) { "destination_tag must be $TAG bytes" }
+            }
+        }
+
+        /** A delivered unicast's tombstone: its [messageId] and the commitment's preimage [k]. */
+        public class Tombstone(
+            public val messageId: ByteArray,
+            public val k: ByteArray,
+        ) {
+            init {
+                require(messageId.size == MESSAGE_ID) { "message_id must be $MESSAGE_ID bytes" }
+                require(k.size == K) { "k must be $K bytes" }
+            }
+        }
+
+        public companion object {
+            /** `catch-up-offered-max`: the most broadcasts one `CATCH_UP` offers. */
+            public const val OFFERED_MAX: Int = 128
+
+            /** `catch-up-held-max`: the most held unicasts one `CATCH_UP` lists. */
+            public const val HELD_MAX: Int = 100
+
+            /** `catch-up-tombstones-max`: the most tombstones one `CATCH_UP` lists. */
+            public const val TOMBSTONES_MAX: Int = 128
+
+            internal const val TYPE = 0x0A
+            private const val TAG = 8
+            private const val K = 16
+            private const val COUNT = 2
+
+            // Each list's maximum and entry width, in frame order.
+            private val SECTIONS =
+                listOf(OFFERED_MAX to MESSAGE_ID, HELD_MAX to MESSAGE_ID + TAG, TOMBSTONES_MAX to MESSAGE_ID + K)
+
+            /**
+             * A `CATCH_UP` of the newest entries of each list, which run oldest first: a list over its
+             * maximum loses its oldest.
+             */
+            public fun newest(
+                offered: List<ByteArray>,
+                held: List<Held>,
+                tombstones: List<Tombstone>,
+            ): CatchUp =
+                CatchUp(
+                    offered.takeLast(OFFERED_MAX),
+                    held.takeLast(HELD_MAX),
+                    tombstones.takeLast(TOMBSTONES_MAX),
+                )
+
+            internal fun decode(bytes: ByteArray): Decoded<LinkFrame> {
+                val lists = mutableListOf<List<ByteArray>>()
+                var offset = 1
+                var error: DecodeError? = null
+                for ((max, width) in SECTIONS) {
+                    val count = if (bytes.size < offset + COUNT) -1 else bytes.u16(offset)
+                    val first = offset + COUNT
+                    offset = first + count * width
+                    error =
+                        when {
+                            count < 0 || (count <= max && bytes.size < offset) -> DecodeError.TRUNCATED
+                            count > max -> DecodeError.OUT_OF_RANGE
+                            else -> null
+                        }
+                    if (error != null) break
+                    lists += List(count) { bytes.copyOfRange(first + it * width, first + (it + 1) * width) }
+                }
+                return when {
+                    error != null -> Decoded.Invalid(error)
+                    bytes.size != offset -> Decoded.Invalid(DecodeError.TRAILING_BYTES)
+                    else -> Decoded.Valid(frame(lists))
+                }
+            }
+
+            private fun frame(lists: List<List<ByteArray>>): CatchUp {
+                val (offered, held, tombstones) = lists
+                return CatchUp(
+                    offered,
+                    held.map { Held(it.copyOf(MESSAGE_ID), it.copyOfRange(MESSAGE_ID, it.size)) },
+                    tombstones.map { Tombstone(it.copyOf(MESSAGE_ID), it.copyOfRange(MESSAGE_ID, it.size)) },
+                )
+            }
+
+            private fun section(entries: List<ByteArray>): ByteArray =
+                entries.fold(u16(entries.size)) { bytes, entry ->
+                    bytes + entry
+                }
+        }
+    }
+
+    /**
      * `IHAVE` (spec "Plumtree", D-26): 1 to [IDS_MAX] `message_id`s of broadcasts the sender holds,
      * announced on a lazy link.
      */
@@ -456,6 +577,7 @@ public sealed interface LinkFrame {
                 NeighborList.TYPE to { NeighborList.decode(it) },
                 Shuffle.TYPE to { Shuffle.decode(it) },
                 ShuffleReply.TYPE to { ShuffleReply.decode(it) },
+                CatchUp.TYPE to { CatchUp.decode(it) },
                 Ihave.TYPE to { Ihave.decode(it) },
                 Graft.TYPE to { Graft.decode(it) },
                 Prune.TYPE to { Prune.decode(it) },

@@ -102,6 +102,7 @@ internal val vectorSets: List<VectorSet> =
                 "0x07",
                 "0x08",
                 "0x09",
+                "0x0a",
                 "0x0b",
                 "0x0c",
                 "0x0d",
@@ -171,7 +172,6 @@ internal val vectorSkips: List<Skip> =
         pending("derivations.json", "45", "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
         pending("derivations.json", "45", "hpke-info") +
         pending("derivations.json", "44", "lookup-tag", "lookup-reply-key") +
-        pending("link-frames.json", "41", "0x0a") +
         pending("routed-frames.json", "47", "0x41") +
         pending("routed-frames.json", "48", "0x42") +
         pending("routed-frames.json", "44", "0x44", "0x82") +

@@ -139,6 +139,7 @@ class MixedDensityTest {
             setOf(
                 "PlainHello",
                 "Credit",
+                "CatchUp",
                 "NeighborList",
                 "BearerSwitch",
                 "Shuffle",

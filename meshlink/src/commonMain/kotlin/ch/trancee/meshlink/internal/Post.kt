@@ -15,8 +15,8 @@ import kotlinx.coroutines.launch
 
 /** What [Links] needs from the node's messaging; called on the node's dispatcher. */
 internal interface Mail {
-    /** A link to [peer] completed its hello. */
-    fun linked(peer: NodeId)
+    /** A link to [peer] completed its hello: returns the `CATCH_UP` it opens with if kept (spec "Catch-up"). */
+    fun linked(peer: NodeId): LinkFrame
 
     /** The last link to [peer] closed. */
     fun unlinked(peer: NodeId)
@@ -24,7 +24,7 @@ internal interface Mail {
     /** The next frame for [peer], waiting for one. */
     suspend fun next(peer: NodeId): Letter
 
-    /** A link-local `IHAVE`, `GRAFT` or `PRUNE` arrived from [peer] on a link whose hello completed. */
+    /** A link-local `CATCH_UP`, `IHAVE`, `GRAFT` or `PRUNE` arrived from [peer] on a link whose hello completed. */
     fun plumtree(
         peer: NodeId,
         frame: LinkFrame,
@@ -159,10 +159,10 @@ internal class Post(
         capacity.await()
     }
 
-    override fun linked(peer: NodeId) {
+    override fun linked(peer: NodeId): LinkFrame {
         lanes.open(peer)
         outbox.linked()
-        floods.linked(peer)
+        return floods.linked(peer)
     }
 
     override fun unlinked(peer: NodeId) {

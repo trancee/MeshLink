@@ -183,14 +183,20 @@ internal fun handshake(
     return records.reduce(ByteArray::plus)
 }
 
-/** [this] frames without the neighbor lists a node sends on each link it keeps (spec "Neighbor list"). */
-internal fun List<ByteArray>.withoutNeighborLists(): List<ByteArray> = filter { it[0] != NEIGHBOR_LIST_TYPE }
+/**
+ * [this] frames without those a node sends on each link unasked: its neighbor lists (spec "Neighbor list") and the
+ * `CATCH_UP` that opens it (spec "Catch-up").
+ */
+internal fun List<ByteArray>.withoutUpkeep(): List<ByteArray> =
+    filter {
+        it[0] != NEIGHBOR_LIST_TYPE && it[0] != CATCH_UP_TYPE
+    }
 
 /** The frames [end] wrote after its handshake, opened with [transport], without neighbor lists. */
 internal fun sealedFrames(
     end: VirtualLinkEnd,
     transport: NoiseTransport,
-): List<ByteArray> = written(end, 1).second.map { open(transport, it) }.withoutNeighborLists()
+): List<ByteArray> = written(end, 1).second.map { open(transport, it) }.withoutUpkeep()
 
 internal fun seal(
     transport: NoiseTransport,
@@ -205,6 +211,7 @@ internal fun open(
 internal fun <T> ok(result: NoiseResult<T>): T = assertIs<NoiseResult.Ok<T>>(result).value
 
 private const val NEIGHBOR_LIST_TYPE: Byte = 0x07
+private const val CATCH_UP_TYPE: Byte = 0x0A
 
 /** Reads the frames [end] writes after its cleartext message 2, decrypted with [transport] across its rekeys. */
 internal class Sealed(
@@ -226,6 +233,9 @@ internal class Sealed(
         return all.toList()
     }
 
-    /** [all] but `REKEY` and `NEIGHBOR_LIST`. */
-    fun frames(): List<LinkFrame> = all().filter { it != LinkFrame.Rekey && it !is LinkFrame.NeighborList }
+    /** [all] but `REKEY`, `NEIGHBOR_LIST` and `CATCH_UP`. */
+    fun frames(): List<LinkFrame> =
+        all().filter {
+            it != LinkFrame.Rekey && it !is LinkFrame.NeighborList && it !is LinkFrame.CatchUp
+        }
 }
