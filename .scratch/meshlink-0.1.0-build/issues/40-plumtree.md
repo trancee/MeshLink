@@ -1,6 +1,6 @@
 # Spread broadcasts with Plumtree
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 39a
 
@@ -25,14 +25,14 @@ In the medium and high density classes, mesh broadcasts spread with Plumtree ins
 
 ## Acceptance criteria
 
-- [ ] `IHAVE`, `GRAFT` and `PRUNE` codecs pass every matching `link-frames.json` vector, including `IHAVE` count 0 and 33 as `invalid`. Each new decoder has a deterministic mutation test.
-- [ ] Seeded `VirtualAir` test, 12 nodes, `Unsecured`, class pinned to medium: 20 broadcasts reach every connected node exactly once, intact. After the first, the test sees `PRUNE` frames and fewer full-frame transmissions than the same seed with the class pinned to low.
-- [ ] A seeded test drops an eager link mid-run and shows the graft after 500 ms, the next announcer after a further 250 ms, and the link turning eager.
-- [ ] A seeded test checks that the low class still floods and sends no Plumtree frames.
-- [ ] The 12-node medium-class test also runs in `Classical` and `PostQuantum`, with the same once-per-node delivery and every delivered broadcast verified.
-- [ ] A seeded mixed-class test (some nodes low, some medium) delivers every broadcast once to every node.
-- [ ] T10: a `GRAFT` for an unknown ID, an `IHAVE` flood of unknown IDs and truncated frames cause no unbounded state ([guarantees](../../../docs/reference/security-profile-guarantees.md), "Bounded resources under any remote input"). The PR names the bound on pending grafts and its source, and a test hits it.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] `IHAVE`, `GRAFT` and `PRUNE` codecs pass every matching `link-frames.json` vector, including `IHAVE` count 0 and 33 as `invalid`. Each new decoder has a deterministic mutation test.
+- [x] Seeded `VirtualAir` test, 12 nodes, `Unsecured`, class pinned to medium: 20 broadcasts reach every connected node exactly once, intact. After the first, the test sees `PRUNE` frames and fewer full-frame transmissions than the same seed with the class pinned to low.
+- [x] A seeded test drops an eager link mid-run and shows the graft after 500 ms, the next announcer after a further 250 ms, and the link turning eager.
+- [x] A seeded test checks that the low class still floods and sends no Plumtree frames.
+- [x] The 12-node medium-class test also runs in `Classical` and `PostQuantum`, with the same once-per-node delivery and every delivered broadcast verified.
+- [x] A seeded mixed-class test (some nodes low, some medium) delivers every broadcast once to every node.
+- [x] T10: a `GRAFT` for an unknown ID, an `IHAVE` flood of unknown IDs and truncated frames cause no unbounded state ([guarantees](../../../docs/reference/security-profile-guarantees.md), "Bounded resources under any remote input"). The PR names the bound on pending grafts and its source, and a test hits it.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -48,3 +48,27 @@ In the medium and high density classes, mesh broadcasts spread with Plumtree ins
 ## Devices needed
 
 None. Host and simulator only.
+
+## Outcome
+
+- **Shipped in #99.** In medium and high density, the internal `Plumtree` sends a broadcast in full on eager links and as an `IHAVE` on lazy ones. A duplicate on an eager link answers with `PRUNE`. A missing ID is grafted after 500 ms, then from each further announcer 250 ms later. The low class keeps flooding and never prunes.
+- **Bounds:** 128 held frames, each for 60 s at most and never past its expiry, and 128 pending IDs; the oldest is evicted first. They reuse `catch-up-offered-max` (D-25), as the owner approved. `theOldestHeldFrameGoesBeyondTheBound` and `theOldestPendingIdGoesBeyondTheBound` reach them.
+- **Code:**
+  - Core gains the `LinkFrame.Ihave`, `Graft` and `Prune` codecs.
+  - `Floods` takes the tree, and `Post` builds it from the node's density.
+  - A closed link clears that peer's state.
+  - `Links` hands the three frames to the tree through a new `peered` helper.
+- **Tests:**
+  - 13 `PlumtreeTest` unit tests and 4 new `FloodsTest` tests.
+  - 6 `PlumtreeMeshTest` `VirtualAir` tests:
+    - medium against low;
+    - `Classical`;
+    - `PostQuantum`;
+    - mixed classes;
+    - a relay leaving and the gap bridged by grafts;
+    - a closed lazy link coming back eager.
+  - All 43 mutants killed.
+- **Docs:**
+  - `CHANGELOG.md` has an entry.
+  - The spec already described the behavior.
+  - The public ABI didn't change.
