@@ -1,6 +1,6 @@
 # Discover routes on demand
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 37
 
@@ -28,15 +28,15 @@ This ticket adds the flood header codec unless ticket 39 merged it first.
 
 ## Acceptance criteria
 
-- [ ] Flood header, `ROUTE_REQUEST` (`0x81`, 43 B) and `ROUTE_REPLY` (`0x43`, 47 B) codecs pass every matching `routed-frames.json` vector. Each new decoder has a deterministic mutation test.
-- [ ] A unit test checks RFC 1982 comparison across the `u32` wrap and that 0 is skipped.
-- [ ] Seeded `VirtualAir` test, 8 nodes in a line, `Unsecured`, class pinned to medium: a send 6 hops away arrives once, intact, through a discovered route. The test shows the reply's hop count and the forward route on each relay.
-- [ ] A seeded test shows an intermediate reply from a node with a fresh enough route, and no reply from one with an older sequence.
-- [ ] A seeded test breaks a link on the route, lets the route expire, and shows the resend by a new search reaching the destination over another path.
-- [ ] A seeded test shows `peers` reporting `Routed(hops)` with the right hop count in `Unsecured`, and `Unreachable` after the route expires.
-- [ ] A routed peer has no `proximity` (moved from ticket 32, which had no routed peers to test).
-- [ ] T10: `origin_sequence` 0, `target_sequence` 0 in a reply, truncated and over-long frames, and a replayed request `message_id` are dropped without state change.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] Flood header, `ROUTE_REQUEST` (`0x81`, 43 B) and `ROUTE_REPLY` (`0x43`, 47 B) codecs pass every matching `routed-frames.json` vector. Each new decoder has a deterministic mutation test.
+- [x] A unit test checks RFC 1982 comparison across the `u32` wrap and that 0 is skipped.
+- [x] Seeded `VirtualAir` test, 8 nodes in a line, `Unsecured`, class pinned to medium: a send 6 hops away arrives once, intact, through a discovered route. The test shows the reply's hop count and the forward route on each relay.
+- [x] A seeded test shows an intermediate reply from a node with a fresh enough route, and no reply from one with an older sequence.
+- [x] A seeded test breaks a link on the route, lets the route expire, and shows the resend by a new search reaching the destination over another path.
+- [x] A seeded test shows `peers` reporting `Routed(hops)` with the right hop count in `Unsecured`, and `Unreachable` after the route expires.
+- [x] A routed peer has no `proximity` (moved from ticket 32, which had no routed peers to test).
+- [x] T10: `origin_sequence` 0, `target_sequence` 0 in a reply, truncated and over-long frames, and a replayed request `message_id` are dropped without state change.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -52,3 +52,17 @@ This ticket adds the flood header codec unless ticket 39 merged it first.
 ## Devices needed
 
 None. Host and simulator only.
+
+## Outcome
+
+- **Owner decisions:**
+  1. A routed peer leaves `peers` when its route expires; there is no `Unreachable` state. The criterion "`Unreachable` after the route expires" is met by `aRoutedPeerLeavesThePeersWhenItsRouteExpires`.
+  2. `Routed` covers the last 1,024 nodes this node sent to or heard from.
+  3. Newer sequence wins, then fewer hops.
+  4. The resend fires once per message, 1,000 ms + 200 ms × hops after its first send on a route.
+  5. A found route takes waiting messages with a deferred flush: each once 1,200 ms (`route-flush-gap`) have passed since its last send. The low class doesn't flush.
+  6. Generic flood types and the `0xbf` vector move to ticket 39.
+- **No reply from an older sequence:** covered by the unit test `aNodeAskedForANewerSequenceThroughItsRoutesLinkOrWithoutATagFloodsTheRequestOn`; the `VirtualAir` test shows the intermediate reply.
+- **Fix:** a delivered `message_id` is now remembered 1 s past expiry plus `clock-skew`, so a copy in the last timely second isn't delivered twice.
+- **Code:** `RouteFrames` with vectors and fuzz targets; `Sequence`, `RouteDiscovery`, `Roster`, `RoutedPeers`; `Router`, `Routes`, `Outbox` and `Post` wiring; `Reachability.Routed`.
+- **Tests:** unit tests for each part; `RouteDiscoveryLineTest` in `VirtualAir`. Every mutant was killed; Kover is at 100%.
