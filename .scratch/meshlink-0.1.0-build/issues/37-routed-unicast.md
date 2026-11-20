@@ -1,6 +1,6 @@
 # Forward unicast messages over multiple hops
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 36
 
@@ -29,15 +29,28 @@ The routed-unicast toggle (off = direct-only) is ticket 53; direct-only sends ar
 
 ## Acceptance criteria
 
-- [ ] In `Unsecured`, any well-formed NodeId can be sent to: the unsecured tag derives from the NodeId alone, and route discovery (ticket 38) finds it. `Rejected(UnknownPeer)` applies only to a malformed NodeId (owner decision, 2026-11-13). A dated amendment to ADR 0018 decision 8 (version bump) records this, and ticket 12's `UnknownPeer` for a never-seen NodeId is migrated in this PR (O1). Tests send to a NodeId never seen before and to a malformed one; `python3 tools/check_adrs.py` passes.
-- [ ] The agent reads the routing simulator to learn whether retries stop at the maximum interval or continue at it until expiry, and records the answer in the PR.
-- [ ] Unicast header and `MESSAGE` codecs pass every matching `routed-frames.json` vector, including `acceptable` unknown types. The `unsecured_tag` derivation passes `derivations.json`. The unsecured plaintext passes `inner-plaintext.json`. Each new decoder has a deterministic mutation test.
-- [ ] Seeded `VirtualAir` test, 6 nodes in a line, `Unsecured`, low class: A first links to F directly, the topology then changes to a line, and A's `send` to F arrives once, intact, with status `Sent` then `Expired`.
-- [ ] The same line with the class pinned to medium: a destination 3 hops away is reached by the U6 flood; one 5 hops away is not (ticket 38 closes this).
-- [ ] Seeded tests prove the 1,000 ms seen window, reverse routes expiring after 6 s, forwarding on an active route only, retry intervals per class, the retry on a new link and re-tagging across an epoch change.
-- [ ] A seeded `Classical` mesh relays `routed-frames.json` `MESSAGE` frames with kinds `0x01` and `0x03` by header only, and drops kind `0x04`.
-- [ ] T10: `hop_limit` 0, expired frames, expiry beyond 3,630 s, truncated headers and a disallowed container kind are dropped without state change.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] In `Unsecured`, any well-formed NodeId can be sent to: the unsecured tag derives from the NodeId alone, and route discovery (ticket 38) finds it. `Rejected(UnknownPeer)` applies only to a malformed NodeId (owner decision, 2026-11-13). A dated amendment to ADR 0018 decision 8 (version bump) records this, and ticket 12's `UnknownPeer` for a never-seen NodeId is migrated in this PR (O1). Tests send to a NodeId never seen before and to a malformed one; `python3 tools/check_adrs.py` passes.
+- [x] The agent reads the routing simulator to learn whether retries stop at the maximum interval or continue at it until expiry, and records the answer in the PR.
+- [x] Unicast header and `MESSAGE` codecs pass every matching `routed-frames.json` vector, including `acceptable` unknown types. The `unsecured_tag` derivation passes `derivations.json`. The unsecured plaintext passes `inner-plaintext.json`. Each new decoder has a deterministic mutation test.
+- [x] Seeded `VirtualAir` test, 6 nodes in a line, `Unsecured`, low class: A first links to F directly, the topology then changes to a line, and A's `send` to F arrives once, intact, with status `Sent` then `Expired`.
+- [x] The same line with the class pinned to medium: a destination 3 hops away is reached by the U6 flood; one 5 hops away is not (ticket 38 closes this).
+- [x] Seeded tests prove the 1,000 ms seen window, reverse routes expiring after 6 s, forwarding on an active route only, retry intervals per class, the retry on a new link and re-tagging across an epoch change.
+- [x] A seeded `Classical` mesh relays `routed-frames.json` `MESSAGE` frames with kinds `0x01` and `0x03` by header only, and drops kind `0x04`.
+- [x] T10: `hop_limit` 0, expired frames, expiry beyond 3,630 s, truncated headers and a disallowed container kind are dropped without state change.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+
+## Outcome
+
+- **Owner decisions:**
+  1. `Rejected(UnknownPeer)` means only the node's own NodeId. A malformed NodeId can't be built: `NodeId` requires 32 bytes (`NodeIdTest`), so the malformed-send criterion is met by construction.
+  2. The `0xbf` flood vector moves to ticket 39.
+  3. New-link retries happen at most once per destination per 5 s (`link-retry-gap`).
+  4. A message holds its send capacity until it finishes.
+  5. Each link queues 32 relayed frames with tail drop; the seen store and the route table keep 4,096 entries each.
+  6. A write that fails because its link closed goes back to the front of the peer's lane. `BUSY` waits for the normal retry.
+- **Routing simulator:** retries continue at the maximum interval until expiry (ADR 0008 amendment).
+- **Code:** `UnicastFrame` and its decoder; `Router`, `Routes`, `MessageIds`, `Lanes` and `UnsecuredEnd`; `Outbox` with retry schedules and new-link retries. `KnownPeers` is deleted.
+- **Tests:** unit tests for each part. In `VirtualAir`, `RoutedUnicastTest` covers the low and medium lines, the re-tag across epochs, a `Classical` relay of the vector frames and a commitment that doesn't open. Every mutant was killed; Kover is at 100%.
 
 ## Proof commands
 
