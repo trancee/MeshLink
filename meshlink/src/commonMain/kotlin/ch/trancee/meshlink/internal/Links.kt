@@ -462,7 +462,8 @@ internal class Links(
          * A frame the rules above don't cover. `BEARER_SWITCH` on an open link moves it (spec "Bearer
          * switch"). A kept link's `NEIGHBOR_LIST` is its peer's latest (spec "Neighbor list"); an open
          * link answers a `SHUFFLE` with a `SHUFFLE_REPLY` sampled before it merges the entries, and
-         * merges a `SHUFFLE_REPLY`'s (spec "Shuffle"). A `REKEY` was already applied by the cipher, and an
+         * merges a `SHUFFLE_REPLY`'s (spec "Shuffle"). An open link's `IHAVE`, `GRAFT` and `PRUNE` go to
+         * the broadcast tree (spec "Plumtree"). A `REKEY` was already applied by the cipher, and an
          * `Unsecured` link drops it as an unknown link-local frame (D-48); anything else closes the
          * link with `PROTOCOL_ERROR`.
          */
@@ -471,24 +472,8 @@ internal class Links(
             frame: LinkFrame,
         ) {
             val peer = conn.peer
+            if (peer != null && peered(conn, peer, frame)) return
             when {
-                peer != null && frame is LinkFrame.NeighborList -> {
-                    if (table[peer] === conn) neighbors.received(peer, frame)
-                }
-
-                peer != null && frame is LinkFrame.Shuffle -> {
-                    post(conn, LinkFrame.ShuffleReply(passive.sample()))
-                    passive.merge(frame.entries)
-                }
-
-                peer != null && frame is LinkFrame.ShuffleReply -> {
-                    passive.merge(frame.entries)
-                }
-
-                peer != null && frame == LinkFrame.BearerSwitch -> {
-                    channels.switched(conn)
-                }
-
                 frame != LinkFrame.Rekey -> {
                     conn.close(CloseReason.PROTOCOL_ERROR)
                 }
@@ -497,6 +482,41 @@ internal class Links(
                     report(LinkDiagnostic.UnknownLinkFrameDropped(frame.encode()[0].toInt()))
                 }
             }
+        }
+
+        // Handles a frame only an open link to a known peer carries; false when [frame] is none of them.
+        private suspend fun peered(
+            conn: Link,
+            peer: NodeId,
+            frame: LinkFrame,
+        ): Boolean {
+            when (frame) {
+                is LinkFrame.NeighborList -> {
+                    if (table[peer] === conn) neighbors.received(peer, frame)
+                }
+
+                is LinkFrame.Shuffle -> {
+                    post(conn, LinkFrame.ShuffleReply(passive.sample()))
+                    passive.merge(frame.entries)
+                }
+
+                is LinkFrame.ShuffleReply -> {
+                    passive.merge(frame.entries)
+                }
+
+                is LinkFrame.Ihave, is LinkFrame.Graft, LinkFrame.Prune -> {
+                    mail.plumtree(peer, frame)
+                }
+
+                LinkFrame.BearerSwitch -> {
+                    channels.switched(conn)
+                }
+
+                else -> {
+                    return false
+                }
+            }
+            return true
         }
     }
 

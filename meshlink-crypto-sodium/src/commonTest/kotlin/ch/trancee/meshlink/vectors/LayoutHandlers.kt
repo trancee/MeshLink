@@ -177,6 +177,21 @@ internal val linkFrame: Handler =
                 assertEquals(decoded["entries"].list.map { it["id"].string }, frame.entries.map { it.hex() }, "entries")
             }
 
+            is LinkFrame.Ihave -> {
+                assertEquals(decoded["type"].code(), IHAVE, "type")
+                val ids = decoded["message_ids"].list.map { it["message_id"].string }
+                assertEquals(ids, frame.messageIds.map { it.hex() }, "message_ids")
+            }
+
+            is LinkFrame.Graft -> {
+                assertEquals(decoded["type"].code(), GRAFT, "type")
+                assertEquals(decoded["message_id"].string, frame.messageId.hex(), "message_id")
+            }
+
+            LinkFrame.Prune -> {
+                assertEquals(decoded["type"].code(), PRUNE, "type")
+            }
+
             is LinkFrame.ResolvingKeyUpdate -> {
                 assertEquals(decoded["type"].code(), RESOLVING_KEY_UPDATE, "type")
                 assertEquals(decoded["resolving_key"].string, frame.next.key.hex(), "resolving_key")
@@ -328,6 +343,9 @@ private const val BUSY = 0x06
 private const val NEIGHBOR_LIST = 0x07
 private const val SHUFFLE = 0x08
 private const val SHUFFLE_REPLY = 0x09
+private const val IHAVE = 0x0B
+private const val GRAFT = 0x0C
+private const val PRUNE = 0x0D
 private const val RESOLVING_KEY_UPDATE = 0x0E
 private const val BEARER_SWITCH = 0x0F
 private const val CREDIT = 0x10

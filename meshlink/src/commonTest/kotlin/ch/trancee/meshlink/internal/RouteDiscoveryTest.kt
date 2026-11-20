@@ -22,7 +22,14 @@ class RouteDiscoveryTest {
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
 
     private fun TestScope.router(endpoint: Endpoint = FakeEndpoint(OWN)) =
-        Router(SchedulerClock(testScheduler), lanes, Routes(), ::sevens, endpoint, Floods(lanes, broadcastCodec()) {})
+        Router(
+            SchedulerClock(testScheduler),
+            lanes,
+            Routes(),
+            ::sevens,
+            endpoint,
+            Floods(lanes, broadcastCodec(), lowTree(lanes)) {},
+        )
 
     private fun sevens(size: Int) = ByteArray(size) { 7 }
 

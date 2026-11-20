@@ -16,7 +16,10 @@ import ch.trancee.meshlink.ReceivedMessage
  * is dropped without a trace, and its `message_id` is not remembered, so a forgery cannot shadow the
  * genuine frame.
  *
- * It also places this node's own flood frames: on every link, or on the first link that opens if
+ * A `BROADCAST` spreads through [tree] (spec "Plumtree"), which also takes the link-local `IHAVE`,
+ * `GRAFT` and `PRUNE` frames; a duplicate `BROADCAST` goes to it too.
+ *
+ * It also places this node's own broadcasts: through [tree], or on the first link that opens if
  * there is none.
  *
  * Runs on the node's serial dispatcher.
@@ -24,6 +27,7 @@ import ch.trancee.meshlink.ReceivedMessage
 internal class Floods(
     private val lanes: Lanes,
     private val codec: BroadcastCodec,
+    private val tree: Plumtree,
     private val deliver: (ReceivedMessage) -> Unit,
 ) {
     private val seen = MessageIds()
@@ -37,11 +41,45 @@ internal class Floods(
     ) {
         val frame = (FloodFrame.decode(bytes) as? Decoded.Valid ?: return).value
         val header = frame.header
+        val expiry = header.expiry.toLong()
         // Freshness first, so a duplicate costs no signature check.
-        if (new(header, nowSeconds) && carried(frame.type, bytes)) {
-            remember(header.messageId, header.expiry.toLong())
-            relay(peer, frame)
+        when {
+            !timely(expiry, nowSeconds) -> {}
+
+            seen.has(header.messageId, nowSeconds * MILLIS_PER_SECOND) -> {
+                duplicate(peer, frame.type)
+            }
+
+            carried(frame.type, bytes) -> {
+                remember(header.messageId, expiry).also { relay(peer, frame) }
+            }
         }
+    }
+
+    /** A link-local `IHAVE`, `GRAFT` or `PRUNE` arrived from linked [peer] at wall-clock [nowMillis]. */
+    fun plumtree(
+        peer: NodeId,
+        frame: LinkFrame,
+        nowMillis: Long,
+    ) {
+        when (frame) {
+            is LinkFrame.Ihave -> {
+                frame.messageIds.filterNot { seen.has(it, nowMillis) }.forEach { tree.announced(peer, it) }
+            }
+
+            is LinkFrame.Graft -> {
+                tree.grafted(peer, frame.messageId)
+            }
+
+            else -> {
+                tree.pruned(peer)
+            }
+        }
+    }
+
+    /** The last link to [peer] closed. */
+    fun unlinked(peer: NodeId) {
+        tree.unlinked(peer)
     }
 
     /**
@@ -53,8 +91,7 @@ internal class Floods(
         expiry: Long,
     ) {
         remember(parcel.messageId, expiry)
-        val peers = lanes.peers
-        if (peers.isEmpty()) waiting += parcel else peers.forEach { lanes.put(it, parcel) }
+        if (lanes.peers.isEmpty()) waiting += parcel else tree.spread(null, parcel, expiry)
     }
 
     /** A link to [peer] completed its hello: the frames waiting for a link go to it. */
@@ -73,6 +110,14 @@ internal class Floods(
         expiry: Long,
     ) {
         seen.put(id, remembered(expiry))
+        tree.arrived(id)
+    }
+
+    private fun duplicate(
+        peer: NodeId,
+        type: Int,
+    ) {
+        if (type == BroadcastFrame.TYPE) tree.duplicate(peer)
     }
 
     // Whether a frame of [type] is carried: a BROADCAST the codec opens, delivered here, or a small frame of
@@ -87,15 +132,6 @@ internal class Floods(
             bytes.size <= Reassembly.FRAME_SMALL_MAX
         }
 
-    // Whether a frame with [header] is timely and not seen before.
-    private fun new(
-        header: FloodHeader,
-        nowSeconds: Long,
-    ): Boolean {
-        val nowMillis = nowSeconds * MILLIS_PER_SECOND
-        return timely(header.expiry.toLong(), nowSeconds) && !seen.has(header.messageId, nowMillis)
-    }
-
     private fun relay(
         peer: NodeId,
         frame: FloodFrame,
@@ -104,7 +140,12 @@ internal class Floods(
         val hopLimit = header.hopLimit - 1
         if (hopLimit < 1) return
         val bytes = FloodFrame(frame.type, FloodHeader(hopLimit, header.messageId, header.expiry), frame.body).encode()
-        (lanes.peers - peer).forEach { lanes.put(it, Parcel(header.messageId, relayed = true, { bytes }) {}) }
+        val parcel = Parcel(header.messageId, relayed = true, { bytes }) {}
+        if (frame.type == BroadcastFrame.TYPE) {
+            tree.spread(peer, parcel, header.expiry.toLong())
+        } else {
+            (lanes.peers - peer).forEach { lanes.put(it, parcel) }
+        }
     }
 
     private companion object {

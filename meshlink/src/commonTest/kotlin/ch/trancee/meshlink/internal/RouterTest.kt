@@ -20,7 +20,7 @@ class RouterTest {
     private val endpoint = FakeEndpoint(OWN)
     private val delivered = endpoint.delivered
     private val broadcasts = mutableListOf<ReceivedMessage>()
-    private val floods = Floods(lanes, broadcastCodec()) { broadcasts += it }
+    private val floods = Floods(lanes, broadcastCodec(), lowTree(lanes)) { broadcasts += it }
 
     private fun TestScope.router(kinds: Set<Int> = setOf(Container.UNSECURED)): Router {
         endpoint.kinds = kinds

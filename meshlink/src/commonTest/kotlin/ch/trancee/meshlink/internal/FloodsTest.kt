@@ -2,12 +2,16 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
-// Flood forwarding of broadcasts and unknown flood types, on lanes to three linked peers.
+// Flood forwarding of broadcasts, the broadcast tree's frames, and unknown flood types, on lanes to three linked peers.
+@OptIn(ExperimentalCoroutinesApi::class)
 class FloodsTest {
     private val a = nodeId(1)
     private val b = nodeId(2)
@@ -15,7 +19,13 @@ class FloodsTest {
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
     private val delivered = mutableListOf<ReceivedMessage>()
 
-    private fun floods(secured: Boolean = false) = Floods(lanes, broadcastCodec(secured)) { delivered += it }
+    private fun TestScope.floods(
+        secured: Boolean = false,
+        density: DensityClass = DensityClass.LOW,
+    ): Floods {
+        val tree = Plumtree(lanes, SchedulerClock(testScheduler), backgroundScope) { density }
+        return Floods(lanes, broadcastCodec(secured), tree) { delivered += it }
+    }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
 
@@ -232,6 +242,90 @@ class FloodsTest {
             assertEquals(emptyList(), lanes.drain(d))
         }
 
+    @Test
+    fun aDuplicateBroadcastAnswersWithPruneAndADuplicateOfAnotherFloodTypeDoesNot() =
+        runTest {
+            // Arrange
+            val floods = floods(density = DensityClass.MEDIUM)
+            val other = header(type = UNKNOWN_TYPE, id = 2)
+            floods.received(a, broadcast(), NOW)
+            floods.received(a, other, NOW)
+            waiting()
+
+            // Act
+            floods.received(c, other, NOW)
+            val none = waiting()
+            floods.received(b, broadcast(), NOW)
+
+            // Assert
+            val prune = LinkFrame.Prune.encode().toList()
+            assertEquals(listOf(0, 0, 0), none.values.map { it.size })
+            val pruned = waiting().values.map { it.map(ByteArray::toList) }
+            assertEquals(listOf(emptyList(), listOf(prune), emptyList()), pruned)
+        }
+
+    @Test
+    fun anIhaveGraftsOnlyTheIdsNotSeenAndAnArrivalEndsAPendingGraft() =
+        runTest {
+            // Arrange
+            val floods = floods(density = DensityClass.MEDIUM)
+            floods.received(a, broadcast(id = 1), NOW)
+            waiting()
+            val ihave = LinkFrame.Ihave(listOf(messageId(1), messageId(2), messageId(3)))
+
+            // Act
+            floods.plumtree(b, ihave, NOW * MILLIS_PER_SECOND)
+            floods.received(c, broadcast(id = 3), NOW)
+            waiting()
+            advanceTimeBy(Plumtree.GRAFT_BASE_MILLIS + 1)
+
+            // Assert
+            val graft = LinkFrame.Graft(messageId(2)).encode().toList()
+            assertEquals(listOf(graft), lanes.drain(b).map { it.render().toList() })
+        }
+
+    @Test
+    fun aGraftIsAnsweredAndAPruneOrUnlinkSetsTheLinkLazyOrEager() =
+        runTest {
+            // Arrange
+            val floods = floods(density = DensityClass.MEDIUM)
+            floods.received(a, broadcast(id = 1), NOW)
+            waiting()
+
+            // Act
+            floods.plumtree(b, LinkFrame.Prune, NOW * MILLIS_PER_SECOND)
+            floods.plumtree(c, LinkFrame.Prune, NOW * MILLIS_PER_SECOND)
+            floods.unlinked(c)
+            floods.plumtree(a, LinkFrame.Graft(messageId(1)), NOW * MILLIS_PER_SECOND)
+            val answer = waiting()
+            floods.received(a, broadcast(id = 2), NOW)
+
+            // Assert
+            assertEquals(listOf(1, 0, 0), answer.values.map { it.size })
+            val sizes = waiting().filterKeys { it != a }.mapValues { (_, frames) -> frames.single().size }
+            assertEquals(LinkFrame.Ihave(listOf(messageId(2))).encode().size, sizes.getValue(b))
+            assertEquals(broadcast().size, sizes.getValue(c))
+        }
+
+    @Test
+    fun anOriginatedBroadcastAnnouncesItselfOnLazyLinksAndAnswersTheirGraft() =
+        runTest {
+            // Arrange
+            val floods = floods(density = DensityClass.MEDIUM)
+            floods.plumtree(b, LinkFrame.Prune, NOW * MILLIS_PER_SECOND)
+            val own = Parcel(messageId(1), relayed = false, { broadcast() }) {}
+
+            // Act
+            floods.originate(own, NOW + LIFETIME)
+            val first = waiting()
+            floods.plumtree(b, LinkFrame.Graft(messageId(1)), NOW * MILLIS_PER_SECOND)
+
+            // Assert
+            val ihave = LinkFrame.Ihave(listOf(messageId(1))).encode().toList()
+            assertEquals(listOf(ihave), first.getValue(b).map { it.toList() })
+            assertEquals(listOf(broadcast().toList()), lanes.drain(b).map { it.render().toList() })
+        }
+
     private fun header(
         type: Int = BroadcastFrame.TYPE,
         hopLimit: Int = 5,
@@ -258,6 +352,7 @@ class FloodsTest {
 
     private companion object {
         const val NOW = 1_767_225_600L
+        const val MILLIS_PER_SECOND = 1_000L
         const val LIFETIME = 300L
         const val SKEW = 30L
         const val LIFETIME_MAX = 3_600L

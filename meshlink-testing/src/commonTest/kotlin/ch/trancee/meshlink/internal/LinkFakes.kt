@@ -121,16 +121,17 @@ internal fun advertiseFake(
 }
 
 /**
- * A raw radio that advertises [MESH] and serves [capability], or no capability characteristic if `null`;
- * it supports L2CAP CoC if [coc].
+ * A raw radio that advertises [MESH] in [profile] and serves [capability], or no capability characteristic if
+ * `null`; it supports L2CAP CoC if [coc].
  */
 internal fun advertiseFake(
     air: VirtualAir,
     capability: ByteArray?,
     coc: Boolean = false,
+    profile: WireProfile = WireProfile.UNSECURED,
 ): VirtualRadio {
     val radio = air.radio(coc = coc)
-    val discovery = Discovery(SodiumCryptoProvider, MESH.encodeToByteArray(), WireProfile.UNSECURED)
+    val discovery = Discovery(SodiumCryptoProvider, MESH.encodeToByteArray(), profile)
     val payload = discovery.advertisement(Derivations.epoch(TestClock.WALL_CLOCK_START_MILLIS / MILLIS_PER_SECOND))
     capability?.let { radio.serveCapability(it) }
     radio.startAdvertising(payload)
