@@ -14,6 +14,8 @@ import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
 import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.RecordReader
+import ch.trancee.meshlink.internal.RouteReply
+import ch.trancee.meshlink.internal.RouteRequest
 import ch.trancee.meshlink.internal.UnicastFrame
 import ch.trancee.meshlink.internal.WireProfile
 import kotlin.test.assertContentEquals
@@ -212,6 +214,32 @@ internal val messageFrame: Handler =
                 assertEquals(container["plaintext"].string, actual.plaintext.hex(), "container.plaintext")
             }
         }
+    }
+
+internal val routeRequest: Handler =
+    layout({ _, bytes -> RouteRequest.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), RouteRequest.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["target_tag"].string, frame.targetTag.hex(), "target_tag")
+        assertEquals(decoded["origin_tag"].string, frame.originTag.hex(), "origin_tag")
+        assertEquals(decoded["origin_sequence"].uInt, frame.originSequence, "origin_sequence")
+        assertEquals(decoded["target_sequence"].uInt, frame.targetSequence, "target_sequence")
+        assertEquals(decoded["hop_count"].int, frame.hopCount, "hop_count")
+    }
+
+internal val routeReply: Handler =
+    layout({ _, bytes -> RouteReply.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), RouteReply.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["destination_tag"].string, frame.header.destinationTag.hex(), "destination_tag")
+        assertEquals(decoded["source_tag"].string, frame.header.sourceTag.hex(), "source_tag")
+        assertEquals(decoded["target_tag"].string, frame.targetTag.hex(), "target_tag")
+        assertEquals(decoded["target_sequence"].uInt, frame.targetSequence, "target_sequence")
+        assertEquals(decoded["hop_count"].int, frame.hopCount, "hop_count")
     }
 
 /** An unknown unicast type: `acceptable`, relayed by its header, so it round-trips and is mutated too. */

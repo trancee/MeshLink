@@ -256,6 +256,19 @@ sealed interface ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshStat
 }
 
 sealed interface ch.trancee.meshlink/Reachability { // ch.trancee.meshlink/Reachability|null[0]
+    final class Routed : ch.trancee.meshlink/Reachability { // ch.trancee.meshlink/Reachability.Routed|null[0]
+        constructor <init>(kotlin/Int) // ch.trancee.meshlink/Reachability.Routed.<init>|<init>(kotlin.Int){}[0]
+
+        final val hops // ch.trancee.meshlink/Reachability.Routed.hops|{}hops[0]
+            final fun <get-hops>(): kotlin/Int // ch.trancee.meshlink/Reachability.Routed.hops.<get-hops>|<get-hops>(){}[0]
+
+        final fun component1(): kotlin/Int // ch.trancee.meshlink/Reachability.Routed.component1|component1(){}[0]
+        final fun copy(kotlin/Int = ...): ch.trancee.meshlink/Reachability.Routed // ch.trancee.meshlink/Reachability.Routed.copy|copy(kotlin.Int){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Reachability.Routed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Reachability.Routed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Reachability.Routed.toString|toString(){}[0]
+    }
+
     final object Direct : ch.trancee.meshlink/Reachability { // ch.trancee.meshlink/Reachability.Direct|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Reachability.Direct.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Reachability.Direct.hashCode|hashCode(){}[0]

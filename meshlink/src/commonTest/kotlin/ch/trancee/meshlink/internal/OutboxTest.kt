@@ -26,6 +26,7 @@ class OutboxTest {
         val outbox =
             Outbox(SchedulerClock(testScheduler), backgroundScope, capacity, { density }) {
                 attempts += testScheduler.currentTime to it.to
+                it.sentMillis = testScheduler.currentTime
             }
         outbox.begin()
         return outbox
@@ -214,9 +215,51 @@ class OutboxTest {
             assertEquals(emptyList(), attempts)
         }
 
+    @Test
+    fun aFoundRouteSendsTheMatchingMessagesOnceEachWhenTheGapSinceTheirLastSendHasPassed() =
+        runTest {
+            // Arrange
+            density = DensityClass.HIGH
+            val outbox = outbox()
+            outbox.add(entry())
+            outbox.add(entry(to = OTHER))
+            advanceTimeBy(FOUND_MILLIS)
+
+            // Act: found twice before the gap has passed, then again after the deferred send's gap.
+            outbox.found(GAP_MILLIS) { it.to == PEER }
+            outbox.found(GAP_MILLIS) { it.to == PEER }
+            times(AGAIN_MILLIS)
+            outbox.found(GAP_MILLIS) { it.to == PEER }
+
+            // Assert
+            times(BEFORE_RETRY_MILLIS)
+            assertEquals(listOf(0L, GAP_MILLIS, AGAIN_MILLIS), attempts.filter { it.second == PEER }.map { it.first })
+            assertEquals(listOf(0L), attempts.filter { it.second == OTHER }.map { it.first })
+        }
+
+    @Test
+    fun aMessageThatFinishesBeforeItsDeferredSendIsNotSentAgain() =
+        runTest {
+            // Arrange
+            density = DensityClass.HIGH
+            val outbox = outbox()
+            outbox.add(entry(lifetimeMillis = GAP_MILLIS - FOUND_MILLIS))
+            advanceTimeBy(FOUND_MILLIS)
+
+            // Act
+            outbox.found(GAP_MILLIS) { true }
+
+            // Assert
+            assertEquals(listOf(0L), times(BEFORE_RETRY_MILLIS))
+        }
+
     private companion object {
         val SENDER = ByteArray(32)
         val PEER = nodeId(1)
         val OTHER = nodeId(2)
+        const val FOUND_MILLIS = 100L
+        const val GAP_MILLIS = 1_200L
+        const val AGAIN_MILLIS = 2_600L
+        const val BEFORE_RETRY_MILLIS = 4_000L
     }
 }

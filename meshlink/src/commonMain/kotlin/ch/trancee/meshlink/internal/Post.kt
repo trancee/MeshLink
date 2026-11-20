@@ -73,12 +73,24 @@ internal class Post(
     private val outbox = Outbox(clock, scope, capacity, density, ::transmit)
     private val self = MutableStateFlow<NodeId?>(null)
 
+    private val routes = Routes()
+
     /** Messages received for this node. */
     val inbox = Inbox()
 
-    private val end = UnsecuredEnd(crypto, clock, inbox)
+    /** The peers this node lists. */
+    val roster = Roster()
+
+    private val routed = RoutedPeers(crypto, clock, scope, routes, roster)
+
+    // A found route takes the messages waiting for its destination at once, unless the low class floods them.
+    private val end: UnsecuredEnd =
+        UnsecuredEnd(crypto, clock, inbox, secured, routed::heard) { tag ->
+            routed.update()
+            if (density() != DensityClass.LOW) outbox.found(FLUSH_GAP_MILLIS) { end.tag(it.to).contentEquals(tag) }
+        }
     private val kinds = if (secured) SECURED_KINDS else UNSECURED_KINDS
-    private val router = Router(clock, lanes, kinds, { tag, now -> !secured && end.owns(tag, now) }, end::deliver)
+    private val router = Router(clock, lanes, kinds, routes, crypto::randomBytes, end)
 
     /** Starts a run of the node whose NodeId is [nodeId]. */
     fun begin(nodeId: ByteArray) {
@@ -87,9 +99,10 @@ internal class Post(
         outbox.begin()
     }
 
-    /** Ends the run: unfinished messages fail with `Stopped`. */
+    /** Ends the run: unfinished messages fail with `Stopped`, and no routed peer is listed. */
     suspend fun end() {
         outbox.end()
+        routed.end()
     }
 
     /** Ends [inbox] for good. */
@@ -117,7 +130,10 @@ internal class Post(
         val bytes = payload.copyOf()
         // A node that closes before the message reaches the outbox cancels this before it runs.
         val deadline = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS) * MILLIS_PER_SECOND
-        val add = { outbox.add(Outbox.Entry(to, end.draft(to, bytes, expiry), bytes.size, status, deadline)) }
+        val add = {
+            if (!secured) routed.sending(to)
+            outbox.add(Outbox.Entry(to, end.draft(to, bytes, expiry), bytes.size, status, deadline))
+        }
         scope.launch { add() }.invokeOnCompletion {
             if (it != null) status.value = DeliveryStatus.Failed(FailureReason.Stopped)
         }
@@ -137,6 +153,7 @@ internal class Post(
     override fun unlinked(peer: NodeId) {
         lanes.close(peer)
         router.unlinked(peer)
+        routed.update()
         if (lanes.peers.isEmpty() && !secured) outbox.unreachable()
     }
 
@@ -153,17 +170,38 @@ internal class Post(
         router.received(peer, frame)
     }
 
-    // Each attempt tags the frame for the epoch it is written in (spec "Origin behavior").
-    private fun transmit(entry: Outbox.Entry) {
+    // Each attempt tags the frame for the epoch it is written in (spec "Origin behavior"). After its
+    // first send on a route, a message is sent once more by a new [search] if it is still unfinished
+    // `resend-base` + `resend-per-hop` × the route's hop count later.
+    private fun transmit(
+        entry: Outbox.Entry,
+        search: Boolean = false,
+    ) {
         if (secured) return
         if (lanes.peers.isEmpty()) return entry.hold()
-        router.originate(entry.draft.messageId, end.tag(entry.to), density(), { end.frame(entry.draft, it) }) {
-            if (it == Settled.SENT) entry.sent()
+        val parcel = { hopLimit: Int ->
+            Parcel(entry.draft.messageId, relayed = false, { end.frame(entry.draft, hopLimit) }) {
+                if (it == Settled.SENT) entry.sent()
+            }
+        }
+        val hops = router.originate(end.tag(entry.to), density(), search, parcel)
+        entry.sentMillis = clock.monotonicMillis()
+        if (hops != null && !entry.resent) {
+            entry.resent = true
+            outbox.after(entry, RESEND_BASE_MILLIS + RESEND_PER_HOP_MILLIS * hops) { transmit(entry, search = true) }
         }
     }
 
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L
+
+        // resend-base and resend-per-hop.
+        const val RESEND_BASE_MILLIS = 1_000L
+        const val RESEND_PER_HOP_MILLIS = 200L
+
+        // A message sent on a route just found waits until relays forget its earlier copies: the
+        // unicast seen window, and one hop's allowance for their later forwarding.
+        const val FLUSH_GAP_MILLIS = Router.SEEN_WINDOW_MILLIS + RESEND_PER_HOP_MILLIS
     }
 }
 
