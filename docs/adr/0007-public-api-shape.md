@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 15 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 16 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast; 2026-11-20, broadcast).
 
 ## Context
 
@@ -218,3 +218,11 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 - **Who may be addressed (replaces the amendment of 2026-11-08):** `send` to the node's own NodeId returns `Rejected(UnknownPeer)`; any other NodeId is accepted, whether or not the node ever linked with it (ADR 0018 amendment of 2026-11-19). `send` is still accepted while the node is `Running` or `Blocked`, returns `Rejected(NotRunning)` otherwise, and throws `Closed` after `close()`.
 - **Send capacity (amends the send-queue cap of 2026-11-03):** a message holds its bytes against the 1 MiB cap until it finishes: it expires, fails or, from ticket 47, is delivered. A routed message may be written many times by retries, so freeing its bytes at the first write would let the queue grow without bound (owner decision).
+
+2026-11-20, broadcast (0.1.0 backlog ticket "Flood `Unsecured` mesh broadcasts"):
+
+- **`broadcast` (decision 7):** `fun broadcast(payload: ByteArray, hopLimit: Int = 255): SendResult` returns at once, as `send` does. A `BroadcastOptions` class arrives with its first option, not before, so no empty class enters the ABI (owner decision).
+- **One message type (owner decision):** `SendResult.Accepted.message` is the same `OutgoingMessage`, whose `to` is now `NodeId?` and `null` for a broadcast; its `status` goes `Queued`, `Sent` at the first written copy, then `Expired` at the expiry plus `clock-skew`, or `Failed(Stopped)`. Broadcasts get no receipts. Received broadcasts arrive on the one `messages` flow, under the same inbox bounds, with the new `ReceivedMessage.broadcast` `true`; a second flow would split one inbox into two to collect. The sender of an `Unsecured` broadcast is the NodeId its container claims, unauthenticated.
+- **Validation (owner decision):** a `hopLimit` outside 1 to 255 returns the new `Rejected(InvalidHopLimit)`, rather than being clamped or thrown; a payload above 1,024 B returns `Rejected(TooLarge)`; `NotRunning` and `Closed` apply as for `send`; the payload counts against the 1 MiB send queue until the broadcast ends, so `QueueFull` applies.
+- **No link (owner decision):** a broadcast accepted while the node has no link waits `Queued`, never `Held`, and goes out on the first link that opens.
+- **Secured profiles:** until signed broadcasts land (ticket 39a), a `Classical` or `PostQuantum` broadcast stays `Queued` without a frame until it expires, and a secured node neither delivers nor relays another node's broadcast.

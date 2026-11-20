@@ -151,7 +151,7 @@ class DiscoveryTest {
             runCurrent()
 
             // Assert
-            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure())
+            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure)
             assertFalse(virtual.radio.scanning)
         }
 
@@ -171,7 +171,7 @@ class DiscoveryTest {
             runCurrent()
 
             // Assert
-            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure())
+            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure)
             assertNull(virtual.radio.advertisement)
             assertFalse(virtual.radio.scanning)
         }
@@ -192,7 +192,7 @@ class DiscoveryTest {
             runCurrent()
 
             // Assert
-            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure())
+            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure)
             assertNull(virtual.radio.advertisement)
         }
 
@@ -210,7 +210,7 @@ class DiscoveryTest {
             runCurrent()
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure())
+            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure)
             assertNull(platform.radio.advertisement)
             assertFalse(platform.radio.scanning)
         }
@@ -231,7 +231,7 @@ class DiscoveryTest {
             runCurrent()
 
             // Assert
-            assertNull(node.radioFailure())
+            assertNull(node.radioFailure)
             assertNull(virtual.radio.advertisement)
             assertFalse(virtual.radio.scanning)
         }
@@ -244,7 +244,7 @@ class DiscoveryTest {
             node.start()
             runCurrent()
 
-            assertNull(node.radioFailure())
+            assertNull(node.radioFailure)
         }
 
     @Test
@@ -265,14 +265,14 @@ class DiscoveryTest {
             val node = node(platformWith(virtual, radio), "Festival")
             node.start()
             runCurrent()
-            val firstFailure = node.radioFailure()
+            val firstFailure = node.radioFailure
 
             // Act
             advanceTimeBy(EPOCH_MILLIS + 1)
 
             // Assert
             assertNull(firstFailure)
-            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure())
+            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure)
             assertFalse(virtual.radio.scanning)
         }
 
@@ -338,7 +338,7 @@ class DiscoveryTest {
             advanceTimeBy(8_001)
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure())
+            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure)
             assertNull(virtual.radio.advertisement)
         }
 

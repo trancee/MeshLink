@@ -35,6 +35,8 @@ TARGETS = {
     "UnicastFrame": lambda: encoded("routed-frames.json"),
     "RouteRequest": lambda: encoded("routed-frames.json"),
     "RouteReply": lambda: encoded("routed-frames.json"),
+    "BroadcastFrame": lambda: encoded("routed-frames.json"),
+    "FloodFrame": lambda: encoded("routed-frames.json"),
     "MessageContent": lambda: encoded("inner-plaintext.json", "inner-message"),
     "ReceiptContent": lambda: encoded("inner-plaintext.json", "inner-receipt"),
     "ResolvingKey": lambda: [

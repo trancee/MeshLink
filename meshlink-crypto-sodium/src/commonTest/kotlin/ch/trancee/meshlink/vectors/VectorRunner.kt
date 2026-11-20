@@ -56,7 +56,7 @@ internal sealed class Skip(
     class Pending(
         file: String,
         key: String,
-        val ticket: Int,
+        val ticket: String,
     ) : Skip(file, key)
 
     /** Tests outside MeshLink's scope. */

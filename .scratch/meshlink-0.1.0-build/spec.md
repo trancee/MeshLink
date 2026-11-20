@@ -153,8 +153,9 @@ Exit: routed unicast and broadcast (signed in secured profiles) cross multi-hop 
 | 36 | [Adapt to low, medium and high local density](issues/36-density-classes.md) | AFK | 35b, 35c |
 | 37 | [Forward unicast messages over multiple hops](issues/37-routed-unicast.md) | AFK | 36 |
 | 38 | [Discover routes on demand](issues/38-route-discovery.md) | AFK | 37 |
-| 39 | [Flood and sign mesh broadcasts](issues/39-flood-broadcast.md) | AFK | 21, 36 |
-| 40 | [Spread broadcasts with Plumtree](issues/40-plumtree.md) | AFK | 39 |
+| 39 | [Flood `Unsecured` mesh broadcasts](issues/39-flood-broadcast.md) | AFK | 21, 36 |
+| 39a | [Sign mesh broadcasts in secured profiles](issues/39a-signed-broadcast.md) | AFK | 39 |
+| 40 | [Spread broadcasts with Plumtree](issues/40-plumtree.md) | AFK | 39a |
 | 41 | [Catch up missed broadcasts after reconnecting](issues/41-catch-up.md) | AFK | 40 |
 | 42 | [Test routing at every density](issues/42-density-test-suites.md) | AFK | 38, 41 |
 | 43 | [Prove a forced 3-hop line on real phones](issues/43-mesh-line-device-proof.md) | HITL | 33, 42 |
@@ -188,7 +189,7 @@ Exit: every preset and toggle works and explains itself, every diagnostic is cat
 
 | # | Ticket | Type | Blocked by |
 |---|---|---|---|
-| 53 | [Configure nodes with presets and toggles](issues/53-presets-toggles.md) | AFK | 32, 39, 46, 48, 50, 52 |
+| 53 | [Configure nodes with presets and toggles](issues/53-presets-toggles.md) | AFK | 32, 39a, 46, 48, 50, 52 |
 | 54 | [Emit and export cataloged diagnostics](issues/54-diagnostics-catalog.md) | AFK | 53 |
 | 55 | [Use MeshLink naturally from Swift](issues/55-swift-overlay.md) | AFK | 54 |
 | 56 | [Generate the agent docs and check the dependency register](issues/56-agent-docs-generators.md) | AFK | 54 |

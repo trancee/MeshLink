@@ -18,9 +18,13 @@ class RouterTest {
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
     private val endpoint = FakeEndpoint(OWN)
     private val delivered = endpoint.delivered
+    private val broadcasts = mutableListOf<Container.Unsecured>()
+    private val floods = Floods(lanes, true) { broadcasts += it }
 
-    private fun TestScope.router(kinds: Set<Int> = setOf(Container.UNSECURED)) =
-        Router(SchedulerClock(testScheduler), lanes, kinds, Routes(), { ByteArray(it) }, endpoint)
+    private fun TestScope.router(kinds: Set<Int> = setOf(Container.UNSECURED)): Router {
+        endpoint.kinds = kinds
+        return Router(SchedulerClock(testScheduler), lanes, Routes(), { ByteArray(it) }, endpoint, floods)
+    }
 
     private fun TestScope.nowSeconds() = SchedulerClock(testScheduler).wallClockMillis() / 1_000
 
@@ -357,6 +361,22 @@ class RouterTest {
 
             // Assert
             assertTrue(waiting().values.all { it.isEmpty() })
+        }
+
+    @Test
+    fun aFloodTypeOtherThanARouteRequestGoesToFloodForwarding() =
+        runTest {
+            // Arrange
+            val router = router()
+            val header = FloodHeader(5, messageId(1), (nowSeconds() + 60).toUInt())
+            val frame = BroadcastFrame(header, Container.Unsecured(ByteArray(32), byteArrayOf(1))).encode()
+
+            // Act
+            router.received(a, frame)
+
+            // Assert
+            assertEquals(1, broadcasts.size)
+            assertEquals(listOf(0, 1, 1), waiting().values.map { it.size })
         }
 
     @Test

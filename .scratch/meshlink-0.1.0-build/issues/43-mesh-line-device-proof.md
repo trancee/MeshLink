@@ -9,7 +9,7 @@ Blocked by: 33, 42
 Four lab phones, alternating Android and iPhone, form a line of 3 hops. Routed unicast and mesh broadcasts cross the whole line. The line is forced by an internal topology filter that only the lab app enables.
 
 - **Topology filter (AFK part of this ticket):** an internal allowlist of link peers that the lab app sets from its launch arguments. It is not public API: the ABI dump does not change, and no published type or config field exposes it. If the agent finds no mechanism that meets this, it stops and asks the owner.
-- **Profile:** `unsecured` (the lab's `--profile` name for `Unsecured`, defined by ticket 16 after ADR 0007 decision 5). Secured routed unicast needs tickets 45 and 46. Signed broadcast (ticket 39) and store-and-forward on the line are covered by the release run (ticket 62).
+- **Profile:** `unsecured` (the lab's `--profile` name for `Unsecured`, defined by ticket 16 after ADR 0007 decision 5). Secured routed unicast needs tickets 45 and 46. Signed broadcast (ticket 39a) and store-and-forward on the line are covered by the release run (ticket 62).
 - **Scenarios:** routed unicast end to end in both directions; a mesh broadcast from each end; link churn (one middle link drops and returns).
 - **Pass criteria:** every message is delivered within its lifetime, exactly once and intact; no crash or ANR. Latency is recorded as a baseline, not judged.
 

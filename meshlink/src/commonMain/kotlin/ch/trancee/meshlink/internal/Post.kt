@@ -52,7 +52,8 @@ internal enum class Settled {
 /**
  * A node's messaging: validates and sends its messages, relays other nodes' frames, and accepts the
  * `MESSAGE` frames for this node into [inbox] (ADR 0007 decisions 7 and 9, ADR 0013, spec "Unicast
- * forwarding"). [density] is the node's current density class.
+ * forwarding"), and floods [broadcasts] (spec "Flood forwarding"). [density] is the node's current
+ * density class.
  *
  * A [secured] mesh may not carry the unsecured container (spec "End-to-end"), and its own containers
  * come later: it keeps its messages `Queued` without writing them and processes no frame for itself,
@@ -89,19 +90,24 @@ internal class Post(
             routed.update()
             if (density() != DensityClass.LOW) outbox.found(FLUSH_GAP_MILLIS) { end.tag(it.to).contentEquals(tag) }
         }
-    private val kinds = if (secured) SECURED_KINDS else UNSECURED_KINDS
-    private val router = Router(clock, lanes, kinds, routes, crypto::randomBytes, end)
+    private val floods = Floods(lanes, !secured, end::broadcast)
+    private val router = Router(clock, lanes, routes, crypto::randomBytes, end, floods)
+
+    /** This node's broadcasts. */
+    val broadcasts = Broadcasts(clock, scope, capacity, floods, crypto::randomBytes, lifetimeSeconds)
 
     /** Starts a run of the node whose NodeId is [nodeId]. */
     fun begin(nodeId: ByteArray) {
         end.begin(nodeId)
         self.value = NodeId(nodeId)
         outbox.begin()
+        broadcasts.begin(nodeId)
     }
 
-    /** Ends the run: unfinished messages fail with `Stopped`, and no routed peer is listed. */
+    /** Ends the run: unfinished messages and broadcasts fail with `Stopped`, and no routed peer is listed. */
     suspend fun end() {
         outbox.end()
+        broadcasts.end()
         routed.end()
     }
 
@@ -148,6 +154,7 @@ internal class Post(
     override fun linked(peer: NodeId) {
         lanes.open(peer)
         outbox.linked()
+        floods.linked(peer)
     }
 
     override fun unlinked(peer: NodeId) {
@@ -205,10 +212,7 @@ internal class Post(
     }
 }
 
-private val SECURED_KINDS = setOf(Container.IK_INITIATOR, Container.TRANSPORT)
-private val UNSECURED_KINDS = setOf(Container.UNSECURED)
-
 // A node blocked on its identity has no run: start couldn't begin one.
-private fun accepting(state: MeshState): Boolean =
+internal fun accepting(state: MeshState): Boolean =
     state == MeshState.Running ||
         (state is MeshState.Blocked && Requirement.IdentityUnavailable !in state.requirements)

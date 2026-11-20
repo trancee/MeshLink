@@ -25,7 +25,10 @@ public enum class RejectionReason {
     /** The destination is this node's own NodeId. */
     UnknownPeer,
 
-    /** The payload is larger than one message can carry. */
+    /**
+     * The payload is larger than one message can carry: 4,096 bytes for [MeshLink.send], 1,024 for
+     * [MeshLink.broadcast].
+     */
     TooLarge,
 
     /**
@@ -33,12 +36,15 @@ public enum class RejectionReason {
      * [MeshLink.awaitSendCapacity], then send again.
      */
     QueueFull,
+
+    /** The hop limit [MeshLink.broadcast] was given is not 1 to 255. */
+    InvalidHopLimit,
 }
 
-/** A message [MeshLink.send] accepted. */
+/** A message [MeshLink.send] or [MeshLink.broadcast] accepted. */
 public class OutgoingMessage internal constructor(
-    /** The destination. */
-    public val to: NodeId,
+    /** The destination; `null` for a broadcast, which goes to every node within its hop limit. */
+    public val to: NodeId?,
     /** Where the message is; it only moves forward (ADR 0013 decisions 5 and 6). */
     public val status: StateFlow<DeliveryStatus>,
 )
@@ -70,10 +76,12 @@ public enum class FailureReason {
     Stopped,
 }
 
-/** A message another node sent to this one. */
+/** A message another node sent to this one, or to every node if [broadcast]. */
 public class ReceivedMessage internal constructor(
     /** The NodeId the sender claims; the `unsecured` profile does not authenticate it. */
     public val sender: NodeId,
     /** The message bytes. */
     public val payload: ByteArray,
+    /** Whether the sender broadcast the message to the mesh ([MeshLink.broadcast]) rather than to this node. */
+    public val broadcast: Boolean,
 )

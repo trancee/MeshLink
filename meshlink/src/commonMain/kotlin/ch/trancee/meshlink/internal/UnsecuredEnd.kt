@@ -60,10 +60,17 @@ internal class UnsecuredEnd(
         val delivery = codec.accept(frame, nowSeconds) ?: return false
         val sender = NodeId(delivery.sender)
         heard(sender)
-        return inbox.offer(ReceivedMessage(sender, delivery.payload))
+        return inbox.offer(ReceivedMessage(sender, delivery.payload, broadcast = false))
+    }
+
+    /** Hands a broadcast's [container] to [inbox]; a full inbox drops it. */
+    fun broadcast(container: Container.Unsecured) {
+        inbox.offer(ReceivedMessage(NodeId(container.senderNodeId), container.plaintext, broadcast = true))
     }
 
     /** This node's routing tag for the current epoch; `null` in a secured mesh. */
+    override fun carries(kind: Int): Boolean = kind in if (secured) SECURED_KINDS else UNSECURED_KINDS
+
     override fun tag(): ByteArray? = if (secured) null else derivations.unsecuredTag(nodeId, epoch())
 
     override fun found(tag: ByteArray) {
@@ -76,3 +83,6 @@ internal class UnsecuredEnd(
         const val MILLIS_PER_SECOND = 1_000L
     }
 }
+
+private val SECURED_KINDS = setOf(Container.IK_INITIATOR, Container.TRANSPORT)
+private val UNSECURED_KINDS = setOf(Container.UNSECURED)

@@ -53,6 +53,8 @@ public abstract interface annotation class ch/trancee/meshlink/InternalMeshLinkA
 public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public static final field Companion Lch/trancee/meshlink/MeshLink$Companion;
 	public final fun awaitSendCapacity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun broadcast ([BI)Lch/trancee/meshlink/SendResult;
+	public static synthetic fun broadcast$default (Lch/trancee/meshlink/MeshLink;[BIILjava/lang/Object;)Lch/trancee/meshlink/SendResult;
 	public fun close ()V
 	public final fun getCoc ()Z
 	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
@@ -60,10 +62,10 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public final fun getLinkRoles ()Ljava/util/Map;
 	public final fun getMessages ()Lkotlinx/coroutines/flow/Flow;
 	public final fun getPeers ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getRadioFailure ()Lch/trancee/meshlink/internal/RadioFailure;
 	public final fun getRestrictedLinkRole ()Lch/trancee/meshlink/internal/LinkRole;
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun linkCandidates ()Ljava/util/Set;
-	public final fun radioFailure ()Lch/trancee/meshlink/internal/RadioFailure;
 	public final fun resetIdentity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun send (Lch/trancee/meshlink/NodeId;[B)Lch/trancee/meshlink/SendResult;
 	public final fun setCoc (Z)V
@@ -282,11 +284,13 @@ public final class ch/trancee/meshlink/Reachability$Routed : ch/trancee/meshlink
 }
 
 public final class ch/trancee/meshlink/ReceivedMessage {
+	public final fun getBroadcast ()Z
 	public final fun getPayload ()[B
 	public final fun getSender ()Lch/trancee/meshlink/NodeId;
 }
 
 public final class ch/trancee/meshlink/RejectionReason : java/lang/Enum {
+	public static final field InvalidHopLimit Lch/trancee/meshlink/RejectionReason;
 	public static final field NotRunning Lch/trancee/meshlink/RejectionReason;
 	public static final field QueueFull Lch/trancee/meshlink/RejectionReason;
 	public static final field TooLarge Lch/trancee/meshlink/RejectionReason;

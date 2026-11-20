@@ -95,7 +95,14 @@ internal val vectorSets: List<VectorSet> =
         VectorSet("vectors/records.json", mapOf("record" to record), key = layoutKey),
         VectorSet(
             "vectors/routed-frames.json",
-            mapOf("0x40" to messageFrame, "0x43" to routeReply, "0x7e" to unicastFrame, "0x81" to routeRequest),
+            mapOf(
+                "0x40" to messageFrame,
+                "0x43" to routeReply,
+                "0x7e" to unicastFrame,
+                "0x80" to broadcastFrame,
+                "0x81" to routeRequest,
+                "0xbf" to floodFrame,
+            ),
             key = frameKey,
         ),
         VectorSet(
@@ -133,23 +140,22 @@ internal val vectorSets: List<VectorSet> =
 
 private fun pending(
     file: String,
-    ticket: Int,
+    ticket: String,
     vararg keys: String,
 ): List<Skip> = keys.map { Skip.Pending("vectors/$file", it, ticket) }
 
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
-    pending("hpke-seal.json", 45, "HpkeSeal") +
-        pending("derivations.json", 45, "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
-        pending("derivations.json", 45, "hpke-info") +
-        pending("derivations.json", 44, "lookup-tag", "lookup-reply-key") +
-        pending("derivations.json", 39, "broadcast-signing-input") +
-        pending("link-frames.json", 41, "0x0a") +
-        pending("link-frames.json", 40, "0x0b", "0x0c", "0x0d") +
-        pending("routed-frames.json", 47, "0x41") +
-        pending("routed-frames.json", 48, "0x42") +
-        pending("routed-frames.json", 44, "0x44", "0x82") +
-        pending("routed-frames.json", 39, "0x80", "0xbf") +
+    pending("hpke-seal.json", "45", "HpkeSeal") +
+        pending("derivations.json", "45", "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
+        pending("derivations.json", "45", "hpke-info") +
+        pending("derivations.json", "44", "lookup-tag", "lookup-reply-key") +
+        pending("derivations.json", "39a", "broadcast-signing-input") +
+        pending("link-frames.json", "41", "0x0a") +
+        pending("link-frames.json", "40", "0x0b", "0x0c", "0x0d") +
+        pending("routed-frames.json", "47", "0x41") +
+        pending("routed-frames.json", "48", "0x42") +
+        pending("routed-frames.json", "44", "0x44", "0x82") +
         listOf("0x0010", "0x0011", "0x0020", "0x0021", "0x0040", "0x0041", "0x0042", "0x0050", "0x0051").map {
             Skip.NotApplicable(
                 "hpke-pq/test-vectors.json",
@@ -157,7 +163,7 @@ internal val vectorSkips: List<Skip> =
                 "MeshLink's only HPKE KEM is X-Wing, 0x647a (ADR 0004)",
             )
         } +
-        Skip.Pending(CACOPHONY, NOISE_PROTOCOLS[2], 46) +
+        Skip.Pending(CACOPHONY, NOISE_PROTOCOLS[2], "46") +
         Skip.NotApplicable(CACOPHONY, OTHER_NOISE_PATTERNS, "MeshLink runs only XX, XXpsk3 and IK (ADR 0002)") +
         NOISE_OTHER_SUITES.map {
             Skip.NotApplicable(CACOPHONY, "Noise_*_$it", "MeshLink's only Noise suite is $NOISE_SUITE (ADR 0002)")
