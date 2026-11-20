@@ -3,6 +3,7 @@ package ch.trancee.meshlink
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotSame
 
@@ -50,5 +51,12 @@ class NodeIdTest {
         // Assert
         assertContentEquals(ByteArray(32) { 3 }, id.toByteArray())
         assertNotSame(id.toByteArray(), id.toByteArray())
+    }
+
+    @Test
+    fun aNodeIdIsExactly32Bytes() {
+        // Act + Assert
+        assertFailsWith<IllegalArgumentException> { NodeId(ByteArray(31)) }
+        assertFailsWith<IllegalArgumentException> { NodeId(ByteArray(33)) }
     }
 }

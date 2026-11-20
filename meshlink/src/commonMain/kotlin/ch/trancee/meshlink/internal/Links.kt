@@ -373,8 +373,8 @@ internal class Links(
                     report(LinkDiagnostic.UnknownLinkFrameDropped(plain[0].toInt() and BYTE_MASK))
                 }
 
-                conn.peer != null -> {
-                    mail.received(plain)
+                else -> {
+                    conn.peer?.let { mail.received(it, plain) }
                 }
             }
         }
@@ -748,8 +748,8 @@ internal class Links(
         // Keeps each record whole on the bearer: a message's records and a CLOSE never interleave.
         private val writing = Mutex()
 
-        // This link's recent outgoing streams by stream_id, for a BUSY that answers one.
-        private val streams = mutableMapOf<Int, Outgoing>()
+        // The stream being written, for a BUSY that answers it.
+        private var outgoing: Outgoing? = null
         private var nextStream = 0
 
         /**
@@ -814,69 +814,55 @@ internal class Links(
         }
 
         /**
-         * Writes [letter]'s frame unless the link is closing, and settles it: sent once every record
-         * is written, not sent if a write fails or the peer answers `BUSY`. Not cancellable once
-         * started, so a record is never cut short and a written frame is always settled. Returns
-         * whether the link can take the next frame.
+         * Writes [letter]'s frame unless the link is closing, and settles it: [Settled.SENT] once
+         * every record is written, [Settled.FAILED] if a write fails, [Settled.BUSY] if the peer
+         * refuses its stream. Not cancellable once started, so a record is never cut short and a
+         * written frame is always settled. Returns whether the link can take the next frame.
          */
         suspend fun deliver(letter: Letter): Boolean {
-            var written = Written.FAILED
-            var sent = false
+            var written = Settled.FAILED
             try {
-                withContext(NonCancellable) {
-                    written = write(letter)
-                    sent = written == Written.SENT
-                }
+                withContext(NonCancellable) { written = write(letter) }
             } finally {
-                letter.settle(sent)
+                letter.settle(written)
             }
-            return written != Written.FAILED
+            return written != Settled.FAILED
         }
 
         /**
          * One record if the frame fits, else `FRAGMENT`s of a new stream. Only the link's message
          * pump calls it, so one stream at a time is in flight and stream ids taken in turn are
          * unique among open streams. Each record takes [writing] apart, so a `CLOSE` can pass.
-         * Messages travel only on `unsecured` links until secured messaging, which sizes fragments
-         * for sealed records, so a record body carries the whole [LinkRecord.BODY_MAX].
+         * A sealed record body also carries the AEAD tag, so its frame is that much shorter.
          */
-        private suspend fun write(letter: Letter): Written {
+        private suspend fun write(letter: Letter): Settled {
             val frame = letter.frame
-            val plainMax = LinkRecord.BODY_MAX
+            val plainMax = LinkRecord.BODY_MAX - if (cipher == null) 0 else LinkCipher.TAG_LENGTH
             if (frame.size <= plainMax) return record(frame)
-            val now = clock.monotonicMillis()
-            streams.values.removeAll { now - it.startedMillis >= Reassembly.IDLE_TIMEOUT_MILLIS }
             val id = stream()
-            val stream = Outgoing(letter.settle, now)
-            streams[id] = stream
-            var written = Written.SENT
+            val stream = Outgoing(id)
+            outgoing = stream
+            var written = Settled.SENT
             for (piece in LinkFrame.Fragment.split(id, frame, plainMax - LinkFrame.Fragment.HEADER)) {
-                written = if (stream.refused) Written.REFUSED else record(piece.encode())
-                if (written != Written.SENT) break
+                written = if (stream.refused) Settled.BUSY else record(piece.encode())
+                if (written != Settled.SENT) break
             }
-            stream.writing = false
-            if (written != Written.SENT) streams -= id
+            outgoing = null
             return written
         }
 
-        private suspend fun record(frame: ByteArray): Written =
+        private suspend fun record(frame: ByteArray): Settled =
             writing.withLock {
                 val written = !closing && bearer.write(seal(frame), crediting) is RadioResult.Ok
-                if (written) Written.SENT else Written.FAILED
+                if (written) Settled.SENT else Settled.FAILED
             }
 
         /**
-         * The peer refused stream [id] with `BUSY`: one still being written stops; one already
-         * written is settled again as not sent, so the outbox retries its message.
+         * The peer refused stream [id] with `BUSY`: if it is still being written, it stops. One
+         * already written needs nothing: its message waits for its next retry either way.
          */
         fun refused(id: Int) {
-            val stream = streams[id] ?: return
-            if (stream.writing) {
-                stream.refused = true
-            } else {
-                streams -= id
-                stream.settle(false)
-            }
+            outgoing?.takeIf { it.id == id }?.refused = true
         }
 
         /**
@@ -912,16 +898,12 @@ internal class Links(
         ): Peer = Peer(id, Reachability.Direct, secured = secure != null, lastSeen, proximity)
     }
 
-    /** A stream this link sent, started at [startedMillis] monotonic time, and its message's [settle]. */
+    /** The stream [id] this link is writing, and whether the peer refused it. */
     private class Outgoing(
-        val settle: (sent: Boolean) -> Unit,
-        val startedMillis: Long,
+        val id: Int,
     ) {
-        var writing = true
         var refused = false
     }
-
-    private enum class Written { SENT, REFUSED, FAILED }
 
     /** The L2CAP CoC [psm] a central's [link] can open a channel to. */
     private class ChannelOffer(

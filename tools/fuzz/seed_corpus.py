@@ -32,6 +32,7 @@ TARGETS = {
     "HandshakePayload": lambda: encoded("handshake-payload.json"),
     "IdentityCertificate": lambda: encoded("certificate.json"),
     "MessageFrame": lambda: encoded("routed-frames.json"),
+    "UnicastFrame": lambda: encoded("routed-frames.json"),
     "MessageContent": lambda: encoded("inner-plaintext.json", "inner-message"),
     "ReceiptContent": lambda: encoded("inner-plaintext.json", "inner-receipt"),
     "ResolvingKey": lambda: [

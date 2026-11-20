@@ -1,6 +1,6 @@
 # 0018: Certificate acquisition
 
-Status: accepted (2026-11-08; ticket "How does a sender obtain the certificate of a node it has never linked with?"). Version: 3 (amended 2026-11-08, stage F simulation; 2026-11-08, protocol spec).
+Status: accepted (2026-11-08; ticket "How does a sender obtain the certificate of a node it has never linked with?"). Version: 4 (amended 2026-11-08, stage F simulation; 2026-11-08, protocol spec; 2026-11-19, routed unicast).
 
 ## Context
 
@@ -102,3 +102,7 @@ Inputs:
 
 - **Reply size (decision 5, [C-02](../spec/decisions.md#c-02)):** besides the 16 B tag, a sealed reply carries the responder's fresh 32 B X25519 ephemeral key and a 2 B length. A reply is 222 B (classical) or 1,438 B (post-quantum), including its 34 B header. Stage F's reply sizes were about 34 B smaller, well inside its seed-to-seed noise.
 - **Derivation ([D-36](../spec/decisions.md#d-36-lookup-reply)):** the reply key is HKDF over the X25519 shared secret of both ephemeral keys; the AEAD uses a zero nonce, safe because each key seals once. Retries use a new salt, ephemeral key and message ID ([D-37](../spec/decisions.md#d-37-lookup-retry-and-first-reply)).
+
+2026-11-19, routed unicast (0.1.0 backlog ticket "Route a unicast message over several hops"):
+
+- **`UnknownPeer` (amends decision 8):** `Rejected(UnknownPeer)` now means only that the NodeId is the node's own (owner decision). A malformed NodeId can no longer be built: `NodeId` requires exactly 32 bytes. In `unsecured`, a NodeId the node never linked with is accepted and flooded or routed like any other, so the 1,024-entry list of seen NodeIds is removed.

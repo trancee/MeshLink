@@ -93,7 +93,7 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet("vectors/link-transport.json", mapOf("LinkTransport" to linkTransport), key = groupType),
         VectorSet("vectors/records.json", mapOf("record" to record), key = layoutKey),
-        VectorSet("vectors/routed-frames.json", mapOf("0x40" to messageFrame), key = frameKey),
+        VectorSet("vectors/routed-frames.json", mapOf("0x40" to messageFrame, "0x7e" to unicastFrame), key = frameKey),
         VectorSet(
             "cacophony/cacophony.txt",
             NOISE_PROTOCOLS.take(2).associateWith { noise },
@@ -146,8 +146,7 @@ internal val vectorSkips: List<Skip> =
         pending("routed-frames.json", 48, "0x42") +
         pending("routed-frames.json", 38, "0x43", "0x81") +
         pending("routed-frames.json", 44, "0x44", "0x82") +
-        pending("routed-frames.json", 39, "0x80") +
-        pending("routed-frames.json", 37, "0x7e", "0xbf") +
+        pending("routed-frames.json", 39, "0x80", "0xbf") +
         listOf("0x0010", "0x0011", "0x0020", "0x0021", "0x0040", "0x0041", "0x0042", "0x0050", "0x0051").map {
             Skip.NotApplicable(
                 "hpke-pq/test-vectors.json",

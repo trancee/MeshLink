@@ -715,7 +715,9 @@ class UnsecuredLinkTest {
             assertEquals(List(PAYLOADS.size) { DeliveryStatus.Sent }, statuses.map { it.value })
             assertEquals(listOf(CloseReason.DUPLICATE_LINK), closes(inboundEnd))
             assertEquals(PAYLOADS.take(1).map { it.toList() }, messages(inboundEnd).map { it.toList() })
-            assertEquals(PAYLOADS.drop(1).map { it.toList() }, messages(outboundEnd).map { it.toList() })
+            // The origin also resends each message at its retry interval, after these.
+            val kept = messages(outboundEnd).take(PAYLOADS.size - 1)
+            assertEquals(PAYLOADS.drop(1).map { it.toList() }, kept.map { it.toList() })
         }
 
     @Test
@@ -870,6 +872,7 @@ class UnsecuredLinkTest {
 
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L
+
         const val HANDSHAKE_TIMEOUT_MILLIS = 10_000L
         const val RACE_SEEDS = 20L
         const val SLOW_WRITE_MILLIS = 60_000L

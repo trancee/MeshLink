@@ -51,6 +51,13 @@ class LinkCipherTest {
     }
 
     @Test
+    fun sealingAddsTagLengthBytesToTheBody() {
+        val body = bodies(initiator().seal(frame)).single()
+
+        assertEquals(frame.size + LinkCipher.TAG_LENGTH, body.size)
+    }
+
+    @Test
     fun aRekeyChangesTheKeyOfLaterRecordsInThatDirectionOnly() {
         // Arrange
         val (initiator, responder) = initiator() to responder()

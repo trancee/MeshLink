@@ -80,7 +80,7 @@ public class MeshLink private constructor(
     private val mutablePeers = MutableStateFlow<List<Peer>>(emptyList())
     private val links = MutableStateFlow<Links?>(null)
     private val secured = profile != WireProfile.UNSECURED
-    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds, secured)
+    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds, secured) { scanner.density }
     private val diagnostics = MutableSharedFlow<LinkDiagnostic>(extraBufferCapacity = DIAGNOSTICS_BUFFER)
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
@@ -187,16 +187,15 @@ public class MeshLink private constructor(
 
     /**
      * Sends [payload] to [to] (ADR 0007 decision 7). Doesn't suspend: the message is queued, and
-     * [SendResult.Accepted.message] reports its [DeliveryStatus]. A message to a peer without a
-     * link waits as [DeliveryStatus.Held] until one forms or the message expires.
-     *
-     * Until routing arrives, every message travels only over a direct link to [to].
+     * [SendResult.Accepted.message] reports its [DeliveryStatus]. The message travels over other
+     * nodes when [to] is not linked (ADR 0008), and MeshLink sends it again on a schedule until it
+     * expires. While this node has no link at all, the message waits as [DeliveryStatus.Held].
      *
      * Rejects the message with [RejectionReason.NotRunning] unless the node is [MeshState.Running]
      * or [MeshState.Blocked] on anything but [Requirement.IdentityUnavailable];
-     * [RejectionReason.UnknownPeer] if [to] never completed a link with this node;
+     * [RejectionReason.UnknownPeer] if [to] is this node's own NodeId;
      * [RejectionReason.TooLarge] above 4,096 bytes; and [RejectionReason.QueueFull] while the payloads
-     * not yet written reach 1 MiB, after which the caller awaits [awaitSendCapacity].
+     * of unfinished messages reach 1 MiB, after which the caller awaits [awaitSendCapacity].
      *
      * @throws MeshLinkException.Closed if the node is closed.
      */

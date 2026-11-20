@@ -83,6 +83,9 @@ public class LinkCipher(
         /** How long one sending key is used at most (spec `rekey-interval`). */
         public const val REKEY_INTERVAL_MILLIS: Long = 3_600_000
 
+        /** The bytes sealing adds to a record body: the AEAD tag. */
+        public const val TAG_LENGTH: Int = 16
+
         private val REKEY = LinkFrame.Rekey.encode()
     }
 }

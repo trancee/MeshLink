@@ -5,12 +5,10 @@ import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.OutgoingMessage
-import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.Requirement
 import ch.trancee.meshlink.SendResult
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -23,46 +21,69 @@ internal interface Mail {
     /** The last link to [peer] closed. */
     fun unlinked(peer: NodeId)
 
-    /** The next message for [peer], waiting for one. */
+    /** The next frame for [peer], waiting for one. */
     suspend fun next(peer: NodeId): Letter
 
-    /** A routed frame arrived on a link whose hello completed. */
-    fun received(frame: ByteArray)
+    /** A routed frame arrived from [peer] on a link whose hello completed. */
+    fun received(
+        peer: NodeId,
+        frame: ByteArray,
+    )
 }
 
-/** A message ready to write: its routed [frame], and [settle] to report whether the write succeeded. */
+/** A frame ready to write: its routed [frame], and [settle] to report how the write ended. */
 internal class Letter(
     val frame: ByteArray,
-    val settle: (sent: Boolean) -> Unit,
+    val settle: (Settled) -> Unit,
 )
 
+/** How a frame's write ended. */
+internal enum class Settled {
+    /** Every record was written. */
+    SENT,
+
+    /** The peer refused the frame's stream with `BUSY`. */
+    BUSY,
+
+    /** A record could not be written: the link is closing or broken. */
+    FAILED,
+}
+
 /**
- * A node's direct messages in the `unsecured` profile: validates and queues sends, and accepts
- * received `MESSAGE` frames into [inbox] (ADR 0007 decisions 7 and 9, ADR 0013).
+ * A node's messaging: validates and sends its messages, relays other nodes' frames, and accepts the
+ * `MESSAGE` frames for this node into [inbox] (ADR 0007 decisions 7 and 9, ADR 0013, spec "Unicast
+ * forwarding"). [density] is the node's current density class.
  *
  * A [secured] mesh may not carry the unsecured container (spec "End-to-end"), and its own containers
- * come later: it queues sends without writing them and drops every routed frame it receives.
+ * come later: it keeps its messages `Queued` without writing them and processes no frame for itself,
+ * but relays the secured containers of other nodes.
  *
  * [send] and [awaitCapacity] are thread-safe; everything else runs on [scope]'s serial dispatcher.
  */
 internal class Post(
-    private val crypto: CryptoProvider,
+    crypto: CryptoProvider,
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val lifetimeSeconds: Int,
     private val secured: Boolean,
+    private val density: () -> DensityClass,
 ) : Mail {
-    private val known = KnownPeers()
     private val capacity = Capacity()
-    private val outbox = Outbox(clock, scope, capacity)
-    private lateinit var codec: UnsecuredMessaging
+    private val lanes = Lanes()
+    private val outbox = Outbox(clock, scope, capacity, density, ::transmit)
+    private val self = MutableStateFlow<NodeId?>(null)
 
     /** Messages received for this node. */
     val inbox = Inbox()
 
+    private val end = UnsecuredEnd(crypto, clock, inbox)
+    private val kinds = if (secured) SECURED_KINDS else UNSECURED_KINDS
+    private val router = Router(clock, lanes, kinds, { tag, now -> !secured && end.owns(tag, now) }, end::deliver)
+
     /** Starts a run of the node whose NodeId is [nodeId]. */
     fun begin(nodeId: ByteArray) {
-        codec = UnsecuredMessaging(crypto, nodeId)
+        end.begin(nodeId)
+        self.value = NodeId(nodeId)
         outbox.begin()
     }
 
@@ -76,7 +97,7 @@ internal class Post(
         inbox.close()
     }
 
-    /** Accepts or rejects a direct message of [payload] to [to] from a node in [state]. */
+    /** Accepts or rejects a message of [payload] to [to] from a node in [state]. */
     fun send(
         to: NodeId,
         payload: ByteArray,
@@ -85,7 +106,7 @@ internal class Post(
         val reason =
             when {
                 !accepting(state) -> RejectionReason.NotRunning
-                to !in known -> RejectionReason.UnknownPeer
+                to == self.value -> RejectionReason.UnknownPeer
                 payload.size > UnsecuredMessaging.PAYLOAD_MAX -> RejectionReason.TooLarge
                 !capacity.reserve(payload.size) -> RejectionReason.QueueFull
                 else -> null
@@ -95,16 +116,13 @@ internal class Post(
         val status = MutableStateFlow<DeliveryStatus>(DeliveryStatus.Queued)
         val bytes = payload.copyOf()
         // A node that closes before the message reaches the outbox cancels this before it runs.
-        scope.launch { add(to, bytes, expiry, status) }.invokeOnCompletion {
+        val deadline = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS) * MILLIS_PER_SECOND
+        val add = { outbox.add(Outbox.Entry(to, end.draft(to, bytes, expiry), bytes.size, status, deadline)) }
+        scope.launch { add() }.invokeOnCompletion {
             if (it != null) status.value = DeliveryStatus.Failed(FailureReason.Stopped)
         }
         return SendResult.Accepted(OutgoingMessage(to, status.asStateFlow()))
     }
-
-    // A node blocked on its identity has no run: start couldn't begin one.
-    private fun accepting(state: MeshState): Boolean =
-        state == MeshState.Running ||
-            (state is MeshState.Blocked && Requirement.IdentityUnavailable !in state.requirements)
 
     /** Returns once the send queue is below its cap. */
     suspend fun awaitCapacity() {
@@ -112,43 +130,47 @@ internal class Post(
     }
 
     override fun linked(peer: NodeId) {
-        known.touch(peer)
-        outbox.linked(peer)
+        lanes.open(peer)
+        outbox.linked()
     }
 
     override fun unlinked(peer: NodeId) {
-        outbox.unlinked(peer)
+        lanes.close(peer)
+        router.unlinked(peer)
+        if (lanes.peers.isEmpty() && !secured) outbox.unreachable()
     }
 
     override suspend fun next(peer: NodeId): Letter {
-        if (secured) awaitCancellation()
-        val entry = outbox.next(peer)
-        val epoch = Derivations.epoch(clock.wallClockMillis() / MILLIS_PER_SECOND)
-        return Letter(codec.frame(entry.draft, epoch)) { outbox.settle(entry, it) }
+        val parcel = lanes.next(peer)
+        // A write that failed goes back to the front of the lane, for the peer's next or kept link.
+        return Letter(parcel.render()) { if (it == Settled.FAILED) lanes.putBack(peer, parcel) else parcel.settle(it) }
     }
 
-    override fun received(frame: ByteArray) {
-        if (secured) return
-        codec.accept(frame, clock.wallClockMillis() / MILLIS_PER_SECOND)?.let {
-            inbox.offer(ReceivedMessage(NodeId(it.sender), it.payload))
-        }
-    }
-
-    private fun add(
-        to: NodeId,
-        payload: ByteArray,
-        expiry: Long,
-        status: MutableStateFlow<DeliveryStatus>,
+    override fun received(
+        peer: NodeId,
+        frame: ByteArray,
     ) {
-        val draft = codec.draft(to.toByteArray(), payload, expiry.toUInt(), DIRECT_HOP_LIMIT)
-        val deadline = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS) * MILLIS_PER_SECOND
-        outbox.add(Outbox.Entry(to, draft, payload.size, status, deadline))
+        router.received(peer, frame)
+    }
+
+    // Each attempt tags the frame for the epoch it is written in (spec "Origin behavior").
+    private fun transmit(entry: Outbox.Entry) {
+        if (secured) return
+        if (lanes.peers.isEmpty()) return entry.hold()
+        router.originate(entry.draft.messageId, end.tag(entry.to), density(), { end.frame(entry.draft, it) }) {
+            if (it == Settled.SENT) entry.sent()
+        }
     }
 
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L
-
-        // Direct-only, and every send until routing arrives (spec "Origin behavior", D-27).
-        const val DIRECT_HOP_LIMIT = 1
     }
 }
+
+private val SECURED_KINDS = setOf(Container.IK_INITIATOR, Container.TRANSPORT)
+private val UNSECURED_KINDS = setOf(Container.UNSECURED)
+
+// A node blocked on its identity has no run: start couldn't begin one.
+private fun accepting(state: MeshState): Boolean =
+    state == MeshState.Running ||
+        (state is MeshState.Blocked && Requirement.IdentityUnavailable !in state.requirements)

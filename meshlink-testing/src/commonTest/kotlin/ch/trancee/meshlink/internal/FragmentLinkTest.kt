@@ -215,7 +215,7 @@ class FragmentLinkTest {
         }
 
     @Test
-    fun aBusyAfterTheLastFragmentRetriesTheMessageWhateverItsReason() =
+    fun aBusyAfterTheLastFragmentKeepsTheLinkAndTheMessageGoesAgainAtItsRetryWhateverItsReason() =
         runTest {
             // Arrange
             val (node, end, fake) = linkedToFake()
@@ -233,7 +233,7 @@ class FragmentLinkTest {
 
             // Act
             fake.write(record(LinkFrame.Busy(0, UNKNOWN_REASON)))
-            advanceTimeBy(SETTLE_MILLIS)
+            advanceTimeBy(RETRY_MIN_MILLIS)
 
             // Assert
             val streams = streams(end)
@@ -245,58 +245,62 @@ class FragmentLinkTest {
         }
 
     @Test
-    fun aBusyWhileTheStreamIsWrittenStopsItAndTheMessageIsSentAgain() =
+    fun aBusyWhileTheStreamIsWrittenStopsItAndTheMessageIsSentAgainAtItsRetry() =
         runTest {
             // Arrange
-            val air = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1), PACED_LATENCY_MILLIS)
-            val (node, end, fake) = linkedToFake(air)
-            end.paced = true
-            val status =
-                status(
-                    node.send(
-                        node.peers.value
-                            .single()
-                            .nodeId,
-                        ByteArray(UnsecuredMessaging.PAYLOAD_MAX),
-                    ),
-                )
-            while (streams(end).isEmpty()) advanceTimeBy(1)
+            val (status, end, fake) = pacedSend()
 
             // Act
             fake.write(record(LinkFrame.Busy(0, BusyReason.LARGE_BUDGET)))
             advanceTimeBy(SETTLE_MILLIS)
+            val stopped = streams(end)
+            val statusStopped = status.value
+            advanceTimeBy(RETRY_MIN_MILLIS)
 
             // Assert
+            assertEquals(listOf(0), stopped.keys.toList())
+            assertFalse(stopped.getValue(0).last().last)
+            assertEquals(DeliveryStatus.Queued, statusStopped)
             val streams = streams(end)
             assertEquals(listOf(0, 1), streams.keys.toList())
-            assertFalse(streams.getValue(0).last().last)
             assertTrue(streams.getValue(1).last().last)
             assertEquals(DeliveryStatus.Sent, status.value)
         }
 
     @Test
-    fun aBusyForAStreamTheLinkNoLongerTracksIsIgnored() =
+    fun aBusyForAnotherStreamThanTheOneBeingWrittenIsIgnored() =
         runTest {
             // Arrange
-            val (node, end, fake) = linkedToFake()
-            val peer =
-                node.peers.value
-                    .single()
-                    .nodeId
-            node.send(peer, ByteArray(UnsecuredMessaging.PAYLOAD_MAX))
-            advanceTimeBy(SETTLE_MILLIS + Reassembly.IDLE_TIMEOUT_MILLIS)
-            node.send(peer, ByteArray(UnsecuredMessaging.PAYLOAD_MAX))
-            advanceTimeBy(SETTLE_MILLIS)
+            val (status, end, fake) = pacedSend()
 
             // Act
-            fake.write(record(LinkFrame.Busy(0, BusyReason.REASSEMBLY_SLOTS)))
             fake.write(record(LinkFrame.Busy(UNUSED_STREAM, BusyReason.REASSEMBLY_SLOTS)))
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            assertEquals(listOf(0, 1), streams(end).keys.toList())
+            val streams = streams(end)
+            assertEquals(listOf(0), streams.keys.toList())
+            assertTrue(streams.getValue(0).last().last)
+            assertEquals(DeliveryStatus.Sent, status.value)
             assertTrue(end.open)
         }
+
+    /**
+     * A node linked to a fake over a paced radio end, whose one large message to the fake has
+     * started its stream: the message's status, the node's end and the fake.
+     */
+    private suspend fun TestScope.pacedSend(): Triple<StateFlow<DeliveryStatus>, VirtualLinkEnd, RadioLink> {
+        val air = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1), PACED_LATENCY_MILLIS)
+        val (node, end, fake) = linkedToFake(air)
+        end.paced = true
+        val peer =
+            node.peers.value
+                .single()
+                .nodeId
+        val status = status(node.send(peer, ByteArray(UnsecuredMessaging.PAYLOAD_MAX)))
+        while (streams(end).isEmpty()) advanceTimeBy(1)
+        return Triple(status, end, fake)
+    }
 
     /**
      * A started node on [air] linked to a fake central that said hello as [FAKE_ID] and grants
@@ -403,6 +407,9 @@ class FragmentLinkTest {
         const val STREAM = 7
         const val UNUSED_STREAM = 9
         const val UNKNOWN_REASON = 0x7F
+
+        // retry-min-low: an origin's first retry interval in the low class.
+        const val RETRY_MIN_MILLIS = 2_000L
 
         // 127 whole fragments and one byte: a large stream, which leaked held streams would leave no room for.
         const val LARGE_STREAM_BYTES = 129_541

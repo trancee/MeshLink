@@ -14,6 +14,7 @@ import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
 import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.RecordReader
+import ch.trancee.meshlink.internal.UnicastFrame
 import ch.trancee.meshlink.internal.WireProfile
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -22,14 +23,15 @@ import kotlin.test.fail
 
 /**
  * A handler for a layout file (`encoded` with `decoded` or `error`). A test with `decoded` must
- * decode to those fields; a `valid` one must also re-encode to `encoded`, and every decoder input
- * derived from it ([mutationInputs]) that decodes must re-encode to itself. A test with `error`
- * must fail with that error code.
+ * decode to those fields; one that [roundTrips], by default a `valid` one, must also re-encode to
+ * `encoded`, and every decoder input derived from it ([mutationInputs]) that decodes must re-encode
+ * to itself. A test with `error` must fail with that error code.
  */
 private fun <T> layout(
     decode: (VectorCase, ByteArray) -> Decoded<T>,
     encode: (VectorCase, T) -> ByteArray,
     fuzz: (ByteArray) -> Unit = {},
+    roundTrips: (VectorCase) -> Boolean = { it.result == "valid" },
     assertFields: (Json, T) -> Unit,
 ): Handler =
     Handler("encoded") { case ->
@@ -39,7 +41,7 @@ private fun <T> layout(
             if (result !is Decoded.Valid) fail("decoded to ${(result as Decoded.Invalid).error.code}")
             val value = result.value
             assertFields(case.test["decoded"], value)
-            if (case.result == "valid") {
+            if (roundTrips(case)) {
                 assertEquals(case.test["encoded"].string, encode(case, value).hex(), "re-encoded")
                 mutationInputs(encoded).forEach { input ->
                     when (val mutated = decode(case, input)) {
@@ -210,6 +212,22 @@ internal val messageFrame: Handler =
                 assertEquals(container["plaintext"].string, actual.plaintext.hex(), "container.plaintext")
             }
         }
+    }
+
+/** An unknown unicast type: `acceptable`, relayed by its header, so it round-trips and is mutated too. */
+internal val unicastFrame: Handler =
+    layout(
+        { _, bytes -> UnicastFrame.decode(bytes) },
+        { _, frame -> frame.encode() },
+        roundTrips = { true },
+    ) { decoded, frame ->
+        assertEquals(decoded["type"].code(), frame.type, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["destination_tag"].string, frame.header.destinationTag.hex(), "destination_tag")
+        assertEquals(decoded["source_tag"].string, frame.header.sourceTag.hex(), "source_tag")
+        assertEquals(decoded["body"].string, frame.body.hex(), "body")
     }
 
 /** `inner-plaintext.json`: [message] for the `inner-message` groups, else receipts; `secured` per group. */

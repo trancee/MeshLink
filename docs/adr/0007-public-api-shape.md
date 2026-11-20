@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 14 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 15 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast).
 
 ## Context
 
@@ -213,3 +213,8 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **Samples (owner decision):** the RSSI of each link this node opened as central, read every 10 s, and every sighting of a linked peer, matched by address or by the NodeId its resolvable tag resolves to. A peripheral whose central doesn't advertise, or isn't recognizable in an open mesh, may stay `Unknown`.
 - **Republishing:** `peers` updates after every 10 s reading, when a sighting moves a peer to another bucket, and when a peer's sample goes stale.
 - **Why:** α = 0.25 lets one sample move the average by a quarter of the step, so a single faded sample rarely changes the bucket alone, while six 10 s readings (60 s) still move it 82% of the way (1 − 0.75⁶). The thresholds are starting values without device evidence yet: ticket 33 checks the buckets on lab phone pairs and may change α, the thresholds or the staleness through a later amendment.
+
+2026-11-19, routed unicast (0.1.0 backlog ticket "Route a unicast message over several hops"):
+
+- **Who may be addressed (replaces the amendment of 2026-11-08):** `send` to the node's own NodeId returns `Rejected(UnknownPeer)`; any other NodeId is accepted, whether or not the node ever linked with it (ADR 0018 amendment of 2026-11-19). `send` is still accepted while the node is `Running` or `Blocked`, returns `Rejected(NotRunning)` otherwise, and throws `Closed` after `close()`.
+- **Send capacity (amends the send-queue cap of 2026-11-03):** a message holds its bytes against the 1 MiB cap until it finishes: it expires, fails or, from ticket 47, is delivered. A routed message may be written many times by retries, so freeing its bytes at the first write would let the queue grow without bound (owner decision).

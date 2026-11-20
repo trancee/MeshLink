@@ -1,9 +1,15 @@
 plugins {
     id("meshlink.published-library")
     id("meshlink.sodium-host-jni")
+    id("meshlink.spec-vectors")
 }
 
 description = "An in-memory fake MeshLink mesh for Kotlin and Android tests."
+
+// The routed-frame vectors a relay test forwards.
+specVectors {
+    files.from(rootProject.file("docs/spec/vectors/routed-frames.json"))
+}
 
 kotlin {
     sourceSets.commonMain.dependencies {

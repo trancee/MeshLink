@@ -37,14 +37,18 @@ public class UnsecuredMessaging(
         return Draft(destination, hopLimit, messageId, expiry, derivations.tombstoneCommitment(k), container)
     }
 
-    /** The `MESSAGE` bytes of [draft], tagged for [epoch]; a retry re-tags the same draft. */
+    /**
+     * The `MESSAGE` bytes of [draft], tagged for [epoch] with [hopLimit]; a retry re-tags the same
+     * draft.
+     */
     public fun frame(
         draft: Draft,
         epoch: UInt,
+        hopLimit: Int = draft.hopLimit,
     ): ByteArray {
         val header =
             UnicastHeader(
-                draft.hopLimit,
+                hopLimit,
                 draft.messageId,
                 draft.expiry,
                 derivations.unsecuredTag(draft.destination, epoch),
@@ -64,10 +68,19 @@ public class UnsecuredMessaging(
         nowSeconds: Long,
     ): Delivery? {
         val frame = (MessageFrame.decode(bytes) as? Decoded.Valid)?.value
+        return frame?.takeIf { owns(it.header.destinationTag, nowSeconds) }?.let { delivery(it, nowSeconds) }
+    }
+
+    /**
+     * Whether [tag] is this node's routing tag for epoch e − 1, e or e + 1, where e is the epoch of
+     * [nowSeconds].
+     */
+    public fun owns(
+        tag: ByteArray,
+        nowSeconds: Long,
+    ): Boolean {
         val tags = window(Derivations.epoch(nowSeconds))
-        return frame
-            ?.takeIf { candidate -> tags.any { it.contentEquals(candidate.header.destinationTag) } }
-            ?.let { delivery(it, nowSeconds) }
+        return tags.any { it.contentEquals(tag) }
     }
 
     private fun delivery(

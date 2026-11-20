@@ -9,6 +9,10 @@ public class NodeId internal constructor(
 ) {
     private val bytes = bytes.copyOf()
 
+    init {
+        require(bytes.size == NODE_ID_BYTES) { "A NodeId is $NODE_ID_BYTES bytes, not ${bytes.size}" }
+    }
+
     /** A copy of the 32 bytes. */
     public fun toByteArray(): ByteArray = bytes.copyOf()
 
@@ -21,3 +25,5 @@ public class NodeId internal constructor(
     /** The 32 bytes as 64 lowercase hex digits. */
     override fun toString(): String = bytes.toHexString()
 }
+
+private const val NODE_ID_BYTES = 32

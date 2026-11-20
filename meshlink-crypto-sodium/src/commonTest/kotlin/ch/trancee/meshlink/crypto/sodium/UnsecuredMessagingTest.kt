@@ -97,6 +97,26 @@ class UnsecuredMessagingTest {
     }
 
     @Test
+    fun aFrameTakesTheHopLimitOfItsWrite() {
+        val draft = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
+
+        val frame = (MessageFrame.decode(sender.frame(draft, epoch, hopLimit = 3)) as Decoded.Valid).value
+
+        assertEquals(3, frame.header.hopLimit)
+    }
+
+    @Test
+    fun aNodeOwnsItsTagsOfTheAdjacentEpochsOnly() {
+        listOf(epoch - 1u, epoch, epoch + 1u).forEach {
+            assertTrue(receiver.owns(derivations.unsecuredTag(bob, it), NOW), "epoch $it")
+        }
+        listOf(epoch - 2u, epoch + 2u).forEach {
+            assertFalse(receiver.owns(derivations.unsecuredTag(bob, it), NOW), "epoch $it")
+        }
+        assertFalse(receiver.owns(derivations.unsecuredTag(alice, epoch), NOW))
+    }
+
+    @Test
     fun anotherNodesFrameIsDropped() {
         val draft = sender.draft(alice, PAYLOAD, EXPIRY, hopLimit = 1)
 

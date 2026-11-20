@@ -22,13 +22,16 @@ public enum class RejectionReason {
     /** The node is not [MeshState.Running] or [MeshState.Blocked]. */
     NotRunning,
 
-    /** The destination never completed a link with this node since it was created (`unsecured` profile). */
+    /** The destination is this node's own NodeId. */
     UnknownPeer,
 
     /** The payload is larger than one message can carry. */
     TooLarge,
 
-    /** The send queue holds its byte limit; await [MeshLink.awaitSendCapacity], then send again. */
+    /**
+     * Unfinished messages hold the send queue's byte limit until they expire or fail; await
+     * [MeshLink.awaitSendCapacity], then send again.
+     */
     QueueFull,
 }
 
@@ -45,10 +48,10 @@ public sealed interface DeliveryStatus {
     /** Accepted; nothing is on air yet. */
     public data object Queued : DeliveryStatus
 
-    /** Waiting for a link to the destination. */
+    /** Waiting because this node has no link at all. */
     public data object Held : DeliveryStatus
 
-    /** The message left this node. This does not mean the destination received it. */
+    /** A copy of the message left this node. This does not mean the destination received it. */
     public data object Sent : DeliveryStatus
 
     /** Final: no receipt arrived by the message's expiry plus 30 s of clock skew. */
