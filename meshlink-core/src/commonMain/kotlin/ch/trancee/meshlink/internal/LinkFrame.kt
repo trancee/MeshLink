@@ -217,6 +217,64 @@ public sealed interface LinkFrame {
     }
 
     /**
+     * `IHAVE` (spec "Plumtree", D-26): 1 to [IDS_MAX] `message_id`s of broadcasts the sender holds,
+     * announced on a lazy link.
+     */
+    public class Ihave(
+        public val messageIds: List<ByteArray>,
+    ) : LinkFrame {
+        init {
+            require(messageIds.size in COUNTS) { "an IHAVE carries 1 to $IDS_MAX message IDs, not ${messageIds.size}" }
+            require(messageIds.all { it.size == MESSAGE_ID }) { "every message ID must be $MESSAGE_ID bytes" }
+        }
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte()) + entries(messageIds)
+
+        public companion object {
+            /** The most message IDs one `IHAVE` carries (spec `ihave-ids-max`). */
+            public const val IDS_MAX: Int = 32
+            internal const val TYPE = 0x0B
+            private val COUNTS = 1..IDS_MAX
+
+            internal fun decode(bytes: ByteArray): Decoded<LinkFrame> = entries(bytes, 1, COUNTS, MESSAGE_ID, ::Ihave)
+        }
+    }
+
+    /** `GRAFT` (spec "Plumtree", D-26): asks the peer for the frame of [messageId] and makes the link eager. */
+    public class Graft(
+        public val messageId: ByteArray,
+    ) : LinkFrame {
+        init {
+            require(messageId.size == MESSAGE_ID) { "message_id must be $MESSAGE_ID bytes" }
+        }
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte()) + messageId
+
+        internal companion object {
+            const val TYPE = 0x0C
+            private const val LENGTH = 1 + MESSAGE_ID
+
+            fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+                if (bytes.size == LENGTH) {
+                    Decoded.Valid(Graft(bytes.copyOfRange(1, LENGTH)))
+                } else {
+                    Decoded.Invalid(sizeError(bytes, LENGTH))
+                }
+        }
+    }
+
+    /** `PRUNE` (spec "Plumtree", D-26): the link becomes lazy in both directions. */
+    public data object Prune : LinkFrame {
+        internal const val TYPE = 0x0D
+        private const val LENGTH = 1
+
+        override fun encode(): ByteArray = byteArrayOf(TYPE.toByte())
+
+        internal fun decode(bytes: ByteArray): Decoded<LinkFrame> =
+            if (bytes.size == LENGTH) Decoded.Valid(Prune) else Decoded.Invalid(DecodeError.TRAILING_BYTES)
+    }
+
+    /**
      * `BEARER_SWITCH` (spec "Bearer switch", D-43): the sender's last record on GATT; its stream
      * continues on the link's L2CAP CoC channel with the next record.
      */
@@ -398,6 +456,9 @@ public sealed interface LinkFrame {
                 NeighborList.TYPE to { NeighborList.decode(it) },
                 Shuffle.TYPE to { Shuffle.decode(it) },
                 ShuffleReply.TYPE to { ShuffleReply.decode(it) },
+                Ihave.TYPE to { Ihave.decode(it) },
+                Graft.TYPE to { Graft.decode(it) },
+                Prune.TYPE to { Prune.decode(it) },
                 ResolvingKeyUpdate.TYPE to { ResolvingKeyUpdate.decode(it) },
                 BearerSwitch.TYPE to { BearerSwitch.decode(it) },
                 Credit.TYPE to { Credit.decode(it) },
@@ -428,21 +489,35 @@ public sealed interface LinkFrame {
             return ids.fold(count) { bytes, id -> bytes + id }
         }
 
-        // The identifiers after the count byte at [count], if their number is in [counts] and fills the frame.
+        // A routing header's `message_id`.
+        private const val MESSAGE_ID = 12
+
+        // The [width]-byte identifiers after the count byte at [count], if their number is in [counts] and fills
+        // the frame.
         private fun entries(
             bytes: ByteArray,
             count: Int,
             counts: IntRange,
+            width: Int = ID,
             frame: (List<ByteArray>) -> LinkFrame,
         ): Decoded<LinkFrame> {
             if (bytes.size <= count) return Decoded.Invalid(DecodeError.TRUNCATED)
             val number = bytes.u8(count)
             val first = count + 1
-            val length = first + number * ID
+            val length = first + number * width
             return when {
-                number !in counts -> Decoded.Invalid(DecodeError.OUT_OF_RANGE)
-                bytes.size != length -> Decoded.Invalid(sizeError(bytes, length))
-                else -> Decoded.Valid(frame(List(number) { bytes.copyOfRange(first + it * ID, first + (it + 1) * ID) }))
+                number !in counts -> {
+                    Decoded.Invalid(DecodeError.OUT_OF_RANGE)
+                }
+
+                bytes.size != length -> {
+                    Decoded.Invalid(sizeError(bytes, length))
+                }
+
+                else -> {
+                    val entries = List(number) { bytes.copyOfRange(first + it * width, first + (it + 1) * width) }
+                    Decoded.Valid(frame(entries))
+                }
             }
         }
 

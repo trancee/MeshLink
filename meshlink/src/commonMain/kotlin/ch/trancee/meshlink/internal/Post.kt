@@ -24,6 +24,12 @@ internal interface Mail {
     /** The next frame for [peer], waiting for one. */
     suspend fun next(peer: NodeId): Letter
 
+    /** A link-local `IHAVE`, `GRAFT` or `PRUNE` arrived from [peer] on a link whose hello completed. */
+    fun plumtree(
+        peer: NodeId,
+        frame: LinkFrame,
+    )
+
     /** A routed frame arrived from [peer] on a link whose hello completed. */
     fun received(
         peer: NodeId,
@@ -91,7 +97,7 @@ internal class Post(
             if (density() != DensityClass.LOW) outbox.found(FLUSH_GAP_MILLIS) { end.tag(it.to).contentEquals(tag) }
         }
     private val codec = BroadcastCodec(crypto, secured)
-    private val floods = Floods(lanes, codec) { inbox.offer(it) }
+    private val floods = Floods(lanes, codec, Plumtree(lanes, clock, scope, density)) { inbox.offer(it) }
     private val router = Router(clock, lanes, routes, crypto::randomBytes, end, floods)
 
     /** This node's broadcasts. */
@@ -161,6 +167,7 @@ internal class Post(
 
     override fun unlinked(peer: NodeId) {
         lanes.close(peer)
+        floods.unlinked(peer)
         router.unlinked(peer)
         routed.update()
         if (lanes.peers.isEmpty() && !secured) outbox.unreachable()
@@ -170,6 +177,13 @@ internal class Post(
         val parcel = lanes.next(peer)
         // A write that failed goes back to the front of the lane, for the peer's next or kept link.
         return Letter(parcel.render()) { if (it == Settled.FAILED) lanes.putBack(peer, parcel) else parcel.settle(it) }
+    }
+
+    override fun plumtree(
+        peer: NodeId,
+        frame: LinkFrame,
+    ) {
+        floods.plumtree(peer, frame, clock.wallClockMillis())
     }
 
     override fun received(

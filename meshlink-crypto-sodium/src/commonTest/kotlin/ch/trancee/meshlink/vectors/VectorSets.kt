@@ -92,8 +92,23 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet(
             "vectors/link-frames.json",
-            listOf("0x01", "0x02", "0x03", "0x04", "0x05", "0x06", "0x07", "0x08", "0x09", "0x0e", "0x0f", "0x10")
-                .plus(listOf("0x00", "0x3f", "0xc0", "0xff", "empty"))
+            listOf(
+                "0x01",
+                "0x02",
+                "0x03",
+                "0x04",
+                "0x05",
+                "0x06",
+                "0x07",
+                "0x08",
+                "0x09",
+                "0x0b",
+                "0x0c",
+                "0x0d",
+                "0x0e",
+                "0x0f",
+                "0x10",
+            ).plus(listOf("0x00", "0x3f", "0xc0", "0xff", "empty"))
                 .associateWith { linkFrame },
             key = frameKey,
         ),
@@ -157,7 +172,6 @@ internal val vectorSkips: List<Skip> =
         pending("derivations.json", "45", "hpke-info") +
         pending("derivations.json", "44", "lookup-tag", "lookup-reply-key") +
         pending("link-frames.json", "41", "0x0a") +
-        pending("link-frames.json", "40", "0x0b", "0x0c", "0x0d") +
         pending("routed-frames.json", "47", "0x41") +
         pending("routed-frames.json", "48", "0x42") +
         pending("routed-frames.json", "44", "0x44", "0x82") +

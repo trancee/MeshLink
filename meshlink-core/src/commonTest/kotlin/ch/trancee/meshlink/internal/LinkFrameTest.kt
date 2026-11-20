@@ -106,8 +106,22 @@ class LinkFrameTest {
         assertFailsWith<IllegalArgumentException> { LinkFrame.ShuffleReply(listOf(ByteArray(ID - 1))) }
     }
 
+    @Test
+    fun plumtreeFramesRejectWrongSizesAndCounts() {
+        val full = List(LinkFrame.Ihave.IDS_MAX) { ByteArray(MESSAGE_ID) { _ -> it.toByte() } }
+
+        val ihave = (LinkFrame.decode(LinkFrame.Ihave(full).encode()) as Decoded.Valid).value
+
+        assertEquals(full.map { it.toList() }, (ihave as LinkFrame.Ihave).messageIds.map { it.toList() })
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Ihave(emptyList()) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Ihave(full + listOf(ByteArray(MESSAGE_ID))) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Ihave(listOf(ByteArray(MESSAGE_ID + 1))) }
+        assertFailsWith<IllegalArgumentException> { LinkFrame.Graft(ByteArray(MESSAGE_ID - 1)) }
+    }
+
     private companion object {
         const val ID = 8
+        const val MESSAGE_ID = 12
         const val CREDITS_MAX = 0xFFFF
         const val UNKNOWN_REASON = 0x7F
         const val DIGEST = 32

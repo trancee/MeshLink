@@ -7,6 +7,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
 
 /** A clock on [scheduler]'s virtual time; the wall clock starts at [WALL_START_MILLIS]. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -77,3 +78,11 @@ internal fun unicast(
 
 /** The body of a `MESSAGE` frame with [container]: a zero commitment, then the container. */
 internal fun messageBody(container: Container): ByteArray = ByteArray(16) + container.encode()
+
+/** A broadcast tree on [lanes] in the low class, which floods; its grafts run on [scope] and [clock]. */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun lowTree(
+    lanes: Lanes,
+    scope: TestScope = TestScope(),
+    clock: Clock = SchedulerClock(scope.testScheduler),
+): Plumtree = Plumtree(lanes, clock, scope) { DensityClass.LOW }
