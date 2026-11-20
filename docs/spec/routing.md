@@ -236,6 +236,8 @@ A node that receives a flood frame:
 2. Processes it if it is addressed to the node (a route request for its tag, a lookup for its NodeId or a cached certificate, any broadcast).
 3. Unless it answered a route request or lookup, forwards it on every other link if the hop limit allows. Broadcasts in the medium and high classes use [Plumtree](#plumtree) instead of plain flooding.
 
+A flood frame of a type the node doesn't know is never processed: the node forwards it by its flood header alone, with one hop less, if it is a small frame ([Size classes](#size-classes)), and drops a large one without remembering its `message_id`.
+
 ## BROADCAST
 
 (ADR 0012 decision 5; ADR 0015 decision 2; ADR 0016 decision 1; [D-40].)

@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: AFK
-Blocked by: 39
+Blocked by: 39a
 
 ## Behavior
 
@@ -12,7 +12,7 @@ In the medium and high density classes, mesh broadcasts spread with Plumtree ins
 - **Prune:** a duplicate broadcast on an eager link answers with `PRUNE`; the link becomes lazy in both directions.
 - **Graft:** a node that learns an ID from `IHAVE` and lacks the frame after 500 ms sends `GRAFT` to the first announcer, then to each further announcer after another 250 ms. A `GRAFT` makes the link eager, and the receiver sends the frame. A `GRAFT` for an ID the node no longer holds gets nothing.
 - **Frames:** `IHAVE` (`0x0B`, 1–32 IDs), `GRAFT` (`0x0C`, 13 B) and `PRUNE` (`0x0D`, 1 B) are link-local and never forwarded.
-- **Profiles:** all three. Plumtree carries the `Unsecured` and the signed broadcasts of ticket 39 alike; a secured node verifies a broadcast (ticket 39) before pushing it on eager links or announcing it in `IHAVE`, and a `GRAFT` is answered only with a verified frame.
+- **Profiles:** all three. Plumtree carries the `Unsecured` and the signed broadcasts of ticket 39a alike; a secured node verifies a broadcast (ticket 39a) before pushing it on eager links or announcing it in `IHAVE`, and a `GRAFT` is answered only with a verified frame.
 
 `GRAFT` for catch-up offers is ticket 41.
 

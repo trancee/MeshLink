@@ -21,23 +21,25 @@ internal interface Endpoint {
 
     /** A route discovery found a route to [tag]. */
     fun found(tag: ByteArray)
+
+    /** Whether the mesh's profile carries `MESSAGE` container [kind]; relays drop the others. */
+    fun carries(kind: Int): Boolean
 }
 
 /**
  * Unicast routing (spec "Unicast forwarding", "Origin behavior" and "Route discovery"): processes
  * the frames for this node, relays the others by their header alone, runs route discovery, and
- * places this node's own frames in [lanes].
+ * places this node's own frames in [lanes]. Flood types other than route requests go to [floods].
  *
- * [kinds] are the `MESSAGE` container kinds the mesh's profile carries; [routes] are the node's
- * routes; [random] makes message ids. Runs on the node's serial dispatcher.
+ * [routes] are the node's routes; [random] makes message ids. Runs on the node's serial dispatcher.
  */
 internal class Router(
     private val clock: Clock,
     private val lanes: Lanes,
-    private val kinds: Set<Int>,
     private val routes: Routes,
     random: (size: Int) -> ByteArray,
     private val endpoint: Endpoint,
+    private val floods: Floods,
 ) {
     private val discovery = RouteDiscovery(clock, lanes, routes, random, endpoint)
     private val seen = MessageIds()
@@ -106,12 +108,13 @@ internal class Router(
         }
     }
 
-    // A flood frame: route requests go to route discovery; other flood types come later.
+    // A flood frame: route requests go to route discovery, other flood types to flood forwarding.
     private fun flooded(
         peer: NodeId,
         bytes: ByteArray,
         nowSeconds: Long,
     ) {
+        if (bytes[0] != RouteRequest.TYPE.toByte()) return floods.received(peer, bytes, nowSeconds)
         val decoded = RouteRequest.decode(bytes)
         if (decoded is Decoded.Valid) discovery.requested(peer, decoded.value, nowSeconds)
     }
@@ -148,7 +151,7 @@ internal class Router(
         when (type) {
             MessageFrame.TYPE -> {
                 val message = MessageFrame.decode(bytes)
-                message is Decoded.Valid && message.value.container.kind in kinds
+                message is Decoded.Valid && endpoint.carries(message.value.container.kind)
             }
 
             RouteReply.TYPE -> {

@@ -42,9 +42,9 @@ class VectorRunnerTest {
 
     @Test
     fun aStaleSkipFailsTheRun() {
-        val handled = Skip.Pending(FILE, "layout-a", 1)
+        val handled = Skip.Pending(FILE, "layout-a", "1")
         val unmatched = Skip.NotApplicable(FILE, "layout-c", "none")
-        val skipB = Skip.Pending(FILE, "layout-b", 1)
+        val skipB = Skip.Pending(FILE, "layout-b", "1")
 
         val handledFailure =
             assertFailsWith<AssertionError> {
@@ -61,7 +61,7 @@ class VectorRunnerTest {
 
     @Test
     fun aWrongNumberOfTestsFailsTheRun() {
-        val runner = VectorRunner(listOf(SET), listOf(Skip.Pending(FILE, "layout-b", 1)))
+        val runner = VectorRunner(listOf(SET), listOf(Skip.Pending(FILE, "layout-b", "1")))
 
         val failure =
             assertFailsWith<AssertionError> {

@@ -1,8 +1,10 @@
 package ch.trancee.meshlink.fuzz
 
 import ch.trancee.meshlink.internal.Advertisement
+import ch.trancee.meshlink.internal.BroadcastFrame
 import ch.trancee.meshlink.internal.CapabilityRecord
 import ch.trancee.meshlink.internal.Decoded
+import ch.trancee.meshlink.internal.FloodFrame
 import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.LinkFrame
@@ -78,6 +80,16 @@ object UnicastFrameFuzzer {
 object RouteRequestFuzzer {
     @JvmStatic
     fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, RouteRequest.decode(data)) { it.encode() }
+}
+
+object BroadcastFrameFuzzer {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, BroadcastFrame.decode(data)) { it.encode() }
+}
+
+object FloodFrameFuzzer {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, FloodFrame.decode(data)) { it.encode() }
 }
 
 object RouteReplyFuzzer {

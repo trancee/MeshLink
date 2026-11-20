@@ -2,10 +2,12 @@ package ch.trancee.meshlink.vectors
 
 import ch.trancee.meshlink.crypto.sodium.hex
 import ch.trancee.meshlink.internal.Advertisement
+import ch.trancee.meshlink.internal.BroadcastFrame
 import ch.trancee.meshlink.internal.CapabilityRecord
 import ch.trancee.meshlink.internal.Container
 import ch.trancee.meshlink.internal.Content
 import ch.trancee.meshlink.internal.Decoded
+import ch.trancee.meshlink.internal.FloodFrame
 import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.LinkFrame
@@ -197,24 +199,59 @@ internal val messageFrame: Handler =
         assertEquals(decoded["destination_tag"].string, frame.header.destinationTag.hex(), "destination_tag")
         assertEquals(decoded["source_tag"].string, frame.header.sourceTag.hex(), "source_tag")
         assertEquals(decoded["commitment"].string, frame.commitment.hex(), "commitment")
-        val container = decoded["container"]
-        assertEquals(container["kind"].code(), frame.container.kind, "container.kind")
-        when (val actual = frame.container) {
-            is Container.IkInitiator -> {
-                assertEquals(container["noise_message"].string, actual.noiseMessage.hex(), "container.noise_message")
-            }
+        assertContainer(decoded["container"], frame.container)
+    }
 
-            is Container.Transport -> {
-                assertEquals(container["nonce"].uLong, actual.nonce, "container.nonce")
-                assertEquals(container["ciphertext"].string, actual.ciphertext.hex(), "container.ciphertext")
-            }
+internal val broadcastFrame: Handler =
+    layout({ _, bytes -> BroadcastFrame.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), BroadcastFrame.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertContainer(decoded["container"], frame.container)
+    }
 
-            is Container.Unsecured -> {
-                assertEquals(container["sender_node_id"].string, actual.senderNodeId.hex(), "container.sender_node_id")
-                assertEquals(container["plaintext"].string, actual.plaintext.hex(), "container.plaintext")
-            }
+/** An unknown flood type: `acceptable`, relayed by its header, so it round-trips and is mutated too. */
+internal val floodFrame: Handler =
+    layout(
+        { _, bytes -> FloodFrame.decode(bytes) },
+        { _, frame -> frame.encode() },
+        roundTrips = { true },
+    ) { decoded, frame ->
+        assertEquals(decoded["type"].code(), frame.type, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["body"].string, frame.body.hex(), "body")
+    }
+
+private fun assertContainer(
+    container: Json,
+    actual: Container,
+) {
+    assertEquals(container["kind"].code(), actual.kind, "container.kind")
+    when (actual) {
+        is Container.IkInitiator -> {
+            assertEquals(container["noise_message"].string, actual.noiseMessage.hex(), "container.noise_message")
+        }
+
+        is Container.Transport -> {
+            assertEquals(container["nonce"].uLong, actual.nonce, "container.nonce")
+            assertEquals(container["ciphertext"].string, actual.ciphertext.hex(), "container.ciphertext")
+        }
+
+        is Container.Unsecured -> {
+            assertEquals(container["sender_node_id"].string, actual.senderNodeId.hex(), "container.sender_node_id")
+            assertEquals(container["plaintext"].string, actual.plaintext.hex(), "container.plaintext")
+        }
+
+        is Container.SignedBroadcast -> {
+            assertEquals(container["origin_key"].string, actual.originKey.hex(), "container.origin_key")
+            assertEquals(container["payload"].string, actual.payload.hex(), "container.payload")
+            assertEquals(container["signature"].string, actual.signature.hex(), "container.signature")
         }
     }
+}
 
 internal val routeRequest: Handler =
     layout({ _, bytes -> RouteRequest.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->

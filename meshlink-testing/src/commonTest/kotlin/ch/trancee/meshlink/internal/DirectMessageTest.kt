@@ -66,7 +66,7 @@ class DirectMessageTest {
         }
 
     @Test
-    fun sendIsRejectedAsNotRunningBeforeStartAndAfterStop() =
+    fun sendAndBroadcastAreRejectedAsNotRunningBeforeStartAndAfterStop() =
         runTest {
             // Arrange
             val (nodes) = linkedPair()
@@ -79,10 +79,11 @@ class DirectMessageTest {
             nodes[0].stop()
 
             // Act
-            val results = listOf(idle.send(bob, PAYLOAD), nodes[0].send(bob, PAYLOAD))
+            val results =
+                listOf(idle, nodes[0]).flatMap { listOf(it.send(bob, PAYLOAD), it.broadcast(PAYLOAD)) }
 
             // Assert
-            assertEquals(List(2) { SendResult.Rejected(RejectionReason.NotRunning) }, results)
+            assertEquals(List(4) { SendResult.Rejected(RejectionReason.NotRunning) }, results)
         }
 
     @Test
@@ -195,7 +196,7 @@ class DirectMessageTest {
         }
 
     @Test
-    fun closedNodeThrowsClosedFromSendAndAwaitSendCapacity() =
+    fun closedNodeThrowsClosedFromSendBroadcastAndAwaitSendCapacity() =
         runTest {
             // Arrange
             val (nodes) = linkedPair()
@@ -208,10 +209,12 @@ class DirectMessageTest {
 
             // Act
             val send = assertFails { nodes[0].send(bob, PAYLOAD) }
+            val broadcast = assertFails { nodes[0].broadcast(PAYLOAD) }
             val await = assertFails { nodes[0].awaitSendCapacity() }
 
             // Assert
             assertIs<MeshLinkException.Closed>(send)
+            assertIs<MeshLinkException.Closed>(broadcast)
             assertIs<MeshLinkException.Closed>(await)
         }
 

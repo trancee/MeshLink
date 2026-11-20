@@ -84,6 +84,7 @@ final enum class ch.trancee.meshlink/ProximityBucket : kotlin/Enum<ch.trancee.me
 }
 
 final enum class ch.trancee.meshlink/RejectionReason : kotlin/Enum<ch.trancee.meshlink/RejectionReason> { // ch.trancee.meshlink/RejectionReason|null[0]
+    enum entry InvalidHopLimit // ch.trancee.meshlink/RejectionReason.InvalidHopLimit|null[0]
     enum entry NotRunning // ch.trancee.meshlink/RejectionReason.NotRunning|null[0]
     enum entry QueueFull // ch.trancee.meshlink/RejectionReason.QueueFull|null[0]
     enum entry TooLarge // ch.trancee.meshlink/RejectionReason.TooLarge|null[0]
@@ -373,6 +374,8 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
         final fun <get-messages>(): kotlinx.coroutines.flow/Flow<ch.trancee.meshlink/ReceivedMessage> // ch.trancee.meshlink/MeshLink.messages.<get-messages>|<get-messages>(){}[0]
     final val peers // ch.trancee.meshlink/MeshLink.peers|{}peers[0]
         final fun <get-peers>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/List<ch.trancee.meshlink/Peer>> // ch.trancee.meshlink/MeshLink.peers.<get-peers>|<get-peers>(){}[0]
+    final val radioFailure // ch.trancee.meshlink/MeshLink.radioFailure|{}radioFailure[0]
+        final fun <get-radioFailure>(): ch.trancee.meshlink.internal/RadioFailure? // ch.trancee.meshlink/MeshLink.radioFailure.<get-radioFailure>|<get-radioFailure>(){}[0]
     final val state // ch.trancee.meshlink/MeshLink.state|{}state[0]
         final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/MeshState> // ch.trancee.meshlink/MeshLink.state.<get-state>|<get-state>(){}[0]
 
@@ -383,9 +386,9 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
         final fun <get-restrictedLinkRole>(): ch.trancee.meshlink.internal/LinkRole? // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<get-restrictedLinkRole>|<get-restrictedLinkRole>(){}[0]
         final fun <set-restrictedLinkRole>(ch.trancee.meshlink.internal/LinkRole?) // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<set-restrictedLinkRole>|<set-restrictedLinkRole>(ch.trancee.meshlink.internal.LinkRole?){}[0]
 
+    final fun broadcast(kotlin/ByteArray, kotlin/Int = ...): ch.trancee.meshlink/SendResult // ch.trancee.meshlink/MeshLink.broadcast|broadcast(kotlin.ByteArray;kotlin.Int){}[0]
     final fun close() // ch.trancee.meshlink/MeshLink.close|close(){}[0]
     final fun linkCandidates(): kotlin.collections/Set<ch.trancee.meshlink.internal/PeerHandle> // ch.trancee.meshlink/MeshLink.linkCandidates|linkCandidates(){}[0]
-    final fun radioFailure(): ch.trancee.meshlink.internal/RadioFailure? // ch.trancee.meshlink/MeshLink.radioFailure|radioFailure(){}[0]
     final fun send(ch.trancee.meshlink/NodeId, kotlin/ByteArray): ch.trancee.meshlink/SendResult // ch.trancee.meshlink/MeshLink.send|send(ch.trancee.meshlink.NodeId;kotlin.ByteArray){}[0]
     final suspend fun awaitSendCapacity() // ch.trancee.meshlink/MeshLink.awaitSendCapacity|awaitSendCapacity(){}[0]
     final suspend fun resetIdentity(): kotlin/Boolean // ch.trancee.meshlink/MeshLink.resetIdentity|resetIdentity(){}[0]
@@ -440,7 +443,7 @@ final class ch.trancee.meshlink/OutgoingMessage { // ch.trancee.meshlink/Outgoin
     final val status // ch.trancee.meshlink/OutgoingMessage.status|{}status[0]
         final fun <get-status>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/DeliveryStatus> // ch.trancee.meshlink/OutgoingMessage.status.<get-status>|<get-status>(){}[0]
     final val to // ch.trancee.meshlink/OutgoingMessage.to|{}to[0]
-        final fun <get-to>(): ch.trancee.meshlink/NodeId // ch.trancee.meshlink/OutgoingMessage.to.<get-to>|<get-to>(){}[0]
+        final fun <get-to>(): ch.trancee.meshlink/NodeId? // ch.trancee.meshlink/OutgoingMessage.to.<get-to>|<get-to>(){}[0]
 }
 
 final class ch.trancee.meshlink/Peer { // ch.trancee.meshlink/Peer|null[0]
@@ -466,6 +469,8 @@ final class ch.trancee.meshlink/Proximity { // ch.trancee.meshlink/Proximity|nul
 }
 
 final class ch.trancee.meshlink/ReceivedMessage { // ch.trancee.meshlink/ReceivedMessage|null[0]
+    final val broadcast // ch.trancee.meshlink/ReceivedMessage.broadcast|{}broadcast[0]
+        final fun <get-broadcast>(): kotlin/Boolean // ch.trancee.meshlink/ReceivedMessage.broadcast.<get-broadcast>|<get-broadcast>(){}[0]
     final val payload // ch.trancee.meshlink/ReceivedMessage.payload|{}payload[0]
         final fun <get-payload>(): kotlin/ByteArray // ch.trancee.meshlink/ReceivedMessage.payload.<get-payload>|<get-payload>(){}[0]
     final val sender // ch.trancee.meshlink/ReceivedMessage.sender|{}sender[0]

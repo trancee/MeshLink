@@ -21,6 +21,7 @@ import ch.trancee.meshlink.internal.RadioFailure
 import ch.trancee.meshlink.internal.RadioRegistry
 import ch.trancee.meshlink.internal.Recognition
 import ch.trancee.meshlink.internal.ResolvingKeys
+import ch.trancee.meshlink.internal.Router
 import ch.trancee.meshlink.internal.Scanner
 import ch.trancee.meshlink.internal.WireProfile
 import kotlinx.coroutines.CoroutineScope
@@ -210,6 +211,36 @@ public class MeshLink private constructor(
     }
 
     /**
+     * Broadcasts [payload] to every node of the mesh within [hopLimit] hops, 255 by default (ADR 0007 amendment
+     * "Broadcast"). Doesn't suspend: the broadcast is queued, and [SendResult.Accepted.message],
+     * whose [OutgoingMessage.to] is `null`, reports its [DeliveryStatus]. The broadcast floods: each
+     * node delivers it once on [messages] with [ReceivedMessage.broadcast] `true` and forwards it on
+     * its other links with one hop less. It is written once to every current link, or to the first
+     * link that opens if this node has none; it is [DeliveryStatus.Sent] at its first written copy
+     * and [DeliveryStatus.Expired] at its expiry plus 30 s of clock skew. Broadcasts get no receipts.
+     *
+     * In [SecurityProfile.Unsecured] the receivers learn the sender's NodeId as it claims it, without
+     * authentication, and every node in range can read the payload. A node of a secured profile
+     * doesn't sign broadcasts yet: its broadcasts stay [DeliveryStatus.Queued] until they expire, and
+     * it neither delivers nor forwards another node's broadcast.
+     *
+     * Rejects the broadcast with [RejectionReason.NotRunning] as [send] does;
+     * [RejectionReason.InvalidHopLimit] unless [hopLimit] is 1 to 255;
+     * [RejectionReason.TooLarge] above 1,024 bytes; and [RejectionReason.QueueFull] while the
+     * payloads of unfinished messages and broadcasts reach 1 MiB.
+     *
+     * @throws MeshLinkException.Closed if the node is closed.
+     */
+    @Throws(MeshLinkException::class)
+    public fun broadcast(
+        payload: ByteArray,
+        hopLimit: Int = Router.HOP_LIMIT_MAX,
+    ): SendResult {
+        ensureOpen(closed)
+        return post.broadcasts.send(payload, hopLimit, mutableState.value)
+    }
+
+    /**
      * Returns once the send queue has room again, or at once if it has. A caller that got
      * [RejectionReason.QueueFull] awaits this, then sends again; it never retries in a loop.
      *
@@ -261,7 +292,7 @@ public class MeshLink private constructor(
     /** Why the radio last refused to advertise or scan, or `null`; for `meshlink-testing`. */
     @InternalMeshLinkApi
     @HiddenFromObjC
-    public fun radioFailure(): RadioFailure? = scanner.failure
+    public val radioFailure: RadioFailure? get() = scanner.failure
 
     /** Stops a started node; the caller holds [lifecycle]. A node blocked on its identity has no watcher. */
     private suspend fun halt() {

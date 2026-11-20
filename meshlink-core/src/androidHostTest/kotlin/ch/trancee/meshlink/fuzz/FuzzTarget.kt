@@ -44,6 +44,8 @@ val fuzzTargets: List<FuzzTarget> =
         FuzzTarget(UnicastFrameFuzzer::class, setOf("UnicastFrame\$Companion.decode")),
         FuzzTarget(RouteRequestFuzzer::class, setOf("RouteRequest\$Companion.decode")),
         FuzzTarget(RouteReplyFuzzer::class, setOf("RouteReply\$Companion.decode")),
+        FuzzTarget(BroadcastFrameFuzzer::class, setOf("BroadcastFrame\$Companion.decode")),
+        FuzzTarget(FloodFrameFuzzer::class, setOf("FloodFrame\$Companion.decode")),
         FuzzTarget(
             MessageContentFuzzer::class,
             setOf("MessageContent\$Companion.decode", "Content\$Companion.unframe", "Content\$Companion.extensions"),

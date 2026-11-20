@@ -85,7 +85,10 @@ class InboxTest {
     private fun message(
         senderId: Int,
         size: Int,
-    ): ReceivedMessage = ReceivedMessage(NodeId(ByteArray(NODE_ID_LENGTH) { senderId.toByte() }), ByteArray(size))
+    ): ReceivedMessage {
+        val sender = NodeId(ByteArray(NODE_ID_LENGTH) { senderId.toByte() })
+        return ReceivedMessage(sender, ByteArray(size), broadcast = false)
+    }
 
     private companion object {
         const val NODE_ID_LENGTH = 32
