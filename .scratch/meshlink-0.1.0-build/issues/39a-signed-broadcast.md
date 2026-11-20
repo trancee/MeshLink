@@ -1,6 +1,6 @@
 # Sign mesh broadcasts in secured profiles
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 39
 
@@ -26,12 +26,12 @@ Split from ticket 39 (Q1). In `Classical` and `PostQuantum`, `broadcast` signs e
 
 ## Acceptance criteria
 
-- [ ] The `broadcast-signing-input` derivation passes `derivations.json`.
-- [ ] The tier 2 "Signed broadcasts" set passes, including hop-limit changes keeping the signature valid. Ticket 20's Rust reference generates it if still pending.
-- [ ] Seeded `VirtualAir` tests, 12 nodes, in `Classical` and `PostQuantum`: one broadcast reaches every connected node exactly once, intact, with the origin's NodeId, and no node forwards a `message_id` twice.
-- [ ] A seeded gated-mesh test shows a non-member sees no broadcast content.
-- [ ] T10, secured: a flipped payload byte, a flipped signature byte, a swapped `origin_key`, a payload length over 1,024, and kinds `0x04` or `0x01` are neither delivered nor relayed, on the first relay.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] The `broadcast-signing-input` derivation passes `derivations.json`.
+- [x] The tier 2 "Signed broadcasts" set passes, including hop-limit changes keeping the signature valid. Ticket 20's Rust reference generates it if still pending.
+- [x] Seeded `VirtualAir` tests, 12 nodes, in `Classical` and `PostQuantum`: one broadcast reaches every connected node exactly once, intact, with the origin's NodeId, and no node forwards a `message_id` twice.
+- [x] A seeded gated-mesh test shows a non-member sees no broadcast content.
+- [x] T10, secured: a flipped payload byte, a flipped signature byte, a swapped `origin_key`, a payload length over 1,024, and kinds `0x04` or `0x01` are neither delivered nor relayed, on the first relay.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -50,3 +50,11 @@ Split from ticket 39 (Q1). In `Classical` and `PostQuantum`, `broadcast` signs e
 ## Devices needed
 
 None. Host and simulator only.
+
+## Outcome
+
+- **Shipped in #97.** `Classical` and `PostQuantum` nodes sign each `BROADCAST` as kind `0x05` with their installation identity; every secured node verifies before it delivers or relays, and `ReceivedMessage.sender` is the NodeId of `origin_key`.
+- **Order:** freshness before verification, so duplicates cost no signature check; a `message_id` is remembered only after the frame is carried, so a forgery can't shadow the genuine broadcast.
+- **Code:** `BroadcastFrame.sign`, `verifiedOrigin`, `signingInput` and `Domain.BROADCAST` in core; the internal `BroadcastCodec`, used by `Floods` and `Broadcasts`; `UnsecuredEnd.broadcast` removed.
+- **Vectors:** tier 2 `broadcast-signatures.json` (12 tests) from `tools/reference/src/broadcast.rs`, recomputed by `check_spec.py` and checked in Kotlin with the `broadcast-signing-input` derivation.
+- **Docs:** the guarantees, observer-exposure and threat-model pages already matched the tested exposure; the public ABI didn't change.
