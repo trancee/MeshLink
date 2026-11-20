@@ -1,6 +1,6 @@
 # Flood `Unsecured` mesh broadcasts
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 21, 36
 
@@ -27,13 +27,13 @@ Split into tickets 39 and 39a (Q1). This ticket floods `Unsecured` broadcasts an
 
 ## Acceptance criteria
 
-- [ ] The `BROADCAST` codec and the flood frame codec for unknown types pass every matching `routed-frames.json` vector (`0x80`, `0xbf`); both containers decode as specified. Each new decoder has a deterministic mutation test.
-- [ ] A seeded `VirtualAir` test, 12 `Unsecured` nodes: one broadcast reaches every connected node exactly once, intact, with the origin's NodeId and `broadcast` true, and no node forwards a `message_id` twice.
-- [ ] A seeded test shows `hopLimit` 2 reaching exactly the nodes within 2 hops.
-- [ ] A 1,024 B payload is sent; a 1,025 B payload returns `Rejected(TooLarge)` and `hopLimit` 0 or 256 returns `Rejected(InvalidHopLimit)`, each with no frame on air.
-- [ ] Status goes `Queued` → `Sent` → `Expired` in virtual time; a broadcast sent with no link goes out on the first link.
-- [ ] T10: `hop_limit` 0, expired frames, a payload length above 1,024, truncated frames and kind `0x05` or `0x01` at an `Unsecured` node are dropped without state change; a secured node relays no `BROADCAST`; an unknown flood type is relayed with one hop less and not delivered.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] The `BROADCAST` codec and the flood frame codec for unknown types pass every matching `routed-frames.json` vector (`0x80`, `0xbf`); both containers decode as specified. Each new decoder has a deterministic mutation test.
+- [x] A seeded `VirtualAir` test, 12 `Unsecured` nodes: one broadcast reaches every connected node exactly once, intact, with the origin's NodeId and `broadcast` true, and no node forwards a `message_id` twice.
+- [x] A seeded test shows `hopLimit` 2 reaching exactly the nodes within 2 hops.
+- [x] A 1,024 B payload is sent; a 1,025 B payload returns `Rejected(TooLarge)` and `hopLimit` 0 or 256 returns `Rejected(InvalidHopLimit)`, each with no frame on air.
+- [x] Status goes `Queued` → `Sent` → `Expired` in virtual time; a broadcast sent with no link goes out on the first link.
+- [x] T10: `hop_limit` 0, expired frames, a payload length above 1,024, truncated frames and kind `0x05` or `0x01` at an `Unsecured` node are dropped without state change; a secured node relays no `BROADCAST`; an unknown flood type is relayed with one hop less and not delivered.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -52,3 +52,16 @@ Split into tickets 39 and 39a (Q1). This ticket floods `Unsecured` broadcasts an
 ## Devices needed
 
 None. Host and simulator only.
+
+## Outcome
+
+- **Owner decisions:**
+  1. Signed broadcasts move to ticket 39a; this ticket floods `Unsecured` broadcasts only.
+  2. Broadcasts arrive on `messages` with `ReceivedMessage.broadcast` set.
+  3. `broadcast(payload, hopLimit = 255)`; `OutgoingMessage.to` is `null` for a broadcast.
+  4. A `hopLimit` outside 1–255 returns `Rejected(InvalidHopLimit)`.
+  5. With no link, a broadcast waits `Queued` and goes out on the first link that opens.
+- **Secured profiles:** they neither deliver nor relay `BROADCAST`, and their own broadcasts stay `Queued` until they expire (until 39a).
+- **API:** `radioFailure()` became the property `radioFailure` to stay within detekt `TooManyFunctions`.
+- **Code:** `BroadcastFrame`, `FloodFrame` and `Container.SignedBroadcast` with vectors and fuzz targets; `Floods`, `Broadcasts`, `Endpoint.carries`; `Router`, `Post`, `UnsecuredEnd` and `MeshLink.broadcast` wiring.
+- **Tests:** unit tests for each part; `BroadcastTest` in `VirtualAir`. 11 decoder mutants and 24 meshlink mutants were all killed; Kover is at 100%. Shipped in #95.
