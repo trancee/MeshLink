@@ -130,6 +130,11 @@ private class DirectMessageScenario {
     }
 
     private fun StepsBuilder.actionSteps() {
+        whenever("Alice broadcasts {string} with hop limit {int}") { payload: String, hopLimit: Int ->
+            result = nodes[0].broadcast(payload.encodeToByteArray(), hopLimit)
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
         whenever("Alice sends {string} to Bob") { payload: String ->
             result = nodes[0].send(bobId, payload.encodeToByteArray())
             scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
@@ -171,6 +176,10 @@ private class DirectMessageScenario {
     }
 
     private fun StepsBuilder.assertionSteps() {
+        then("the broadcast is rejected as InvalidHopLimit") {
+            assertEquals(SendResult.Rejected(RejectionReason.InvalidHopLimit), result)
+        }
+
         then("Bob receives {string} from Alice") { payload: String ->
             assertIs<SendResult.Accepted>(result)
             val message = received.single()
