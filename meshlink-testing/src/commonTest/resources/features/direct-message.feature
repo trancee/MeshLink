@@ -55,6 +55,12 @@ Feature: Direct messaging
     And Alice's queued messages have expired
     And Alice can send "room again" to Bob
 
+  Scenario: A second message collector is rejected
+    Given Alice and Bob are running in the same mesh
+    And Bob is collecting received messages
+    When another collector starts receiving Bob's messages
+    Then the second collector is rejected as AlreadyCollected
+
   Scenario: A message is held while the sender has no link
     Given Alice and Bob are running in the same mesh
     And Alice and Bob are directly linked

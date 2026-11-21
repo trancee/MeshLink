@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.OutgoingMessage
 import ch.trancee.meshlink.Reachability
@@ -17,10 +18,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -44,6 +47,7 @@ private class DirectMessageScenario {
     private lateinit var result: SendResult
     private lateinit var bobId: NodeId
     private lateinit var capacityWait: Deferred<Unit>
+    private var collectorFailure: MeshLinkException.AlreadyCollected? = null
 
     fun StepsBuilder.register() {
         after {
@@ -144,6 +148,16 @@ private class DirectMessageScenario {
             scope.testScheduler.runCurrent()
         }
 
+        whenever("another collector starts receiving Bob's messages") {
+            collectorFailure =
+                try {
+                    withTimeoutOrNull(1) { nodes[1].messages.first() }
+                    null
+                } catch (failure: MeshLinkException.AlreadyCollected) {
+                    failure
+                }
+        }
+
         whenever("Bob returns to direct contact with Alice") {
             air.move(bobPlatform.radio, 0.0, 0.0)
             scope.testScheduler.advanceTimeBy(RECONNECT_WAIT_MILLIS)
@@ -172,6 +186,10 @@ private class DirectMessageScenario {
 
         then("the send is rejected as QueueFull") {
             assertEquals(SendResult.Rejected(RejectionReason.QueueFull), result)
+        }
+
+        then("the second collector is rejected as AlreadyCollected") {
+            assertIs<MeshLinkException.AlreadyCollected>(collectorFailure)
         }
 
         then("Alice receives no messages") {
