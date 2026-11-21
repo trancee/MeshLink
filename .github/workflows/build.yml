@@ -130,6 +130,10 @@ jobs:
           retention-days: 7
       - if: matrix.phase == 'swiftpm' || matrix.phase == 'preview'
         run: tools/swiftpm-consumer/test.sh
+        id: swiftpm_consumer
+      - name: Diagnose unavailable simulators
+        if: ${{ failure() && steps.swiftpm_consumer.outcome == 'failure' }}
+        run: python3 tools/ci/simulator_diagnostics.py
       - if: matrix.phase == 'swiftpm' || matrix.phase == 'preview'
         run: ./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols
       # Ticket 65: publishing needs the iOS klibs (macOS only) and the Android libsodium build (NDK).
