@@ -53,6 +53,11 @@ internal fun StepsBuilder.lifecycleSteps() {
         createNode().start()
     }
 
+    given("the node has stopped") {
+        nodes.single().stop()
+        assertEquals(MeshState.Stopped, nodes.single().state.value)
+    }
+
     given("a node blocked because Bluetooth is off") {
         val node = createNode()
         platform.radio.report(setOf(Requirement.BluetoothOff))

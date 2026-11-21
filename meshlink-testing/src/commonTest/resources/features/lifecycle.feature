@@ -10,6 +10,12 @@ Feature: Node lifecycle
     When the node stops
     Then the node is stopped
 
+  Scenario: A stopped node can start again
+    Given a running node
+    And the node has stopped
+    When the node starts
+    Then the node is running
+
   Scenario: A node blocked by Bluetooth being off runs when Bluetooth becomes available
     Given a node blocked because Bluetooth is off
     When Bluetooth becomes available
