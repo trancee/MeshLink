@@ -34,6 +34,7 @@ private class DirectMessageScenario {
     private lateinit var air: VirtualAir
     private lateinit var bobPlatform: VirtualPlatform
     private val nodes = mutableListOf<MeshLink>()
+    private val aliceReceived = mutableListOf<ReceivedMessage>()
     private val received = mutableListOf<ReceivedMessage>()
     private lateinit var result: SendResult
     private lateinit var bobId: NodeId
@@ -75,6 +76,11 @@ private class DirectMessageScenario {
             scope.testScheduler.runCurrent()
         }
 
+        given("Alice is collecting received messages") {
+            scope.backgroundScope.launch { nodes[0].messages.collect { aliceReceived += it } }
+            scope.testScheduler.runCurrent()
+        }
+
         given("Alice has stopped") {
             nodes[0].stop()
         }
@@ -104,6 +110,16 @@ private class DirectMessageScenario {
             scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
         }
 
+        whenever("Alice sends {string} to herself") { payload: String ->
+            result = nodes[0].send(senderId(nodes[1]), payload.encodeToByteArray())
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
+        whenever("Alice sends {int} bytes to Bob") { size: Int ->
+            result = nodes[0].send(bobId, ByteArray(size))
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
         whenever("Bob returns to direct contact with Alice") {
             air.move(bobPlatform.radio, 0.0, 0.0)
             scope.testScheduler.advanceTimeBy(RECONNECT_WAIT_MILLIS)
@@ -120,6 +136,18 @@ private class DirectMessageScenario {
 
         then("the send is rejected as NotRunning") {
             assertEquals(SendResult.Rejected(RejectionReason.NotRunning), result)
+        }
+
+        then("the send is rejected as UnknownPeer") {
+            assertEquals(SendResult.Rejected(RejectionReason.UnknownPeer), result)
+        }
+
+        then("the send is rejected as TooLarge") {
+            assertEquals(SendResult.Rejected(RejectionReason.TooLarge), result)
+        }
+
+        then("Alice receives no messages") {
+            assertEquals(emptyList(), aliceReceived)
         }
 
         then("Alice's message is held") {

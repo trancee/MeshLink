@@ -16,6 +16,24 @@ Feature: Direct messaging
     Then the send is rejected as NotRunning
     And Bob receives no messages
 
+  Scenario: A node cannot send a message to itself
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Alice is collecting received messages
+    And Bob is collecting received messages
+    When Alice sends "hello, Alice" to herself
+    Then the send is rejected as UnknownPeer
+    And Alice receives no messages
+    And Bob receives no messages
+
+  Scenario: A message above the payload limit is rejected
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is collecting received messages
+    When Alice sends 4097 bytes to Bob
+    Then the send is rejected as TooLarge
+    And Bob receives no messages
+
   Scenario: A message is held while the sender has no link
     Given Alice and Bob are running in the same mesh
     And Alice and Bob are directly linked
