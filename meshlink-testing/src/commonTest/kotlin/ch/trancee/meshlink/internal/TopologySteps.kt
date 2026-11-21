@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.Reachability
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.SendResult
 import io.github.menjoo.cucumberkmp.core.runner.StepsBuilder
@@ -24,6 +25,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun StepsBuilder.topologySteps() {
     lateinit var scope: TestScope
+    lateinit var air: VirtualAir
     lateinit var aliceId: NodeId
     lateinit var daveId: NodeId
     var scopeInitialized = false
@@ -40,7 +42,7 @@ internal fun StepsBuilder.topologySteps() {
         val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
         scope = TestScope(dispatcher)
         scopeInitialized = true
-        val air = scope.air()
+        air = scope.air()
         platforms +=
             List(4) { index ->
                 air.platform(StandardTestDispatcher(scope.testScheduler)).also {
@@ -86,6 +88,19 @@ internal fun StepsBuilder.topologySteps() {
             assertIs<SendResult.Accepted>(nodes[0].send(daveId, payload.encodeToByteArray()))
             scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
         }
+
+        given("Alice has sent {string} to Dave") { payload: String ->
+            assertIs<SendResult.Accepted>(nodes[0].send(daveId, payload.encodeToByteArray()))
+            scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
+            assertEquals(listOf(payload), inboxes[2].map { it.payload.decodeToString() })
+        }
+
+        whenever("Bob leaves and Carol and Dave move closer") {
+            air.move(platforms[1].radio, 1_000.0, 0.0)
+            air.move(platforms[2].radio, 25.0, 0.0)
+            air.move(platforms[3].radio, 50.0, 0.0)
+            scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
+        }
     }
 
     routingSteps()
@@ -96,6 +111,24 @@ internal fun StepsBuilder.topologySteps() {
     }
 
     fun assertionSteps() {
+        then("Dave receives {string} and {string} from Alice once each") { before: String, after: String ->
+            assertEquals(listOf(before, after), inboxes[2].map { it.payload.decodeToString() })
+            inboxes[2].forEach { assertEquals(aliceId, it.sender) }
+        }
+
+        then("Alice, Carol and Dave have links only to their new neighbors") {
+            listOf(0 to listOf(2), 2 to listOf(0, 3), 3 to listOf(2)).forEach { (index, neighbors) ->
+                assertEquals(
+                    neighbors.map { nodeId(platforms[it]).toList() }.toSet(),
+                    nodes[index]
+                        .peers.value
+                        .filter { it.reachability == Reachability.Direct }
+                        .map { it.nodeId.toByteArray().toList() }
+                        .toSet(),
+                )
+            }
+        }
+
         then("Dave receives the direct message {string} from Alice once") { payload: String ->
             assertEquals(1, inboxes[2].size)
             val message = inboxes[2].single()
