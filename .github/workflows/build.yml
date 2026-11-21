@@ -6,8 +6,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  schedule:
-    - cron: "41 4 * * 2" # weekly Xcode 27 preview job, Tuesday 04:41 UTC
   workflow_dispatch:
 
 permissions:
@@ -20,7 +18,6 @@ concurrency:
 jobs:
   linux:
     name: Gradle check and Dokka (Linux)
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -67,16 +64,18 @@ jobs:
 
   apple:
     name: Apple (${{ matrix.phase }})
-    if: github.event_name != 'schedule'
-    runs-on: macos-26
+    # ADR 0017 self-hosted runner amendment: pushes, same-repository PRs and dispatches run on the
+    # self-hosted Mac mini with Xcode 27.2; fork PRs never reach it and run on GitHub's macos-26 image
+    # with Xcode 26.4.1. One runner runs the phases one after another.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'macos-26' || fromJSON('["self-hosted","macOS","ARM64"]') }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         phase: [simulator, swiftpm, maven]
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
-    steps: &apple
+      DEVELOPER_DIR: ${{ github.event.pull_request.head.repo.fork && '/Applications/Xcode_26.4.1.app/Contents/Developer' || '/Applications/Xcode-27.2.0.app/Contents/Developer' }}
+    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -87,13 +86,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-provider: basic
-      - name: Use the image's JDKs
+      # The self-hosted runner's .env provides the hosted image's JAVA_HOME_21_arm64, JAVA_HOME_25_arm64
+      # and ANDROID_HOME (docs/reference/dependencies.md, "CI tools"). Its home persists between jobs,
+      # so the property is written once.
+      - name: Use the runner's JDKs
         run: |
+          for jdk in "$JAVA_HOME_21_arm64" "$JAVA_HOME_25_arm64"; do
+            test -x "$jdk/bin/java" || { echo "::error::JAVA_HOME_21_arm64 or JAVA_HOME_25_arm64 is not a JDK"; exit 1; }
+          done
           mkdir -p ~/.gradle
-          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_arm64,JAVA_HOME_25_arm64" >> ~/.gradle/gradle.properties
+          line="org.gradle.java.installations.fromEnv=JAVA_HOME_21_arm64,JAVA_HOME_25_arm64"
+          grep -qxF "$line" ~/.gradle/gradle.properties 2>/dev/null || echo "$line" >> ~/.gradle/gradle.properties
           echo "JAVA_HOME=$JAVA_HOME_25_arm64" >> "$GITHUB_ENV"
       - name: Install minisign
-        run: brew install minisign
+        run: command -v minisign > /dev/null || brew install minisign
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
       - id: libsodium-toolchain
@@ -116,10 +122,10 @@ jobs:
           restore-keys: |
             konan-${{ runner.os }}-${{ runner.arch }}-${{ steps.libsodium-toolchain.outputs.xcode }}-${{ steps.libsodium-toolchain.outputs.kotlin }}-
       - run: ./gradlew buildLibsodiumApple buildLibsodiumHostMacos
-      - if: matrix.phase == 'simulator' || matrix.phase == 'preview'
+      - if: matrix.phase == 'simulator'
         run: ./gradlew iosSimulatorArm64Test --profile
       - name: Upload iOS test profile
-        if: ${{ !cancelled() && (matrix.phase == 'simulator' || matrix.phase == 'preview') }}
+        if: ${{ !cancelled() && matrix.phase == 'simulator' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-test-profile-${{ matrix.phase }}
@@ -128,21 +134,21 @@ jobs:
             **/build/test-results/iosSimulatorArm64Test/TEST-*.xml
           if-no-files-found: error
           retention-days: 7
-      - if: matrix.phase == 'swiftpm' || matrix.phase == 'preview'
+      - if: matrix.phase == 'swiftpm'
         run: tools/swiftpm-consumer/test.sh
         id: swiftpm_consumer
       - name: Diagnose unavailable simulators
         if: ${{ failure() && steps.swiftpm_consumer.outcome == 'failure' }}
         run: python3 tools/ci/simulator_diagnostics.py
-      - if: matrix.phase == 'swiftpm' || matrix.phase == 'preview'
+      - if: matrix.phase == 'swiftpm'
         run: ./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols
       # Ticket 65: publishing needs the iOS klibs (macOS only) and the Android libsodium build (NDK).
-      # Only the required job runs it; the Xcode 27 runner's Android SDK is not verified.
       - name: Install the pinned NDK
         if: matrix.phase == 'maven'
         run: |
           ndk=$(sed -n 's/^android-ndk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          test -f "$ANDROID_HOME/ndk/$ndk/source.properties" ||
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
       - if: matrix.phase == 'maven'
         run: ./gradlew buildLibsodiumAndroid
@@ -157,7 +163,7 @@ jobs:
 
   macos:
     name: iOS simulator tests and SwiftPM consumer (macOS)
-    if: always() && github.event_name != 'schedule'
+    if: always()
     needs: [apple]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -166,15 +172,3 @@ jobs:
         run: test "$APPLE_RESULT" = success || { echo "::error::Apple phases did not all succeed"; exit 1; }
         env:
           APPLE_RESULT: ${{ needs.apple.result }}
-
-  xcode-27:
-    name: Xcode 27 preview (scheduled, not required)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: xcode-27
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        phase: [preview]
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
-    steps: *apple

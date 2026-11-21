@@ -2,7 +2,7 @@
 
 Scope=Kotlin tasks; R/X/D/O from Constitution. Ported from cairn `guidance/kotlin.md` (2026-10-05 snapshot). Adopted pins: [ADR 0005](docs/adr/0005-toolchain-and-dependency-baseline.md) + [dependency register](docs/reference/dependencies.md) (verified 2026-11-01); those outrank versions below.
 
-MeshLink constraints: local Xcode `27.2`, CI Xcode `26.4.1` on `macos-26` (ADR 0005 v4). Kotlin `2.4.21` proven with Xcode 16.4 and 27.2; move to 2.5.x only when stable + KGP table + SKIE support it. Gradle/AGP minor bump only once KGP's compatibility table lists it; patches allowed after smoke gates. iOS 15/16 devices: libimobiledevice only (CoreDevice/`devicectl` needs iOS 17+); record both host paths in the `PROJECT.md` proof matrix.
+MeshLink constraints: Xcode `27.2` locally and in CI on the self-hosted Mac mini; fork pull requests use Xcode `26.4.1` on `macos-26` (ADR 0005 v11). Kotlin `2.4.21` proven with Xcode 16.4 and 27.2; move to 2.5.x only when stable + KGP table + SKIE support it. Gradle/AGP minor bump only once KGP's compatibility table lists it; patches allowed after smoke gates. iOS 15/16 devices: libimobiledevice only (CoreDevice/`devicectl` needs iOS 17+); record both host paths in the `PROJECT.md` proof matrix.
 Select latest stable supported by complete Kotlin/Gradle/AGP/JDK/platform tuple; verify official release + compatibility before adoption/upgrade. Resolution != support; suffixless version != stable component. No stable compatible tool => report gap + explicit prerelease acceptance; holds R blocker + removal condition.
 
 ## Build

@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 12 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner; 2026-11-16, production randomness; 2026-11-18, fuzzing).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 13 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner; 2026-11-16, production randomness; 2026-11-18, fuzzing; 2026-11-21, self-hosted runner).
 
 ## Context
 
@@ -198,3 +198,9 @@ Inputs:
 - **Targets:** one per top-level decoder, in `meshlink-core/src/androidHostTest/kotlin/ch/trancee/meshlink/fuzz/`, outside the Kover-measured sources. Each checks that a decoded value re-encodes to its input, the invariant the deterministic tier already holds. `FuzzTargetsTest` in the default suite reads the main classes and fails when a public or internal method that takes bytes and returns `Decoded` belongs to no target, and runs every target over its committed corpus.
 - **Corpus:** committed in `meshlink-core/src/androidHostTest/fuzz/<target>/`. `tools/fuzz/seed_corpus.py` writes every `encoded` value of the matching vector file as a seed, and `-Pfuzz.seeds=DIR` replaces each target's corpus with the libFuzzer merge of the seeds and the old corpus. A fuzz run reads the committed corpus and writes new inputs only under `build/fuzz/`.
 - **CI:** `.github/workflows/fuzz.yml` runs weekly with 300 s per target and on pull requests that change the targets, the corpus or the task, with 15 s per target; it uploads any crash input. It is not a required check.
+
+2026-11-21, self-hosted runner (owner request: use the self-hosted Mac mini for macOS workflows):
+
+- **CI runner (decision 7):** decision 7's "no self-hosted CI runner" no longer holds for CI. `build.yml`'s Apple phases run on a self-hosted Mac mini on the lab's home network, under a dedicated `gh-runner` account. The rejected alternative "a self-hosted runner for the device lab" stays rejected: no workflow drives the lab's phones.
+- **Fork guard:** the repository is public, so a fork's pull request never runs on the Mac mini. The job's `runs-on` picks GitHub's `macos-26` image when `github.event.pull_request.head.repo.fork` is true. `tools/ci/tests/test_require_apple_jobs.py` fails if the guard goes. Only code from a branch of this repository, written by someone with write access, reaches the runner.
+- **Exposure accepted (owner decision):** code on the runner can reach the home network and whatever the `gh-runner` account can read. The account reads the owner's JDK 25 and Android SDK; the owner's `Library` folder grants it traverse only (an ACL entry), not listing. `build.yml` uses no secrets and a read-only `GITHUB_TOKEN`.

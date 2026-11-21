@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 10 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps; 2026-11-16, Rust reference).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 11 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps; 2026-11-16, Rust reference; 2026-11-21, self-hosted runner).
 
 ## Context
 
@@ -244,3 +244,10 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **Duplicates:** snow at the pinned commit brings `chacha20poly1305` 0.10.1, `blake2` 0.10.6 and `curve25519-dalek` 4.1.3 beside the 0.11.0, 0.11.0 and 5.0.0 the other crates use. Both copies are test-only; the duplicates go when snow moves to the newer RustCrypto releases.
 - **CI, refining "Scheduled: … the Rust reference cross-check":** `.github/workflows/reference-vectors.yml` runs weekly and on demand: `rustup toolchain install` from `rust-toolchain.toml`, then `cargo clippy -- -D warnings`, `cargo test`, `cargo run`, and a diff of `docs/spec/vectors/`. It is not a required check.
 - **Rejected:** a fork of snow with a seedable ML-KEM (the crate supplies its own KEM through snow's resolver instead, see the [vectors README](../spec/vectors/README.md#tier-2-published)); vendoring snow (a pinned git commit is reproducible through `Cargo.lock`).
+
+2026-11-21, self-hosted runner (owner request: use the self-hosted Mac mini for macOS workflows; [ADR 0017](0017-testing-architecture.md) has the security side):
+
+- **CI Xcode ("CI"):** the required Apple phases of pushes, same-repository pull requests and manual dispatches run on a self-hosted Mac mini (labels `self-hosted`, `macOS`, `ARM64`) with Xcode 27.2 (`/Applications/Xcode-27.2.0.app`), the Xcode of local builds. A fork's pull request runs them on `macos-26` with Xcode 26.4.1, as before. The owner chose Xcode 27.2 over installing 26.4.1 on the Mac mini, accepting that Kotlin 2.4.21 lists Xcode only up to 26.4; local builds and the 2026-11-13 smoke test already run on 27.2.
+- **Preview job removed:** the weekly, non-required `xcode-27` job and its schedule are deleted, because the required phases now build with Xcode 27.2. The 2026-11-13 rejection of "every job on the `xcode-27` preview image" stands: the required phases use the self-hosted Mac, not that image.
+- **JDKs and Android SDK:** the runner's `.env` sets the hosted image's variable names, `JAVA_HOME_21_arm64`, `JAVA_HOME_25_arm64` and `ANDROID_HOME`, so the workflow has no machine paths; the workflow checks both JDKs and installs the catalog's NDK only when it is missing.
+- **Release workflow (ADR 0019 decision 7):** unchanged; it doesn't exist yet and stays planned for `macos-26`.
