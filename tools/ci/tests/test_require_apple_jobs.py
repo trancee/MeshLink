@@ -10,7 +10,7 @@ WORKFLOW = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "buil
 
 def run_gate(status):
     lines = WORKFLOW.read_text().splitlines()
-    gate = lines.index("      - name: Require both Apple phases")
+    gate = lines.index("      - name: Require all Apple phases")
     command = lines[gate + 1].strip().removeprefix("run: ")
     return subprocess.run(["bash", "-c", command], env={**os.environ, "APPLE_RESULT": status}, capture_output=True)
 
@@ -23,24 +23,32 @@ class RequireAppleJobsTest(unittest.TestCase):
 
         self.assertIsNotNone(apple)
         self.assertIsNotNone(macos)
-        self.assertIn("phase: [simulator, consumer]", apple.group(1))
+        self.assertIn("phase: [simulator, swiftpm, maven]", apple.group(1))
+        self.assertIn("fail-fast: false", apple.group(1))
         self.assertIn("needs: [apple]", macos.group(1))
         self.assertIn("if: always() && github.event_name != 'schedule'", macos.group(1))
         self.assertIn("APPLE_RESULT: ${{ needs.apple.result }}", macos.group(1))
+        self.assertIn("phase: [preview]", workflow)
+        self.assertIn("steps: *apple", workflow)
 
     def test_apple_phases_retain_the_required_checks(self):
         workflow = WORKFLOW.read_text()
         checks = (
-            ("matrix.phase != 'consumer'", "./gradlew iosSimulatorArm64Test --profile"),
-            ("matrix.phase != 'simulator'", "tools/swiftpm-consumer/test.sh"),
-            ("matrix.phase == 'consumer'", "./gradlew buildLibsodiumAndroid"),
-            ("matrix.phase == 'consumer'", "tools/maven-consumer/test.sh"),
-            ("matrix.phase != 'simulator'", "./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols"),
+            ("matrix.phase == 'simulator' || matrix.phase == 'preview'", "./gradlew iosSimulatorArm64Test --profile"),
+            ("matrix.phase == 'swiftpm' || matrix.phase == 'preview'", "tools/swiftpm-consumer/test.sh"),
+            ("matrix.phase == 'maven'", "./gradlew buildLibsodiumAndroid"),
+            ("matrix.phase == 'maven'", "tools/maven-consumer/test.sh"),
+            ("matrix.phase == 'swiftpm' || matrix.phase == 'preview'", "./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols"),
         )
 
         for condition, command in checks:
             with self.subTest(command=command):
                 self.assertIn(f"      - if: {condition}\n        run: {command}", workflow)
+        self.assertIn("      - name: Install the pinned NDK\n        if: matrix.phase == 'maven'", workflow)
+        self.assertIn(
+            "if: ${{ !cancelled() && (matrix.phase == 'simulator' || matrix.phase == 'preview') }}",
+            workflow,
+        )
 
     def test_succeeds_when_all_matrix_jobs_succeed(self):
         result = run_gate("success")
