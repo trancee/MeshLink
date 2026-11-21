@@ -31,3 +31,8 @@ Feature: Node lifecycle
     Given a node blocked because Bluetooth is off
     When Bluetooth becomes available
     Then the node is running
+
+  Scenario: A node blocked by scan permission runs when permission is granted
+    Given a node blocked because Bluetooth scan permission is denied
+    When Bluetooth scan permission is granted
+    Then the node is running

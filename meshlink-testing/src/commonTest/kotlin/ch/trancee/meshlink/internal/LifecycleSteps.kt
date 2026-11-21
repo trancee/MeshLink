@@ -3,6 +3,7 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.MeshState
+import ch.trancee.meshlink.PermissionKind
 import ch.trancee.meshlink.Requirement
 import io.github.menjoo.cucumberkmp.core.runner.StepsBuilder
 import io.github.menjoo.cucumberkmp.core.runner.given
@@ -70,7 +71,23 @@ internal fun StepsBuilder.lifecycleSteps() {
         }
     }
 
+    fun permissionSteps() {
+        given("a node blocked because Bluetooth scan permission is denied") {
+            val node = createNode()
+            val denied = Requirement.PermissionDenied(PermissionKind.BluetoothScan)
+            platform.radio.report(setOf(denied))
+            node.start()
+            assertEquals(MeshState.Blocked(setOf(denied)), node.state.value)
+        }
+
+        whenever("Bluetooth scan permission is granted") {
+            platform.radio.report(emptySet())
+            scope.testScheduler.runCurrent()
+        }
+    }
+
     closedNodeSteps()
+    permissionSteps()
 
     given("a stopped node") {
         createNode()
