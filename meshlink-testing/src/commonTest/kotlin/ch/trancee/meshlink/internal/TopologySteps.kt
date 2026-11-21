@@ -38,24 +38,26 @@ internal fun StepsBuilder.topologySteps() {
         if (scopeInitialized) scope.backgroundScope.cancel()
     }
 
-    given("Alice, Bob, Carol and Dave are running in a line with links only between neighbors") {
+    suspend fun createTopology(
+        positions: List<Pair<Double, Double>>,
+        neighbors: List<List<Int>>,
+    ) {
         val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
         scope = TestScope(dispatcher)
         scopeInitialized = true
         air = scope.air()
         platforms +=
-            List(4) { index ->
+            positions.map { (x, y) ->
                 air.platform(StandardTestDispatcher(scope.testScheduler)).also {
-                    air.move(it.radio, index * 25.0, 0.0)
+                    air.move(it.radio, x, y)
                 }
             }
         nodes += platforms.map { node(it) }
         nodes.forEach { it.start() }
         scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
         nodes.forEachIndexed { index, node ->
-            val expected = listOf(index - 1, index + 1).filter { it in platforms.indices }
             assertEquals(
-                expected.map { nodeId(platforms[it]).toList() }.toSet(),
+                neighbors[index].map { nodeId(platforms[it]).toList() }.toSet(),
                 node.peers.value
                     .map { it.nodeId.toByteArray().toList() }
                     .toSet(),
@@ -66,6 +68,20 @@ internal fun StepsBuilder.topologySteps() {
                 .peers.value
                 .single { it.nodeId.toByteArray().contentEquals(nodeId(platforms[0])) }
                 .nodeId
+    }
+
+    given("Alice, Bob, Carol and Dave are running in a line with links only between neighbors") {
+        createTopology(
+            listOf(0.0 to 0.0, 25.0 to 0.0, 50.0 to 0.0, 75.0 to 0.0),
+            listOf(listOf(1), listOf(0, 2), listOf(1, 3), listOf(2)),
+        )
+    }
+
+    given("Alice, Bob, Carol and Dave are running with two routes from Alice to Dave") {
+        createTopology(
+            listOf(0.0 to 0.0, 25.0 to 0.0, 0.0 to 25.0, 25.0 to 25.0),
+            listOf(listOf(1, 2), listOf(0, 3), listOf(0, 3), listOf(1, 2)),
+        )
     }
 
     given("Bob, Carol and Dave are collecting messages") {
@@ -99,6 +115,11 @@ internal fun StepsBuilder.topologySteps() {
             air.move(platforms[1].radio, 1_000.0, 0.0)
             air.move(platforms[2].radio, 25.0, 0.0)
             air.move(platforms[3].radio, 50.0, 0.0)
+            scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
+        }
+
+        whenever("Bob leaves the two-route mesh") {
+            air.move(platforms[1].radio, 1_000.0, 0.0)
             scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
         }
     }

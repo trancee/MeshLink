@@ -17,3 +17,13 @@ Feature: Routed messages
     And Alice sends "After" to Dave through the mesh
     Then Dave receives "Before" and "After" from Alice once each
     And Alice, Carol and Dave have links only to their new neighbors
+
+  Scenario: A message uses an existing alternative route after a peer leaves
+    Given Alice, Bob, Carol and Dave are running with two routes from Alice to Dave
+    And Bob, Carol and Dave are collecting messages
+    And Alice knows Dave's identity
+    And Alice has sent "Before" to Dave
+    When Bob leaves the two-route mesh
+    And Alice sends "After" to Dave through the mesh
+    Then Dave receives "Before" and "After" from Alice once each
+    And Alice, Carol and Dave have links only to their new neighbors
