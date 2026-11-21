@@ -1,5 +1,11 @@
 Feature: Security profiles
 
+  Scenario: Members of a classical gated mesh connect securely
+    Given Alice and Bob use the same key for the same classical gated mesh
+    When the discovery nodes start
+    Then Alice and Bob list each other as direct peers
+    And both discovery peers are secured
+
   Scenario: Nodes with different security profiles do not connect
     Given Alice uses the unsecured profile and Bob uses the classical profile in the same mesh
     When the discovery nodes start

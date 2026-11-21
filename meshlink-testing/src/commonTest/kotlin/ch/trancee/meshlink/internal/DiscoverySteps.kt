@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun StepsBuilder.discoverySteps() {
@@ -72,7 +73,7 @@ internal fun StepsBuilder.discoverySteps() {
         createNodes(differentMesh = false, differentProfile = true)
     }
 
-    given("Alice and Bob use different keys for the same classical gated mesh") {
+    suspend fun createGatedNodes(keys: List<Byte>) {
         val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
         scope = TestScope(dispatcher)
         scopeInitialized = true
@@ -84,11 +85,19 @@ internal fun StepsBuilder.discoverySteps() {
                 MeshLink.create(
                     meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) {
                         meshId = MESH
-                        meshKey = ByteArray(32) { (index + 1).toByte() }
+                        meshKey = ByteArray(32) { keys[index] }
                     }.build(),
                     platform.meshPlatform,
                 )
         }
+    }
+
+    given("Alice and Bob use the same key for the same classical gated mesh") {
+        createGatedNodes(listOf(1, 1))
+    }
+
+    given("Alice and Bob use different keys for the same classical gated mesh") {
+        createGatedNodes(listOf(1, 2))
     }
 
     whenever("the discovery nodes start") {
@@ -111,5 +120,15 @@ internal fun StepsBuilder.discoverySteps() {
 
     then("both discovery nodes are running") {
         nodes.forEach { assertEquals(MeshState.Running, it.state.value) }
+    }
+
+    then("both discovery peers are secured") {
+        nodes.forEach {
+            assertTrue(
+                it.peers.value
+                    .single()
+                    .secured,
+            )
+        }
     }
 }
