@@ -8,6 +8,7 @@ android-minSdk = "26"
 android-ndk = "30.0.16248370"
 junit4 = "4.13.2"
 kotlinx-coroutines = "1.11.0"
+cucumber-kmp = "0.2.1"
 kover = "0.9.11"
 detekt = "2.0.0-alpha.6"
 spotless = "8.11.0"
@@ -31,6 +32,7 @@ kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", v
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+cucumber-kmp-core = { module = "io.github.menjoo.cucumberkmp:cucumber-kmp-core", version.ref = "cucumber-kmp" }
 junit4 = { module = "junit:junit", version.ref = "junit4" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
@@ -51,3 +53,6 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+
+[plugins]
+cucumber-kmp = { id = "io.github.menjoo.cucumberkmp", version.ref = "cucumber-kmp" }

@@ -94,6 +94,7 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Build checks: every gate above, all module tests and `build-logic` tests | `./gradlew check` |
 | iOS simulator tests | `./gradlew iosSimulatorArm64Test` (macOS only) |
 | One focused Android host test | `./gradlew :<module>:testAndroidHostTest --tests '<pattern>'` |
+| Gherkin direct-message scenarios on the Android host | `./gradlew :meshlink-testing:testAndroidHostTest --tests '*DirectMessageFeatureTest*'` |
 | `build-logic` tests only | `./gradlew -p build-logic test` |
 | Coverage report (HTML; `koverLog` prints the totals) | `./gradlew koverHtmlReport` |
 | Format all Kotlin and Gradle Kotlin files | `./gradlew spotlessApply` |
@@ -124,6 +125,8 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Turn runs into one T9 evidence record (repeat `--run`; several runs need `--name`) | `python3 tools/lab/lab.py evidence --run build/lab/<run> [--name <name>]` |
 
 The lab commands need the local configuration in `~/.config/meshlink-lab/` and the host tools listed in [`tools/lab/README.md`](tools/lab/README.md); `lab.py` refuses the main checkout and a dirty tree.
+
+The Gherkin scenarios in `meshlink-testing/src/commonTest/resources/features/` generate target tests for the Android host and iOS simulator. Step definitions use `VirtualAir`; these tests are not physical-radio evidence.
 
 The libsodium tasks write `meshlink-crypto-sodium/build/libsodium/out/<target>/{include,lib/libsodium.a}`. Prerequisites: `minisign` (`brew install minisign` or `apt-get install minisign`), NDK 30.0.16248370 (`sdkmanager 'ndk;30.0.16248370'`) for Android, Xcode for Apple, and `make` with a C compiler for the hosts. Verified 2026-11-14 on an M1 with Xcode 16.4 and NDK 30.0.16248370 (Android 3 ABIs in about 90 s, iOS and macOS slices about 25 s each), and for Linux x86_64 in an `ubuntu:24.04` container with GCC 13.3.
 
