@@ -43,6 +43,7 @@ class SwiftpmDestinationTest(unittest.TestCase):
                     "DESTINATIONS": destinations,
                     "DEVICES": json.dumps(devices),
                     "XCODE_STATUS": str(xcode_status),
+                    "CI": "true",
                 },
                 capture_output=True,
                 text=True,
@@ -84,6 +85,8 @@ class SwiftpmDestinationTest(unittest.TestCase):
         self.assertIn("ineligible destination entries: 1", result.stderr)
         self.assertIn("available lines mentioning iOS Simulator: 0", result.stderr)
         self.assertIn("ineligible lines mentioning iOS Simulator: 1", result.stderr)
+        self.assertIn("diagnostic simulator boot status: 0", result.stderr)
+        self.assertIn("post-boot iPhone destination lines: 0", result.stderr)
         self.assertNotIn("PRIVATE", result.stderr)
         self.assertNotIn("private-id", result.stderr)
         self.assertNotIn("SECRET", result.stderr)

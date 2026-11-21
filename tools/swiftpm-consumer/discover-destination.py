@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 
@@ -16,6 +17,59 @@ def simctl_list(kind):
         return json.loads(result.stdout)
     except (OSError, ValueError):
         return None
+
+
+def diagnostic_query(label):
+    try:
+        result = subprocess.run(
+            ["xcodebuild", "-showdestinations", "-scheme", "MeshLinkKitConsumer-Package"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        available = result.stdout.split("Available destinations", 1)[-1].split("Ineligible destinations", 1)[0]
+        count = sum("iOS Simulator" in line and "iPhone" in line for line in available.splitlines())
+        print(f"{label} xcodebuild exit status: {result.returncode}", file=sys.stderr)
+        print(f"{label} iPhone destination lines: {count}", file=sys.stderr)
+    except (OSError, subprocess.TimeoutExpired):
+        print(f"{label} xcodebuild unavailable or timed out", file=sys.stderr)
+
+
+def diagnose_boot(devices):
+    if os.environ.get("CI") != "true" or not isinstance(devices, dict):
+        return
+    device_sets = devices.get("devices")
+    if not isinstance(device_sets, dict):
+        return
+    identifiers = [
+        entry["udid"]
+        for runtime, entries in device_sets.items()
+        if runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-") and isinstance(entries, list)
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("isAvailable") is True
+        and isinstance(entry.get("name"), str) and entry["name"].startswith("iPhone")
+        and isinstance(entry.get("udid"), str) and entry["udid"]
+    ]
+    if not identifiers:
+        return
+    diagnostic_query("pre-boot")
+    try:
+        boot = subprocess.run(
+            ["xcrun", "simctl", "boot", identifiers[0]], capture_output=True, check=False, timeout=90
+        )
+        print(f"diagnostic simulator boot status: {boot.returncode}", file=sys.stderr)
+        if boot.returncode == 0:
+            ready = subprocess.run(
+                ["xcrun", "simctl", "bootstatus", identifiers[0], "-b"],
+                capture_output=True,
+                check=False,
+                timeout=90,
+            )
+            print(f"diagnostic simulator readiness status: {ready.returncode}", file=sys.stderr)
+            diagnostic_query("post-boot")
+    except (OSError, subprocess.TimeoutExpired):
+        print("diagnostic simulator boot unavailable or timed out", file=sys.stderr)
 
 
 def main():
@@ -86,6 +140,7 @@ def main():
     if result.returncode == 0 and simulators and not parse_errors:
         print(max(simulators)[1])
         return 0
+    diagnose_boot(devices)
     print("no available iPhone simulator for the selected Xcode", file=sys.stderr)
     return 1
 
