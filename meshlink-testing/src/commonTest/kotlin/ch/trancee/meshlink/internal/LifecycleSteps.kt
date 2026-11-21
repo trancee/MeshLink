@@ -22,6 +22,7 @@ internal val acceptanceSteps =
         directMessageSteps()
         lifecycleSteps()
         discoverySteps()
+        linkSteps()
     }
 
 @OptIn(ExperimentalCoroutinesApi::class)
