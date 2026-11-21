@@ -105,12 +105,42 @@ internal fun StepsBuilder.topologySteps() {
 
     routingSteps()
 
+    fun catchUpSteps() {
+        given("Dave is out of range") {
+            air.move(platforms[3].radio, 1_000.0, 0.0)
+            scope.testScheduler.advanceTimeBy(10_000L)
+            assertTrue(nodes[3].peers.value.isEmpty())
+        }
+
+        given("Alice broadcasts {string} while Dave is away") { payload: String ->
+            assertIs<SendResult.Accepted>(nodes[0].broadcast(payload.encodeToByteArray()))
+            scope.testScheduler.advanceTimeBy(1_000L)
+            assertEquals(listOf(payload), inboxes[1].map { it.payload.decodeToString() })
+            assertEquals(emptyList(), inboxes[2])
+        }
+
+        whenever("Dave returns within a minute") {
+            air.move(platforms[3].radio, 75.0, 0.0)
+            scope.testScheduler.advanceTimeBy(40_000L)
+        }
+    }
+
+    catchUpSteps()
+
     whenever("Alice broadcasts {string} with a hop limit of {int}") { payload: String, hopLimit: Int ->
         assertIs<SendResult.Accepted>(nodes[0].broadcast(payload.encodeToByteArray(), hopLimit))
         scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
     }
 
     fun assertionSteps() {
+        then("Dave receives the broadcast {string} from Alice once") { payload: String ->
+            assertEquals(1, inboxes[2].size)
+            val message = inboxes[2].single()
+            assertContentEquals(payload.encodeToByteArray(), message.payload)
+            assertEquals(aliceId, message.sender)
+            assertTrue(message.broadcast)
+        }
+
         then("Dave receives {string} and {string} from Alice once each") { before: String, after: String ->
             assertEquals(listOf(before, after), inboxes[2].map { it.payload.decodeToString() })
             inboxes[2].forEach { assertEquals(aliceId, it.sender) }

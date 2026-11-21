@@ -14,3 +14,11 @@ Feature: Broadcast messages
     When Alice broadcasts "Hello" with a hop limit of 2
     Then Bob and Carol each receive the broadcast "Hello" from Alice once
     And Dave receives no broadcasts
+
+  Scenario: A returning node catches up on a missed broadcast
+    Given Alice, Bob, Carol and Dave are running in a line with links only between neighbors
+    And Bob, Carol and Dave are collecting messages
+    And Dave is out of range
+    And Alice broadcasts "Hello" while Dave is away
+    When Dave returns within a minute
+    Then Dave receives the broadcast "Hello" from Alice once
