@@ -3,6 +3,7 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.Reachability
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.SendResult
@@ -90,6 +91,11 @@ private class DirectMessageScenario {
             assertEquals(DeliveryStatus.Held, assertIs<SendResult.Accepted>(result).message.status.value)
             assertEquals(emptyList(), received)
         }
+
+        given("Alice's held message has expired") {
+            scope.testScheduler.advanceTimeBy(EXPIRY_WAIT_MILLIS)
+            assertEquals(DeliveryStatus.Expired, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
     }
 
     private fun StepsBuilder.actionSteps() {
@@ -124,6 +130,28 @@ private class DirectMessageScenario {
             assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
         }
 
+        then("Alice and Bob are directly linked again") {
+            assertEquals(
+                bobId,
+                nodes[0]
+                    .peers.value
+                    .single()
+                    .nodeId,
+            )
+            nodes.forEach {
+                assertEquals(
+                    Reachability.Direct,
+                    it.peers.value
+                        .single()
+                        .reachability,
+                )
+            }
+        }
+
+        then("Alice's message remains expired") {
+            assertEquals(DeliveryStatus.Expired, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
+
         then("Bob receives no messages") {
             assertEquals(emptyList(), received)
         }
@@ -136,3 +164,4 @@ private fun senderId(node: MeshLink): NodeId =
         .nodeId
 
 private const val RECONNECT_WAIT_MILLIS = 60_000L
+private const val EXPIRY_WAIT_MILLIS = 30 * 60_000L + 30_000L

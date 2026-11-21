@@ -50,6 +50,19 @@ class RequireAppleJobsTest(unittest.TestCase):
             workflow,
         )
 
+    def test_simulator_diagnostics_run_only_after_swiftpm_failure(self):
+        workflow = WORKFLOW.read_text()
+
+        self.assertIn(
+            "run: tools/swiftpm-consumer/test.sh\n        id: swiftpm_consumer",
+            workflow,
+        )
+        self.assertIn(
+            "if: ${{ failure() && steps.swiftpm_consumer.outcome == 'failure' }}\n"
+            "        run: python3 tools/ci/simulator_diagnostics.py",
+            workflow,
+        )
+
     def test_succeeds_when_all_matrix_jobs_succeed(self):
         result = run_gate("success")
 
