@@ -30,8 +30,17 @@ def main():
     available = output.split("Available destinations", 1)[-1].split("Ineligible destinations", 1)[0]
     simulators = []
     parse_errors = 0
+    available_simulator_lines = 0
+    available_iphone_lines = 0
+    available_iphone_os_lines = 0
     for line in available.splitlines():
         fields = dict(f.split(":", 1) for f in line.strip().strip("{} ").split(", ") if ":" in f)
+        if "iOS Simulator" in line:
+            available_simulator_lines += 1
+            if "iPhone" in line:
+                available_iphone_lines += 1
+                if "OS:" in line:
+                    available_iphone_os_lines += 1
         if fields.get("platform") == "iOS Simulator" and "OS" in fields and fields.get("name", "").startswith("iPhone"):
             try:
                 simulators.append(([int(p) for p in fields["OS"].split(".")], fields["id"]))
@@ -45,6 +54,10 @@ def main():
     print(f"xcodebuild stderr lines: {len(result.stderr.splitlines())}", file=sys.stderr)
     print(f"available destination entries: {sum('platform:' in line for line in available.splitlines())}", file=sys.stderr)
     print(f"ineligible destination entries: {sum('platform:' in line for line in ineligible.splitlines())}", file=sys.stderr)
+    print(f"available lines mentioning iOS Simulator: {available_simulator_lines}", file=sys.stderr)
+    print(f"available simulator lines mentioning iPhone: {available_iphone_lines}", file=sys.stderr)
+    print(f"available iPhone simulator lines with OS field: {available_iphone_os_lines}", file=sys.stderr)
+    print(f"ineligible lines mentioning iOS Simulator: {sum('iOS Simulator' in line for line in ineligible.splitlines())}", file=sys.stderr)
     print(f"parsed available iPhone destinations: {len(simulators)}", file=sys.stderr)
     print(f"iPhone destination parse errors: {parse_errors}", file=sys.stderr)
     if isinstance(devices, dict) and isinstance(devices.get("devices"), dict):

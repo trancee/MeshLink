@@ -82,6 +82,8 @@ class SwiftpmDestinationTest(unittest.TestCase):
         self.assertIn("xcodebuild exit status: 4", result.stderr)
         self.assertIn("available iPhone simulators: 1", result.stderr)
         self.assertIn("ineligible destination entries: 1", result.stderr)
+        self.assertIn("available lines mentioning iOS Simulator: 0", result.stderr)
+        self.assertIn("ineligible lines mentioning iOS Simulator: 1", result.stderr)
         self.assertNotIn("PRIVATE", result.stderr)
         self.assertNotIn("private-id", result.stderr)
         self.assertNotIn("SECRET", result.stderr)
