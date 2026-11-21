@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.NodeId
@@ -57,6 +58,7 @@ private class DirectMessageScenario {
         setupSteps()
         actionSteps()
         assertionSteps()
+        statusAssertionSteps()
         capacityAssertionSteps()
     }
 
@@ -158,6 +160,10 @@ private class DirectMessageScenario {
                 }
         }
 
+        whenever("Alice stops") {
+            nodes[0].stop()
+        }
+
         whenever("Bob returns to direct contact with Alice") {
             air.move(bobPlatform.radio, 0.0, 0.0)
             scope.testScheduler.advanceTimeBy(RECONNECT_WAIT_MILLIS)
@@ -196,14 +202,6 @@ private class DirectMessageScenario {
             assertEquals(emptyList(), aliceReceived)
         }
 
-        then("Alice's message is held") {
-            assertEquals(DeliveryStatus.Held, assertIs<SendResult.Accepted>(result).message.status.value)
-        }
-
-        then("Alice's message is sent") {
-            assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
-        }
-
         then("Alice and Bob are directly linked again") {
             assertEquals(
                 bobId,
@@ -222,12 +220,29 @@ private class DirectMessageScenario {
             }
         }
 
-        then("Alice's message remains expired") {
-            assertEquals(DeliveryStatus.Expired, assertIs<SendResult.Accepted>(result).message.status.value)
-        }
-
         then("Bob receives no messages") {
             assertEquals(emptyList(), received)
+        }
+    }
+
+    private fun StepsBuilder.statusAssertionSteps() {
+        then("Alice's message is held") {
+            assertEquals(DeliveryStatus.Held, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
+
+        then("Alice's message fails as Stopped") {
+            assertEquals(
+                DeliveryStatus.Failed(FailureReason.Stopped),
+                assertIs<SendResult.Accepted>(result).message.status.value,
+            )
+        }
+
+        then("Alice's message is sent") {
+            assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
+
+        then("Alice's message remains expired") {
+            assertEquals(DeliveryStatus.Expired, assertIs<SendResult.Accepted>(result).message.status.value)
         }
     }
 

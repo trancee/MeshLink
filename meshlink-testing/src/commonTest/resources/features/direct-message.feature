@@ -70,6 +70,16 @@ Feature: Direct messaging
     Then Alice's message is held
     And Bob receives no messages
 
+  Scenario: Stopping the sender fails a held message
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is collecting received messages
+    And Bob is out of direct contact with Alice
+    And Alice has sent "hello, Bob" while disconnected
+    When Alice stops
+    Then Alice's message fails as Stopped
+    And Bob receives no messages
+
   Scenario: A held message reaches its recipient after the link returns
     Given Alice and Bob are running in the same mesh
     And Alice and Bob are directly linked
