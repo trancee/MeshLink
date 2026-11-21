@@ -72,6 +72,25 @@ internal fun StepsBuilder.discoverySteps() {
         createNodes(differentMesh = false, differentProfile = true)
     }
 
+    given("Alice and Bob use different keys for the same classical gated mesh") {
+        val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
+        scope = TestScope(dispatcher)
+        scopeInitialized = true
+        val air = scope.air()
+        repeat(2) { index ->
+            val platform = air.platform(StandardTestDispatcher(scope.testScheduler))
+            platforms += platform
+            nodes +=
+                MeshLink.create(
+                    meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) {
+                        meshId = MESH
+                        meshKey = ByteArray(32) { (index + 1).toByte() }
+                    }.build(),
+                    platform.meshPlatform,
+                )
+        }
+    }
+
     whenever("the discovery nodes start") {
         nodes.forEach { it.start() }
         scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
