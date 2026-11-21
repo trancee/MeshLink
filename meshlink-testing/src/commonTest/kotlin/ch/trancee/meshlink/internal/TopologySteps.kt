@@ -22,11 +22,13 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
-internal fun StepsBuilder.broadcastSteps() {
+internal fun StepsBuilder.topologySteps() {
     lateinit var scope: TestScope
     lateinit var aliceId: NodeId
+    lateinit var daveId: NodeId
     var scopeInitialized = false
     val nodes = mutableListOf<MeshLink>()
+    val platforms = mutableListOf<VirtualPlatform>()
     val inboxes = List(3) { mutableListOf<ReceivedMessage>() }
 
     after {
@@ -39,7 +41,7 @@ internal fun StepsBuilder.broadcastSteps() {
         scope = TestScope(dispatcher)
         scopeInitialized = true
         val air = scope.air()
-        val platforms =
+        platforms +=
             List(4) { index ->
                 air.platform(StandardTestDispatcher(scope.testScheduler)).also {
                     air.move(it.radio, index * 25.0, 0.0)
@@ -47,7 +49,7 @@ internal fun StepsBuilder.broadcastSteps() {
             }
         nodes += platforms.map { node(it) }
         nodes.forEach { it.start() }
-        scope.testScheduler.advanceTimeBy(BROADCAST_SETTLE_MILLIS)
+        scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
         nodes.forEachIndexed { index, node ->
             val expected = listOf(index - 1, index + 1).filter { it in platforms.indices }
             assertEquals(
@@ -64,19 +66,48 @@ internal fun StepsBuilder.broadcastSteps() {
                 .nodeId
     }
 
-    given("Bob, Carol and Dave are collecting broadcasts") {
+    given("Bob, Carol and Dave are collecting messages") {
         nodes.drop(1).forEachIndexed { index, node ->
             scope.backgroundScope.launch { node.messages.collect { inboxes[index] += it } }
         }
         scope.testScheduler.runCurrent()
     }
 
+    fun routingSteps() {
+        given("Alice knows Dave's identity") {
+            daveId =
+                nodes[2]
+                    .peers.value
+                    .single { it.nodeId.toByteArray().contentEquals(nodeId(platforms[3])) }
+                    .nodeId
+        }
+
+        whenever("Alice sends {string} to Dave through the mesh") { payload: String ->
+            assertIs<SendResult.Accepted>(nodes[0].send(daveId, payload.encodeToByteArray()))
+            scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
+        }
+    }
+
+    routingSteps()
+
     whenever("Alice broadcasts {string} with a hop limit of {int}") { payload: String, hopLimit: Int ->
         assertIs<SendResult.Accepted>(nodes[0].broadcast(payload.encodeToByteArray(), hopLimit))
-        scope.testScheduler.advanceTimeBy(BROADCAST_SETTLE_MILLIS)
+        scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
     }
 
     fun assertionSteps() {
+        then("Dave receives the direct message {string} from Alice once") { payload: String ->
+            assertEquals(1, inboxes[2].size)
+            val message = inboxes[2].single()
+            assertContentEquals(payload.encodeToByteArray(), message.payload)
+            assertEquals(aliceId, message.sender)
+            assertEquals(false, message.broadcast)
+        }
+
+        then("Bob and Carol receive no direct messages") {
+            inboxes.take(2).forEach { assertEquals(emptyList(), it) }
+        }
+
         then("Bob and Carol each receive the broadcast {string} from Alice once") { payload: String ->
             inboxes.take(2).forEach { inbox ->
                 assertEquals(1, inbox.size)
@@ -95,4 +126,4 @@ internal fun StepsBuilder.broadcastSteps() {
     assertionSteps()
 }
 
-private const val BROADCAST_SETTLE_MILLIS = 60_000L
+private const val TOPOLOGY_SETTLE_MILLIS = 60_000L

@@ -25,7 +25,7 @@ import kotlin.test.assertNotNull
 
 internal val acceptanceSteps =
     steps {
-        broadcastSteps()
+        topologySteps()
         configurationSteps()
         directMessageSteps()
         identityAvailabilitySteps()
