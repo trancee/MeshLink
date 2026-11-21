@@ -44,6 +44,17 @@ Feature: Direct messaging
     Then the send is rejected as QueueFull
     And Bob receives no messages
 
+  Scenario: Expired messages free send capacity
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is out of direct contact with Alice
+    And Alice has queued 256 messages of 4096 bytes for Bob
+    And Alice is waiting for send capacity
+    When Alice's queued messages expire
+    Then Alice's capacity wait completes
+    And Alice's queued messages have expired
+    And Alice can send "room again" to Bob
+
   Scenario: A message is held while the sender has no link
     Given Alice and Bob are running in the same mesh
     And Alice and Bob are directly linked
