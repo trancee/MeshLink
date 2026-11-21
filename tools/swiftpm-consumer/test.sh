@@ -27,18 +27,7 @@ fi
 
 destination="${MESHLINK_SIMULATOR_DESTINATION:-}"
 if [[ -z "$destination" ]]; then
-    udid="$(cd "$here" && xcodebuild -showdestinations -scheme MeshLinkKitConsumer-Package | python3 -c '
-import sys
-available = sys.stdin.read().split("Available destinations", 1)[-1].split("Ineligible destinations", 1)[0]
-simulators = []
-for line in available.splitlines():
-    fields = dict(f.split(":", 1) for f in line.strip().strip("{} ").split(", ") if ":" in f)
-    if fields.get("platform") == "iOS Simulator" and "OS" in fields and fields.get("name", "").startswith("iPhone"):
-        simulators.append(([int(p) for p in fields["OS"].split(".")], fields["id"]))
-if not simulators:
-    sys.exit("no available iPhone simulator for the selected Xcode; create one with xcrun simctl create")
-print(max(simulators)[1])
-')"
+    udid="$(cd "$here" && python3 discover-destination.py)"
     destination="platform=iOS Simulator,id=$udid"
 fi
 
