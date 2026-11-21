@@ -25,6 +25,7 @@ import kotlin.test.assertNotNull
 
 internal val acceptanceSteps =
     steps {
+        configurationSteps()
         directMessageSteps()
         lifecycleSteps()
         discoverySteps()
