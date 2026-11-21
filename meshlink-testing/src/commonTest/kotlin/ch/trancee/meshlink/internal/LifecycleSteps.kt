@@ -12,9 +12,12 @@ import io.github.menjoo.cucumberkmp.core.runner.whenever
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -34,6 +37,7 @@ internal fun StepsBuilder.lifecycleSteps() {
     var scopeInitialized = false
     var startFailure: MeshLinkException.Closed? = null
     val nodes = mutableListOf<MeshLink>()
+    val observedStates = mutableListOf<MeshState>()
 
     after {
         nodes.forEach { it.close() }
@@ -48,16 +52,38 @@ internal fun StepsBuilder.lifecycleSteps() {
         return node(platform).also { nodes += it }
     }
 
+    fun closedNodeSteps() {
+        given("a closed node") {
+            createNode().close()
+        }
+
+        whenever("the node tries to start") {
+            try {
+                nodes.single().start()
+            } catch (failure: MeshLinkException.Closed) {
+                startFailure = failure
+            }
+        }
+
+        then("starting is rejected because the node is closed") {
+            assertNotNull(startFailure)
+        }
+    }
+
+    closedNodeSteps()
+
     given("a stopped node") {
         createNode()
     }
 
-    given("a closed node") {
-        createNode().close()
-    }
-
     given("a running node") {
         createNode().start()
+    }
+
+    given("the node's lifecycle is observed") {
+        scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) {
+            nodes.single().state.toList(observedStates)
+        }
     }
 
     given("the node has stopped") {
@@ -76,19 +102,12 @@ internal fun StepsBuilder.lifecycleSteps() {
         nodes.single().start()
     }
 
-    whenever("the node tries to start") {
-        try {
-            nodes.single().start()
-        } catch (failure: MeshLinkException.Closed) {
-            startFailure = failure
-        }
-    }
-
-    then("starting is rejected because the node is closed") {
-        assertNotNull(startFailure)
-    }
-
     then("the node is running") {
+        assertEquals(MeshState.Running, nodes.single().state.value)
+    }
+
+    then("the node remains running without a lifecycle transition") {
+        assertEquals(listOf<MeshState>(MeshState.Running), observedStates)
         assertEquals(MeshState.Running, nodes.single().state.value)
     }
 

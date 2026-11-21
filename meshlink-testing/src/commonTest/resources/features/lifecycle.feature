@@ -5,6 +5,12 @@ Feature: Node lifecycle
     When the node starts
     Then the node is running
 
+  Scenario: Starting a running node has no effect on its lifecycle
+    Given a running node
+    And the node's lifecycle is observed
+    When the node starts
+    Then the node remains running without a lifecycle transition
+
   Scenario: Stopping a running node makes it stopped
     Given a running node
     When the node stops
