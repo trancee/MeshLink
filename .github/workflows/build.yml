@@ -150,6 +150,18 @@ jobs:
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" ||
             "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
+      - name: TEMP diagnose NDK clang
+        if: matrix.phase == 'maven'
+        run: |
+          set -x
+          id; echo "HOME=$HOME TMPDIR=$TMPDIR"
+          clang=$(echo "$ANDROID_HOME"/ndk/30.0.16248370/toolchains/llvm/prebuilt/*/bin/clang)
+          ls -le@ "$ANDROID_HOME/ndk/30.0.16248370/toolchains/llvm/prebuilt/"*/bin/clang-21 || true
+          file "$clang" "$(readlink -f "$clang")" || true
+          "$clang" --version || true
+          printf 'int main(void){return 0;}\n' > "$RUNNER_TEMP/t.c"
+          "$clang" --target=x86_64-linux-android26 -v "$RUNNER_TEMP/t.c" -o "$RUNNER_TEMP/t" 2>&1 | tail -30 || true
+          env | sort | grep -v -i token || true
       - if: matrix.phase == 'maven'
         run: ./gradlew buildLibsodiumAndroid
       - if: matrix.phase == 'maven'
