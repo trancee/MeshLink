@@ -14,7 +14,9 @@ here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 
 # Always rebuild through Gradle (up-to-date checks keep it cheap), so a stale framework is never tested.
+started=$SECONDS
 "$root/gradlew" -p "$root" --quiet :meshlink:assembleMeshLinkKitReleaseXCFramework
+echo "XCFramework build: $((SECONDS - started))s"
 
 # The task is NO-SOURCE (and writes nothing) when :meshlink has no Kotlin source.
 xcframework="$root/meshlink/build/XCFrameworks/release/MeshLinkKit.xcframework"
@@ -41,8 +43,10 @@ print(max(simulators)[1])
 fi
 
 cd "$here"
+started=$SECONDS
 xcodebuild test \
     -scheme MeshLinkKitConsumer-Package \
     -destination "$destination" \
     -derivedDataPath "$here/.build/DerivedData" \
     -quiet
+echo "SwiftPM simulator test: $((SECONDS - started))s"
