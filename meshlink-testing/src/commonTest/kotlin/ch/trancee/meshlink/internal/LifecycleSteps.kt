@@ -38,6 +38,7 @@ internal fun StepsBuilder.lifecycleSteps() {
     lateinit var platform: VirtualPlatform
     var scopeInitialized = false
     var startFailure: MeshLinkException.Closed? = null
+    var resetFailure: MeshLinkException.InvalidState? = null
     val nodes = mutableListOf<MeshLink>()
     val observedStates = mutableListOf<MeshState>()
 
@@ -87,7 +88,23 @@ internal fun StepsBuilder.lifecycleSteps() {
         }
     }
 
+    fun identitySteps() {
+        whenever("the node tries to reset its identity") {
+            try {
+                nodes.single().resetIdentity()
+            } catch (failure: MeshLinkException.InvalidState) {
+                resetFailure = failure
+            }
+        }
+
+        then("the reset is rejected because the node is running") {
+            assertEquals(MeshState.Running, assertNotNull(resetFailure).state)
+            assertEquals(MeshState.Running, nodes.single().state.value)
+        }
+    }
+
     closedNodeSteps()
+    identitySteps()
     permissionSteps()
 
     given("a stopped node") {

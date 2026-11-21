@@ -27,6 +27,11 @@ Feature: Node lifecycle
     When the node tries to start
     Then starting is rejected because the node is closed
 
+  Scenario: Resetting identity while running is rejected
+    Given a running node
+    When the node tries to reset its identity
+    Then the reset is rejected because the node is running
+
   Scenario: A node blocked by Bluetooth being off runs when Bluetooth becomes available
     Given a node blocked because Bluetooth is off
     When Bluetooth becomes available
