@@ -98,6 +98,12 @@ private class DirectMessageScenario {
             assertEquals(emptyList(), received)
         }
 
+        given("Alice has queued {int} messages of {int} bytes for Bob") { count: Int, size: Int ->
+            repeat(count) {
+                assertIs<SendResult.Accepted>(nodes[0].send(bobId, ByteArray(size)))
+            }
+        }
+
         given("Alice's held message has expired") {
             scope.testScheduler.advanceTimeBy(EXPIRY_WAIT_MILLIS)
             assertEquals(DeliveryStatus.Expired, assertIs<SendResult.Accepted>(result).message.status.value)
@@ -144,6 +150,10 @@ private class DirectMessageScenario {
 
         then("the send is rejected as TooLarge") {
             assertEquals(SendResult.Rejected(RejectionReason.TooLarge), result)
+        }
+
+        then("the send is rejected as QueueFull") {
+            assertEquals(SendResult.Rejected(RejectionReason.QueueFull), result)
         }
 
         then("Alice receives no messages") {

@@ -34,6 +34,16 @@ Feature: Direct messaging
     Then the send is rejected as TooLarge
     And Bob receives no messages
 
+  Scenario: A full send queue rejects another message
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is collecting received messages
+    And Bob is out of direct contact with Alice
+    And Alice has queued 256 messages of 4096 bytes for Bob
+    When Alice sends "queue is full" to Bob
+    Then the send is rejected as QueueFull
+    And Bob receives no messages
+
   Scenario: A message is held while the sender has no link
     Given Alice and Bob are running in the same mesh
     And Alice and Bob are directly linked
