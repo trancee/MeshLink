@@ -27,6 +27,7 @@ internal val acceptanceSteps =
     steps {
         configurationSteps()
         directMessageSteps()
+        identityAvailabilitySteps()
         lifecycleSteps()
         discoverySteps()
         linkSteps()
