@@ -16,6 +16,11 @@ Feature: Node lifecycle
     When the node starts
     Then the node is running
 
+  Scenario: A closed node cannot start
+    Given a closed node
+    When the node tries to start
+    Then starting is rejected because the node is closed
+
   Scenario: A node blocked by Bluetooth being off runs when Bluetooth becomes available
     Given a node blocked because Bluetooth is off
     When Bluetooth becomes available

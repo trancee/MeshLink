@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.Requirement
 import io.github.menjoo.cucumberkmp.core.runner.StepsBuilder
@@ -16,6 +17,7 @@ import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 internal val acceptanceSteps =
     steps {
@@ -30,6 +32,7 @@ internal fun StepsBuilder.lifecycleSteps() {
     lateinit var scope: TestScope
     lateinit var platform: VirtualPlatform
     var scopeInitialized = false
+    var startFailure: MeshLinkException.Closed? = null
     val nodes = mutableListOf<MeshLink>()
 
     after {
@@ -47,6 +50,10 @@ internal fun StepsBuilder.lifecycleSteps() {
 
     given("a stopped node") {
         createNode()
+    }
+
+    given("a closed node") {
+        createNode().close()
     }
 
     given("a running node") {
@@ -67,6 +74,18 @@ internal fun StepsBuilder.lifecycleSteps() {
 
     whenever("the node starts") {
         nodes.single().start()
+    }
+
+    whenever("the node tries to start") {
+        try {
+            nodes.single().start()
+        } catch (failure: MeshLinkException.Closed) {
+            startFailure = failure
+        }
+    }
+
+    then("starting is rejected because the node is closed") {
+        assertNotNull(startFailure)
     }
 
     then("the node is running") {
