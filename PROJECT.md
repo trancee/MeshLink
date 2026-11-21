@@ -95,6 +95,8 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | iOS simulator tests | `./gradlew iosSimulatorArm64Test` (macOS only) |
 | One focused Android host test | `./gradlew :<module>:testAndroidHostTest --tests '<pattern>'` |
 | Gherkin direct-message scenarios on the Android host | `./gradlew :meshlink-testing:testAndroidHostTest --tests '*DirectMessageFeatureTest*'` |
+| All Gherkin scenarios on the Android host | `./gradlew :meshlink-testing:testAndroidHostTest --tests '*FeatureTest*'` |
+| All Gherkin scenarios on the iOS simulator | `./gradlew :meshlink-testing:iosSimulatorArm64Test --tests '*FeatureTest*'` |
 | `build-logic` tests only | `./gradlew -p build-logic test` |
 | Coverage report (HTML; `koverLog` prints the totals) | `./gradlew koverHtmlReport` |
 | Format all Kotlin and Gradle Kotlin files | `./gradlew spotlessApply` |
