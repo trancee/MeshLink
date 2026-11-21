@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
@@ -23,67 +24,109 @@ import kotlin.test.assertIs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun StepsBuilder.directMessageSteps() {
-    lateinit var scope: TestScope
-    var scopeInitialized = false
-    val nodes = mutableListOf<MeshLink>()
-    val received = mutableListOf<ReceivedMessage>()
-    lateinit var result: SendResult
-    lateinit var bobId: NodeId
+    with(DirectMessageScenario()) { register() }
+}
 
-    after {
-        nodes.forEach { it.close() }
-        if (scopeInitialized) scope.backgroundScope.cancel()
+@OptIn(ExperimentalCoroutinesApi::class)
+private class DirectMessageScenario {
+    private lateinit var scope: TestScope
+    private lateinit var air: VirtualAir
+    private lateinit var bobPlatform: VirtualPlatform
+    private val nodes = mutableListOf<MeshLink>()
+    private val received = mutableListOf<ReceivedMessage>()
+    private lateinit var result: SendResult
+    private lateinit var bobId: NodeId
+
+    fun StepsBuilder.register() {
+        after {
+            nodes.forEach { it.close() }
+            if (::scope.isInitialized) scope.backgroundScope.cancel()
+        }
+        setupSteps()
+        actionSteps()
+        assertionSteps()
     }
 
-    given("Alice and Bob are running in the same mesh") {
-        val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
-        scope = TestScope(dispatcher)
-        scopeInitialized = true
-        val air = scope.air()
-        val alice = air.platform(StandardTestDispatcher(scope.testScheduler))
-        val bob = air.platform(StandardTestDispatcher(scope.testScheduler))
-        nodes += node(alice)
-        nodes += node(bob)
-        nodes.forEach { it.start() }
+    private fun StepsBuilder.setupSteps() {
+        given("Alice and Bob are running in the same mesh") {
+            val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
+            scope = TestScope(dispatcher)
+            air = scope.air()
+            val alice = air.platform(StandardTestDispatcher(scope.testScheduler))
+            bobPlatform = air.platform(StandardTestDispatcher(scope.testScheduler))
+            nodes += node(alice)
+            nodes += node(bobPlatform)
+            nodes.forEach { it.start() }
+        }
+
+        given("Alice and Bob are directly linked") {
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+            bobId =
+                nodes[0]
+                    .peers.value
+                    .single()
+                    .nodeId
+            nodes[1].peers.value.single()
+        }
+
+        given("Bob is collecting received messages") {
+            scope.backgroundScope.launch { nodes[1].messages.collect { received += it } }
+            scope.testScheduler.runCurrent()
+        }
+
+        given("Alice has stopped") {
+            nodes[0].stop()
+        }
+
+        given("Bob is out of direct contact with Alice") {
+            air.move(bobPlatform.radio, VirtualAir.DEFAULT_RANGE + 1, 0.0)
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+            nodes.forEach { assertEquals(emptyList(), it.peers.value) }
+        }
+
+        given("Alice has sent {string} while disconnected") { payload: String ->
+            result = nodes[0].send(bobId, payload.encodeToByteArray())
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+            assertEquals(DeliveryStatus.Held, assertIs<SendResult.Accepted>(result).message.status.value)
+            assertEquals(emptyList(), received)
+        }
     }
 
-    given("Alice and Bob are directly linked") {
-        scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
-        bobId =
-            nodes[0]
-                .peers.value
-                .single()
-                .nodeId
-        nodes[1].peers.value.single()
+    private fun StepsBuilder.actionSteps() {
+        whenever("Alice sends {string} to Bob") { payload: String ->
+            result = nodes[0].send(bobId, payload.encodeToByteArray())
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
+        whenever("Bob returns to direct contact with Alice") {
+            air.move(bobPlatform.radio, 0.0, 0.0)
+            scope.testScheduler.advanceTimeBy(RECONNECT_WAIT_MILLIS)
+        }
     }
 
-    given("Bob is collecting received messages") {
-        scope.backgroundScope.launch { nodes[1].messages.collect { received += it } }
-        scope.testScheduler.runCurrent()
-    }
+    private fun StepsBuilder.assertionSteps() {
+        then("Bob receives {string} from Alice") { payload: String ->
+            assertIs<SendResult.Accepted>(result)
+            val message = received.single()
+            assertContentEquals(payload.encodeToByteArray(), message.payload)
+            assertEquals(senderId(nodes[1]), message.sender)
+        }
 
-    given("Alice has stopped") {
-        nodes[0].stop()
-    }
+        then("the send is rejected as NotRunning") {
+            assertEquals(SendResult.Rejected(RejectionReason.NotRunning), result)
+        }
 
-    whenever("Alice sends {string} to Bob") { payload: String ->
-        result = nodes[0].send(bobId, payload.encodeToByteArray())
-        scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
-    }
+        then("Alice's message is held") {
+            assertEquals(DeliveryStatus.Held, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
 
-    then("Bob receives {string} from Alice") { payload: String ->
-        assertIs<SendResult.Accepted>(result)
-        val message = received.single()
-        assertContentEquals(payload.encodeToByteArray(), message.payload)
-        assertEquals(senderId(nodes[1]), message.sender)
-    }
+        then("Alice's message is sent") {
+            assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
 
-    then("the send is rejected as NotRunning") {
-        assertEquals(SendResult.Rejected(RejectionReason.NotRunning), result)
-    }
-
-    then("Bob receives no messages") {
-        assertEquals(emptyList(), received)
+        then("Bob receives no messages") {
+            assertEquals(emptyList(), received)
+        }
     }
 }
 
@@ -91,3 +134,5 @@ private fun senderId(node: MeshLink): NodeId =
     node.peers.value
         .single()
         .nodeId
+
+private const val RECONNECT_WAIT_MILLIS = 60_000L
