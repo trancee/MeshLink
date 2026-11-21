@@ -73,6 +73,28 @@ internal fun StepsBuilder.discoverySteps() {
         createNodes(differentMesh = false, differentProfile = true)
     }
 
+    suspend fun createMixedProfileNodes() {
+        val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
+        scope = TestScope(dispatcher)
+        scopeInitialized = true
+        val air = scope.air()
+        val profiles = listOf(SecurityProfile.Classical, SecurityProfile.PostQuantum)
+        repeat(2) { index ->
+            val platform = air.platform(StandardTestDispatcher(scope.testScheduler))
+            platforms += platform
+            val profile = profiles[index]
+            nodes +=
+                MeshLink.create(
+                    meshLinkConfig(Preset.OfflineChat, profile) { meshId = MESH }.build(),
+                    platform.meshPlatform,
+                )
+        }
+    }
+
+    given("Alice uses the classical profile and Bob uses the post-quantum profile in the same mesh") {
+        createMixedProfileNodes()
+    }
+
     suspend fun createGatedNodes(keys: List<Byte>) {
         val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
         scope = TestScope(dispatcher)
