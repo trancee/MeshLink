@@ -108,6 +108,7 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Links, repository only | `lychee --offline .` |
 | Links, including external | `lychee .` (set `GITHUB_TOKEN` to avoid GitHub rate limits) |
 | Workflow lint | `actionlint` |
+| CI gate unit tests | `python3 -m unittest discover -s tools/ci/tests` |
 | Tier 2 vectors: the Rust reference's tests, including the committed-file staleness check (needs rustup; installs Rust 1.100.0 from `tools/reference/rust-toolchain.toml`) | `cargo test --manifest-path tools/reference/Cargo.toml` |
 | Regenerate the tier 2 vector files and schemas | `cargo run --manifest-path tools/reference/Cargo.toml` |
 | libsodium for Android (3 ABIs; needs the catalog's NDK under `$ANDROID_HOME` or `$ANDROID_SDK_ROOT`, and `minisign`) | `./gradlew buildLibsodiumAndroid` |
@@ -134,17 +135,20 @@ The `buildSodiumJni<Target>` tasks link `meshlink-crypto-sodium/native/meshlink_
 
 ### CI
 
-[`build.yml`](.github/workflows/build.yml) runs on every pull request and every push to `main`. No step retries a test. Gradle's caches and wrapper are cached by `gradle/actions/setup-gradle` with the MIT `basic` provider: the key hashes the build files, the version catalog and the wrapper properties, and only `main` writes the cache. Both jobs use the image's JDK 21 and 25 through `org.gradle.java.installations.fromEnv`.
+[`build.yml`](.github/workflows/build.yml) runs on every pull request and every push to `main`. No step retries a test. Gradle's caches and wrapper are cached by `gradle/actions/setup-gradle` with the MIT `basic` provider: the key hashes the build files, the version catalog and the wrapper properties, and only `main` writes the cache. The Linux and Apple build phases use the image's JDK 21 and 25 through `org.gradle.java.installations.fromEnv`. The three Apple phases can run in parallel; the existing required macOS check fails unless all phases succeed.
 
 | Job | Runner | Steps | Required on `main` |
 |---|---|---|---|
 | Gradle check and Dokka (Linux) | `ubuntu-24.04` | Install `minisign` (`apt`) and the catalog's NDK (`sdkmanager`), restore the libsodium cache, `./gradlew buildLibsodiumAndroid buildLibsodiumHostLinux`, `./gradlew check`, `./gradlew dokkaGenerate` | Yes |
-| iOS simulator tests and SwiftPM consumer (macOS) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | `xcodebuild -version`, install `minisign` (Homebrew), restore the libsodium cache, `./gradlew buildLibsodiumApple buildLibsodiumHostMacos`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh`, install the pinned NDK, `./gradlew buildLibsodiumAndroid`, `tools/maven-consumer/test.sh`, `./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols` | Yes |
-| Xcode 27 preview (scheduled, not required) | `xcode-27` preview, `DEVELOPER_DIR` = `/Applications/Xcode_27.2.app` | As the macOS job, without the NDK install and the Maven consumer | No; weekly and on manual dispatch |
+| Apple (simulator) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | Restore caches, build Apple and host libsodium, run `./gradlew iosSimulatorArm64Test --profile` and upload its Gradle profile and test XML for seven days | Via the required macOS check |
+| Apple (swiftpm) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | Restore caches, build Apple and host libsodium, run `tools/swiftpm-consumer/test.sh` and `./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols` | Via the required macOS check |
+| Apple (maven) | `macos-26`, `DEVELOPER_DIR` = `/Applications/Xcode_26.4.1.app` | Restore caches, build Apple and host libsodium, install the pinned NDK, build Android libsodium and run `tools/maven-consumer/test.sh` | Via the required macOS check |
+| iOS simulator tests and SwiftPM consumer (macOS) | `ubuntu-24.04` | Require success of all Apple phases | Yes |
+| Xcode 27 preview (scheduled, not required) | `xcode-27` preview, `DEVELOPER_DIR` = `/Applications/Xcode_27.2.app` | Run the simulator and SwiftPM phases' checks | No; weekly and on manual dispatch |
 | Reference vectors (`reference-vectors.yml`, scheduled, not required) | `ubuntu-24.04` | `rustup toolchain install`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked`, `cargo run --locked`, diff `docs/spec/vectors/` | No; weekly and on manual dispatch |
 | Fuzz (`fuzz.yml`, scheduled, not required) | `ubuntu-24.04` | `./gradlew :meshlink-core:fuzz` with 300 s per target; 15 s on a pull request that changes the fuzz targets, corpus, `meshlink-core/build.gradle.kts`, `tools/fuzz/` or the workflow; uploads `meshlink-core/build/fuzz/crashes/` on failure | No; weekly, on manual dispatch and on those pull requests |
 
-Measured on PR 12 (2026-11-14), with no Gradle cache, because pull requests only read the cache that `main` writes: Linux 4 min 14 s; macOS 9 min 13 s and 11 min 53 s (about 5.5 min each for `iosSimulatorArm64Test` and `test.sh`). Both stay under ADR 0017's 15 min limit. The basic provider doesn't cache `~/.konan`, so every macOS run downloads the Kotlin/Native LLVM bundle.
+The Apple phases restore `~/.konan/dependencies` by runner OS, architecture, Xcode, Kotlin version and phase, falling back to another phase with the same toolchain; only `main` saves it. Libsodium cache restore falls back across version-catalog changes only when the pin, build script and toolchain match; the per-target stamp still checks the tarball, script and target toolchain before reuse. The SwiftPM script prints separate framework-build and simulator-test times. The three-phase workflow's effect on GitHub-hosted run time remains unverified until it runs there.
 
 `docs.yml` ("Markdown lint, spelling and ADR headers", "Protocol spec", "Links") and `privacy.yml` ("No private identifiers in any branch history") run alongside. All but "Links" are required ([ADR 0021](docs/adr/0021-change-workflow-and-merge-gates.md) decision 6). `.github/actionlint.yaml` declares the `xcode-27` preview label, which actionlint 1.7.12 doesn't know yet.
 

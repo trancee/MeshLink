@@ -58,16 +58,22 @@ jobs:
           path: |
             meshlink-crypto-sodium/build/libsodium/download
             meshlink-crypto-sodium/build/libsodium/out
-          key: libsodium-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh', 'gradle/libs.versions.toml') }}
+          key: libsodium-v2-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: |
+            libsodium-v2-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-
       - run: ./gradlew buildLibsodiumAndroid buildLibsodiumHostLinux
       - run: ./gradlew check
       - run: ./gradlew dokkaGenerate
 
-  macos:
-    name: iOS simulator tests and SwiftPM consumer (macOS)
+  apple:
+    name: Apple (${{ matrix.phase }})
     if: github.event_name != 'schedule'
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: [simulator, swiftpm, maven]
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
     steps: &apple
@@ -91,30 +97,80 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
       - id: libsodium-toolchain
-        run: echo "id=$(xcodebuild -version | tr -s '\n ' '-')" >> "$GITHUB_OUTPUT"
+        run: |
+          xcode=$(xcodebuild -version | tr -s '\n ' '-')
+          kotlin=$(sed -n 's/^kotlin = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          test -n "$kotlin" || { echo "::error::Kotlin version is missing"; exit 1; }
+          {
+            echo "id=$xcode-${{ matrix.phase }}"
+            echo "xcode=$xcode"
+            echo "kotlin=$kotlin"
+          } >> "$GITHUB_OUTPUT"
       - *libsodium-cache
+      - name: Restore Kotlin/Native dependencies
+        id: konan-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.konan/dependencies
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ steps.libsodium-toolchain.outputs.xcode }}-${{ steps.libsodium-toolchain.outputs.kotlin }}-${{ matrix.phase }}
+          restore-keys: |
+            konan-${{ runner.os }}-${{ runner.arch }}-${{ steps.libsodium-toolchain.outputs.xcode }}-${{ steps.libsodium-toolchain.outputs.kotlin }}-
       - run: ./gradlew buildLibsodiumApple buildLibsodiumHostMacos
-      - run: ./gradlew iosSimulatorArm64Test
-      - run: tools/swiftpm-consumer/test.sh
+      - if: matrix.phase == 'simulator' || matrix.phase == 'preview'
+        run: ./gradlew iosSimulatorArm64Test --profile
+      - name: Upload iOS test profile
+        if: ${{ !cancelled() && (matrix.phase == 'simulator' || matrix.phase == 'preview') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-test-profile-${{ matrix.phase }}
+          path: |
+            build/reports/profile/
+            **/build/test-results/iosSimulatorArm64Test/TEST-*.xml
+          if-no-files-found: error
+          retention-days: 7
+      - if: matrix.phase == 'swiftpm' || matrix.phase == 'preview'
+        run: tools/swiftpm-consumer/test.sh
+      - if: matrix.phase == 'swiftpm' || matrix.phase == 'preview'
+        run: ./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols
       # Ticket 65: publishing needs the iOS klibs (macOS only) and the Android libsodium build (NDK).
       # Only the required job runs it; the Xcode 27 runner's Android SDK is not verified.
       - name: Install the pinned NDK
-        if: github.job == 'macos'
+        if: matrix.phase == 'maven'
         run: |
           ndk=$(sed -n 's/^android-ndk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
-      - if: github.job == 'macos'
+      - if: matrix.phase == 'maven'
         run: ./gradlew buildLibsodiumAndroid
-      - if: github.job == 'macos'
+      - if: matrix.phase == 'maven'
         run: tools/maven-consumer/test.sh
-      - run: ./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols
+      - name: Save Kotlin/Native dependencies
+        if: github.ref == 'refs/heads/main' && steps.konan-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.konan/dependencies
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ steps.libsodium-toolchain.outputs.xcode }}-${{ steps.libsodium-toolchain.outputs.kotlin }}-${{ matrix.phase }}
+
+  macos:
+    name: iOS simulator tests and SwiftPM consumer (macOS)
+    if: always() && github.event_name != 'schedule'
+    needs: [apple]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require all Apple phases
+        run: test "$APPLE_RESULT" = success || { echo "::error::Apple phases did not all succeed"; exit 1; }
+        env:
+          APPLE_RESULT: ${{ needs.apple.result }}
 
   xcode-27:
     name: Xcode 27 preview (scheduled, not required)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: xcode-27
     timeout-minutes: 30
+    strategy:
+      matrix:
+        phase: [preview]
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     steps: *apple
