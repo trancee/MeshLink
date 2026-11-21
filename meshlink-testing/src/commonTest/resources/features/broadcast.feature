@@ -15,6 +15,13 @@ Feature: Broadcast messages
     Then Bob and Carol each receive the broadcast "Hello" from Alice once
     And Dave receives no broadcasts
 
+  Scenario: A broadcast is delivered once in a mesh with redundant routes
+    Given Alice, Bob, Carol and Dave are running with two routes from Alice to Dave
+    And Bob, Carol and Dave are collecting messages
+    When Alice broadcasts "Hello" with a hop limit of 3
+    Then Bob and Carol each receive the broadcast "Hello" from Alice once
+    And Dave receives the broadcast "Hello" from Alice once
+
   Scenario: A returning node catches up on a missed broadcast
     Given Alice, Bob, Carol and Dave are running in a line with links only between neighbors
     And Bob, Carol and Dave are collecting messages
