@@ -25,5 +25,5 @@ kotlin {
 }
 
 cucumberKmp {
-    stepRegistry.set("ch.trancee.meshlink.internal.directMessageSteps")
+    stepRegistry.set("ch.trancee.meshlink.internal.acceptanceSteps")
 }
