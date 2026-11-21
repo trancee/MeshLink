@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshState
+import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Reachability
 import io.github.menjoo.cucumberkmp.core.runner.StepsBuilder
 import io.github.menjoo.cucumberkmp.core.runner.given
@@ -15,6 +17,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun StepsBuilder.linkSteps() {
@@ -23,6 +27,7 @@ internal fun StepsBuilder.linkSteps() {
     var scopeInitialized = false
     val platforms = mutableListOf<VirtualPlatform>()
     val nodes = mutableListOf<MeshLink>()
+    var rememberedAlice: NodeId? = null
 
     after {
         nodes.forEach { it.close() }
@@ -62,6 +67,51 @@ internal fun StepsBuilder.linkSteps() {
         moveBobOutOfRange()
         nodes.forEach { assertEquals(emptyList(), it.peers.value) }
     }
+
+    fun identitySteps() {
+        given("Bob remembers Alice's identity") {
+            rememberedAlice =
+                nodes[1]
+                    .peers.value
+                    .single()
+                    .nodeId
+        }
+
+        whenever("Alice restarts") {
+            nodes[0].stop()
+            nodes[0].start()
+            scope.testScheduler.advanceTimeBy(RECONNECT_WAIT_MILLIS)
+        }
+
+        given("Alice is stopped") {
+            nodes[0].stop()
+            assertEquals(MeshState.Stopped, nodes[0].state.value)
+        }
+
+        whenever("Alice resets her identity and starts") {
+            assertTrue(nodes[0].resetIdentity())
+            nodes[0].start()
+            scope.testScheduler.advanceTimeBy(RECONNECT_WAIT_MILLIS)
+        }
+
+        then("Bob sees Alice with the same identity") {
+            assertEquals(
+                rememberedAlice,
+                nodes[1]
+                    .peers.value
+                    .single()
+                    .nodeId,
+            )
+        }
+
+        then("Bob sees Alice with a new identity") {
+            val peer = nodes[1].peers.value.single()
+            assertEquals(Reachability.Direct, peer.reachability)
+            assertNotEquals(rememberedAlice, peer.nodeId)
+        }
+    }
+
+    identitySteps()
 
     whenever("Bob moves out of range") {
         moveBobOutOfRange()

@@ -1,8 +1,11 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.OutgoingMessage
 import ch.trancee.meshlink.Reachability
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.RejectionReason
@@ -11,17 +14,22 @@ import io.github.menjoo.cucumberkmp.core.runner.StepsBuilder
 import io.github.menjoo.cucumberkmp.core.runner.given
 import io.github.menjoo.cucumberkmp.core.runner.then
 import io.github.menjoo.cucumberkmp.core.runner.whenever
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun StepsBuilder.directMessageSteps() {
@@ -34,9 +42,13 @@ private class DirectMessageScenario {
     private lateinit var air: VirtualAir
     private lateinit var bobPlatform: VirtualPlatform
     private val nodes = mutableListOf<MeshLink>()
+    private val aliceReceived = mutableListOf<ReceivedMessage>()
     private val received = mutableListOf<ReceivedMessage>()
+    private val queued = mutableListOf<OutgoingMessage>()
     private lateinit var result: SendResult
     private lateinit var bobId: NodeId
+    private lateinit var capacityWait: Deferred<Unit>
+    private var collectorFailure: MeshLinkException.AlreadyCollected? = null
 
     fun StepsBuilder.register() {
         after {
@@ -46,6 +58,8 @@ private class DirectMessageScenario {
         setupSteps()
         actionSteps()
         assertionSteps()
+        statusAssertionSteps()
+        capacityAssertionSteps()
     }
 
     private fun StepsBuilder.setupSteps() {
@@ -75,6 +89,11 @@ private class DirectMessageScenario {
             scope.testScheduler.runCurrent()
         }
 
+        given("Alice is collecting received messages") {
+            scope.backgroundScope.launch { nodes[0].messages.collect { aliceReceived += it } }
+            scope.testScheduler.runCurrent()
+        }
+
         given("Alice has stopped") {
             nodes[0].stop()
         }
@@ -92,6 +111,18 @@ private class DirectMessageScenario {
             assertEquals(emptyList(), received)
         }
 
+        given("Alice has queued {int} messages of {int} bytes for Bob") { count: Int, size: Int ->
+            repeat(count) {
+                queued += assertIs<SendResult.Accepted>(nodes[0].send(bobId, ByteArray(size))).message
+            }
+        }
+
+        given("Alice is waiting for send capacity") {
+            capacityWait = scope.backgroundScope.async { nodes[0].awaitSendCapacity() }
+            scope.testScheduler.runCurrent()
+            assertTrue(capacityWait.isActive)
+        }
+
         given("Alice's held message has expired") {
             scope.testScheduler.advanceTimeBy(EXPIRY_WAIT_MILLIS)
             assertEquals(DeliveryStatus.Expired, assertIs<SendResult.Accepted>(result).message.status.value)
@@ -99,9 +130,43 @@ private class DirectMessageScenario {
     }
 
     private fun StepsBuilder.actionSteps() {
+        whenever("Alice broadcasts {string} with hop limit {int}") { payload: String, hopLimit: Int ->
+            result = nodes[0].broadcast(payload.encodeToByteArray(), hopLimit)
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
         whenever("Alice sends {string} to Bob") { payload: String ->
             result = nodes[0].send(bobId, payload.encodeToByteArray())
             scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
+        whenever("Alice sends {string} to herself") { payload: String ->
+            result = nodes[0].send(senderId(nodes[1]), payload.encodeToByteArray())
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
+        whenever("Alice sends {int} bytes to Bob") { size: Int ->
+            result = nodes[0].send(bobId, ByteArray(size))
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
+        whenever("Alice's queued messages expire") {
+            scope.testScheduler.advanceTimeBy(EXPIRY_WAIT_MILLIS)
+            scope.testScheduler.runCurrent()
+        }
+
+        whenever("another collector starts receiving Bob's messages") {
+            collectorFailure =
+                try {
+                    withTimeoutOrNull(1) { nodes[1].messages.first() }
+                    null
+                } catch (failure: MeshLinkException.AlreadyCollected) {
+                    failure
+                }
+        }
+
+        whenever("Alice stops") {
+            nodes[0].stop()
         }
 
         whenever("Bob returns to direct contact with Alice") {
@@ -111,6 +176,10 @@ private class DirectMessageScenario {
     }
 
     private fun StepsBuilder.assertionSteps() {
+        then("the broadcast is rejected as InvalidHopLimit") {
+            assertEquals(SendResult.Rejected(RejectionReason.InvalidHopLimit), result)
+        }
+
         then("Bob receives {string} from Alice") { payload: String ->
             assertIs<SendResult.Accepted>(result)
             val message = received.single()
@@ -122,12 +191,24 @@ private class DirectMessageScenario {
             assertEquals(SendResult.Rejected(RejectionReason.NotRunning), result)
         }
 
-        then("Alice's message is held") {
-            assertEquals(DeliveryStatus.Held, assertIs<SendResult.Accepted>(result).message.status.value)
+        then("the send is rejected as UnknownPeer") {
+            assertEquals(SendResult.Rejected(RejectionReason.UnknownPeer), result)
         }
 
-        then("Alice's message is sent") {
-            assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
+        then("the send is rejected as TooLarge") {
+            assertEquals(SendResult.Rejected(RejectionReason.TooLarge), result)
+        }
+
+        then("the send is rejected as QueueFull") {
+            assertEquals(SendResult.Rejected(RejectionReason.QueueFull), result)
+        }
+
+        then("the second collector is rejected as AlreadyCollected") {
+            assertIs<MeshLinkException.AlreadyCollected>(collectorFailure)
+        }
+
+        then("Alice receives no messages") {
+            assertEquals(emptyList(), aliceReceived)
         }
 
         then("Alice and Bob are directly linked again") {
@@ -148,12 +229,44 @@ private class DirectMessageScenario {
             }
         }
 
+        then("Bob receives no messages") {
+            assertEquals(emptyList(), received)
+        }
+    }
+
+    private fun StepsBuilder.statusAssertionSteps() {
+        then("Alice's message is held") {
+            assertEquals(DeliveryStatus.Held, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
+
+        then("Alice's message fails as Stopped") {
+            assertEquals(
+                DeliveryStatus.Failed(FailureReason.Stopped),
+                assertIs<SendResult.Accepted>(result).message.status.value,
+            )
+        }
+
+        then("Alice's message is sent") {
+            assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
+        }
+
         then("Alice's message remains expired") {
             assertEquals(DeliveryStatus.Expired, assertIs<SendResult.Accepted>(result).message.status.value)
         }
+    }
 
-        then("Bob receives no messages") {
-            assertEquals(emptyList(), received)
+    private fun StepsBuilder.capacityAssertionSteps() {
+        then("Alice's capacity wait completes") {
+            assertTrue(capacityWait.isCompleted)
+            capacityWait.await()
+        }
+
+        then("Alice's queued messages have expired") {
+            assertTrue(queued.all { it.status.value == DeliveryStatus.Expired })
+        }
+
+        then("Alice can send {string} to Bob") { payload: String ->
+            assertIs<SendResult.Accepted>(nodes[0].send(bobId, payload.encodeToByteArray()))
         }
     }
 }

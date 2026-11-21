@@ -16,6 +16,51 @@ Feature: Direct messaging
     Then the send is rejected as NotRunning
     And Bob receives no messages
 
+  Scenario: A node cannot send a message to itself
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Alice is collecting received messages
+    And Bob is collecting received messages
+    When Alice sends "hello, Alice" to herself
+    Then the send is rejected as UnknownPeer
+    And Alice receives no messages
+    And Bob receives no messages
+
+  Scenario: A message above the payload limit is rejected
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is collecting received messages
+    When Alice sends 4097 bytes to Bob
+    Then the send is rejected as TooLarge
+    And Bob receives no messages
+
+  Scenario: A full send queue rejects another message
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is collecting received messages
+    And Bob is out of direct contact with Alice
+    And Alice has queued 256 messages of 4096 bytes for Bob
+    When Alice sends "queue is full" to Bob
+    Then the send is rejected as QueueFull
+    And Bob receives no messages
+
+  Scenario: Expired messages free send capacity
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is out of direct contact with Alice
+    And Alice has queued 256 messages of 4096 bytes for Bob
+    And Alice is waiting for send capacity
+    When Alice's queued messages expire
+    Then Alice's capacity wait completes
+    And Alice's queued messages have expired
+    And Alice can send "room again" to Bob
+
+  Scenario: A second message collector is rejected
+    Given Alice and Bob are running in the same mesh
+    And Bob is collecting received messages
+    When another collector starts receiving Bob's messages
+    Then the second collector is rejected as AlreadyCollected
+
   Scenario: A message is held while the sender has no link
     Given Alice and Bob are running in the same mesh
     And Alice and Bob are directly linked
@@ -23,6 +68,16 @@ Feature: Direct messaging
     And Bob is out of direct contact with Alice
     When Alice sends "hello, Bob" to Bob
     Then Alice's message is held
+    And Bob receives no messages
+
+  Scenario: Stopping the sender fails a held message
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is collecting received messages
+    And Bob is out of direct contact with Alice
+    And Alice has sent "hello, Bob" while disconnected
+    When Alice stops
+    Then Alice's message fails as Stopped
     And Bob receives no messages
 
   Scenario: A held message reaches its recipient after the link returns
