@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Reachability
 import io.github.menjoo.cucumberkmp.core.runner.StepsBuilder
 import io.github.menjoo.cucumberkmp.core.runner.given
@@ -23,6 +24,7 @@ internal fun StepsBuilder.linkSteps() {
     var scopeInitialized = false
     val platforms = mutableListOf<VirtualPlatform>()
     val nodes = mutableListOf<MeshLink>()
+    var rememberedAlice: NodeId? = null
 
     after {
         nodes.forEach { it.close() }
@@ -62,6 +64,34 @@ internal fun StepsBuilder.linkSteps() {
         moveBobOutOfRange()
         nodes.forEach { assertEquals(emptyList(), it.peers.value) }
     }
+
+    fun identitySteps() {
+        given("Bob remembers Alice's identity") {
+            rememberedAlice =
+                nodes[1]
+                    .peers.value
+                    .single()
+                    .nodeId
+        }
+
+        whenever("Alice restarts") {
+            nodes[0].stop()
+            nodes[0].start()
+            scope.testScheduler.advanceTimeBy(RECONNECT_WAIT_MILLIS)
+        }
+
+        then("Bob sees Alice with the same identity") {
+            assertEquals(
+                rememberedAlice,
+                nodes[1]
+                    .peers.value
+                    .single()
+                    .nodeId,
+            )
+        }
+    }
+
+    identitySteps()
 
     whenever("Bob moves out of range") {
         moveBobOutOfRange()
