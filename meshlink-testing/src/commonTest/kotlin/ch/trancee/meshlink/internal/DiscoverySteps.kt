@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.Reachability
 import ch.trancee.meshlink.SecurityProfile
@@ -31,7 +32,10 @@ internal fun StepsBuilder.discoverySteps() {
         if (scopeInitialized) scope.backgroundScope.cancel()
     }
 
-    suspend fun createNodes(differentMesh: Boolean) {
+    suspend fun createNodes(
+        differentMesh: Boolean,
+        differentProfile: Boolean = false,
+    ) {
         val dispatcher = currentCoroutineContext()[ContinuationInterceptor] as TestDispatcher
         scope = TestScope(dispatcher)
         scopeInitialized = true
@@ -40,7 +44,12 @@ internal fun StepsBuilder.discoverySteps() {
             val platform = air.platform(StandardTestDispatcher(scope.testScheduler))
             platforms += platform
             nodes +=
-                if (differentMesh && index == 1) {
+                if (differentProfile && index == 1) {
+                    MeshLink.create(
+                        meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) { meshId = MESH }.build(),
+                        platform.meshPlatform,
+                    )
+                } else if (differentMesh && index == 1) {
                     MeshLink.create(
                         meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "Elsewhere" }.build(),
                         platform.meshPlatform,
@@ -59,6 +68,10 @@ internal fun StepsBuilder.discoverySteps() {
         createNodes(differentMesh = true)
     }
 
+    given("Alice uses the unsecured profile and Bob uses the classical profile in the same mesh") {
+        createNodes(differentMesh = false, differentProfile = true)
+    }
+
     whenever("the discovery nodes start") {
         nodes.forEach { it.start() }
         scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
@@ -75,5 +88,9 @@ internal fun StepsBuilder.discoverySteps() {
 
     then("neither node lists a peer") {
         nodes.forEach { assertEquals(emptyList(), it.peers.value) }
+    }
+
+    then("both discovery nodes are running") {
+        nodes.forEach { assertEquals(MeshState.Running, it.state.value) }
     }
 }
