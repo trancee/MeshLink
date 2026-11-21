@@ -34,3 +34,15 @@ Feature: Direct messaging
     When Bob returns to direct contact with Alice
     Then Bob receives "hello, Bob" from Alice
     And Alice's message is sent
+
+  Scenario: An expired message is not delivered when the link returns
+    Given Alice and Bob are running in the same mesh
+    And Alice and Bob are directly linked
+    And Bob is collecting received messages
+    And Bob is out of direct contact with Alice
+    And Alice has sent "hello, Bob" while disconnected
+    And Alice's held message has expired
+    When Bob returns to direct contact with Alice
+    Then Alice and Bob are directly linked again
+    And Alice's message remains expired
+    And Bob receives no messages
