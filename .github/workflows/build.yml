@@ -83,9 +83,12 @@ jobs:
         run: |
           test -d "$DEVELOPER_DIR" || { echo "::error::$DEVELOPER_DIR is not installed"; exit 1; }
           xcodebuild -version
+      # The self-hosted Mac keeps ~/.gradle and ~/.konan between jobs, so restoring and saving them
+      # through the Actions cache only costs time there (up to 4 minutes per job for ~/.gradle).
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-provider: basic
+          cache-disabled: ${{ runner.environment == 'self-hosted' }}
       # The self-hosted runner's .env provides the hosted image's JAVA_HOME_21_arm64, JAVA_HOME_25_arm64
       # and ANDROID_HOME (docs/reference/dependencies.md, "CI tools"). Its home persists between jobs,
       # so the property is written once.
@@ -114,6 +117,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - *libsodium-cache
       - name: Restore Kotlin/Native dependencies
+        if: runner.environment != 'self-hosted'
         id: konan-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -155,7 +159,7 @@ jobs:
       - if: matrix.phase == 'maven'
         run: tools/maven-consumer/test.sh
       - name: Save Kotlin/Native dependencies
-        if: github.ref == 'refs/heads/main' && steps.konan-cache.outputs.cache-hit != 'true'
+        if: runner.environment != 'self-hosted' && github.ref == 'refs/heads/main' && steps.konan-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.konan/dependencies

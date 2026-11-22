@@ -227,3 +227,4 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 
 - The Mac mini runner (`gh-runner`) shares the owner's JDKs and Android SDK (ADR 0017, 2026-11-21 amendment). After installing or updating an NDK, run `find <ndk> -type f -perm -u+x ! -perm -g+x -exec chmod g+x {} +`: the NDK ships owner-only executables, and `buildLibsodiumAndroid` then fails with "C compiler cannot create executables" (2026-11-21).
 - Never print the environment (`env`, `printenv`, `set`) in a workflow step: job logs are public. A runner started from a terminal leaked an API key that way; run it only as the `gh-runner` launchd service (2026-11-21).
+- A launchd runner without Developer Tools permission hangs in `buildLibsodiumApple`: Gatekeeper blocks `configure`'s unsigned `conftest` and waits on an unseen dialog. Look for `ASP: Security policy would not allow process` in `log show` (2026-11-22). Setup: [runner how-to](../how-to/set-up-self-hosted-runner.md).
