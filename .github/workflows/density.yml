@@ -37,6 +37,20 @@ jobs:
           mkdir -p ~/.gradle
           echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64" >> ~/.gradle/gradle.properties
           echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+      # The cells load libsodium through the host JNI shim, which verifies the tarball with minisign.
+      - name: Install minisign
+        run: sudo apt-get install -y --no-install-recommends minisign
+      - id: libsodium-toolchain
+        run: echo "id=$(cc -dumpfullversion)" >> "$GITHUB_OUTPUT"
+      - name: Cache the libsodium build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            meshlink-crypto-sodium/build/libsodium/download
+            meshlink-crypto-sodium/build/libsodium/out
+          key: libsodium-v2-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: |
+            libsodium-v2-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-
       - run: ./gradlew :meshlink-testing:densityTest -Pdensity.cells=${{ matrix.cell }}
       - name: Summarize the cell
         if: always()

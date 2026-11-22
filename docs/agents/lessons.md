@@ -214,6 +214,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Writes are a byte stream: a record's 2-byte length prefix starts a record, but one record spans several writes and one write can end mid-record. Classify frames by reading `RecordReader().read(end.written)` per link end with recording on, never per write (2026-11-22).
 - Origin retries dominate the busiest node at low and medium density. One origin wrote one `MESSAGE` body 228 times in 15 min: [origin behavior](../spec/routing.md#origin-behavior) resends with backoff until expiry and on every new link, and at low density each resend floods. The routing simulator stopped on the first receipt, so its byte bands assume receipts (ticket 47, then 42b) (2026-11-22).
 - With `-q`, `densityTest` hides the cell log; read `meshlink-testing/build/density/<cell>.md` or `build/test-results/densityTest/*.xml`, and check its timestamp, since an earlier run's results stay in place (2026-11-22).
+- `densityTest` loads libsodium through the host JNI shim, so a CI job needs `minisign` (the tarball check) and a C compiler, but no NDK; the first `density.yml` run failed every cell in `verifyLibsodium` without it (2026-11-22).
 - Inside `build.gradle.kts`, `java.time.Duration` resolves `java` to the `java` extension; import `java.time.Duration` at the top. `testAndroidHostTest` is reached through `tasks.withType<Test>().matching`, as for fuzzing (2026-11-22).
 
 ## Rust reference
