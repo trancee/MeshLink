@@ -52,8 +52,13 @@ internal class VirtualAir(
     private val random: RandomSource,
     private val latencyMillis: IntRange = DEFAULT_LATENCY_MILLIS,
     private val range: Double = DEFAULT_RANGE,
+    /** Whether link and channel ends keep a copy of every write; a mesh of 100+ nodes runs without. */
+    internal val recording: Boolean = true,
 ) {
     private val radios = mutableListOf<VirtualRadio>()
+
+    /** Called with the writing radio and the bytes of every link and channel write. */
+    var onWrite: (VirtualRadio, ByteArray) -> Unit = { _, _ -> }
     private val rssis = mutableMapOf<Set<VirtualRadio>, Int>()
 
     init {
@@ -126,7 +131,7 @@ internal class VirtualAir(
     }
 
     /** Whether [a] and [b] are at most [range] apart. */
-    private fun inRange(
+    internal fun inRange(
         a: VirtualRadio,
         b: VirtualRadio,
     ): Boolean {
@@ -387,23 +392,26 @@ internal class VirtualChannel(
     air: VirtualAir,
     connection: VirtualConnection,
 ) {
-    val centralEnd: VirtualChannelEnd = VirtualChannelEnd(air, this, connection.centralEnd.peer)
-    val peripheralEnd: VirtualChannelEnd = VirtualChannelEnd(air, this, connection.peripheralEnd.peer)
+    val centralEnd: VirtualChannelEnd =
+        VirtualChannelEnd(air, this, connection.peripheralEnd.remote, connection.centralEnd.peer)
+    val peripheralEnd: VirtualChannelEnd =
+        VirtualChannelEnd(air, this, connection.centralEnd.remote, connection.peripheralEnd.peer)
 
     fun oppositeOf(end: VirtualChannelEnd): VirtualChannelEnd = if (end === centralEnd) peripheralEnd else centralEnd
 }
 
 /** One radio's end of a [VirtualChannel]. */
 internal class VirtualChannelEnd(
-    air: VirtualAir,
+    private val air: VirtualAir,
     private val channel: VirtualChannel,
+    private val local: VirtualRadio,
     override val peer: PeerHandle,
 ) : RadioStream {
     private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
     private val pipe = air.Pipe()
     private var closed = false
 
-    /** Every byte this end wrote, in order. */
+    /** Every byte this end wrote, in order, while the air is [VirtualAir.recording]. */
     var written: ByteArray = ByteArray(0)
         private set
 
@@ -411,7 +419,8 @@ internal class VirtualChannelEnd(
 
     override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
         if (closed) return RadioResult.Failed(RadioFailure.LINK_CLOSED)
-        written += bytes
+        air.onWrite(local, bytes)
+        if (air.recording) written += bytes
         val target = channel.oppositeOf(this)
         val copy = bytes.copyOf()
         pipe.send { target.inbox.trySend(copy) }
@@ -456,7 +465,7 @@ internal open class VirtualLinkEnd(
     /** Whether the link is still open at this end. */
     val open: Boolean get() = !closed
 
-    /** Every byte this end wrote, in order. */
+    /** Every byte this end wrote, in order, while the air is [VirtualAir.recording]. */
     var written: ByteArray = ByteArray(0)
         private set
 
@@ -494,8 +503,11 @@ internal open class VirtualLinkEnd(
 
     override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
         if (closed) return RadioResult.Failed(RadioFailure.LINK_CLOSED)
-        written += bytes
-        mutableWrites += air.clock.wallClockMillis() to bytes.copyOf()
+        air.onWrite(local, bytes)
+        if (air.recording) {
+            written += bytes
+            mutableWrites += air.clock.wallClockMillis() to bytes.copyOf()
+        }
         val target = connection.oppositeOf(this)
         val chunkMax = attMtu - RadioPort.ATT_HEADER
         val received = CompletableDeferred<Unit>()

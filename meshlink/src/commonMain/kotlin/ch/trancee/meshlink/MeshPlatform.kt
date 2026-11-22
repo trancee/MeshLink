@@ -2,6 +2,8 @@
 
 package ch.trancee.meshlink
 
+import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.PlatformPort
 import kotlin.experimental.ExperimentalObjCRefinement
 import kotlin.native.HiddenFromObjC
@@ -26,6 +28,7 @@ public annotation class InternalMeshLinkApi
  */
 public class MeshPlatform internal constructor(
     internal val port: PlatformPort,
+    internal val crypto: CryptoProvider = SodiumCryptoProvider,
 ) {
     /** Holds the platform factories, such as `MeshPlatform.ios()`. */
     public companion object {
@@ -33,5 +36,13 @@ public class MeshPlatform internal constructor(
         @InternalMeshLinkApi
         @HiddenFromObjC
         public fun of(port: PlatformPort): MeshPlatform = MeshPlatform(port)
+
+        /** A platform around [port] whose nodes draw keys and nonces from [crypto]; for replayable tests. */
+        @InternalMeshLinkApi
+        @HiddenFromObjC
+        public fun of(
+            port: PlatformPort,
+            crypto: CryptoProvider,
+        ): MeshPlatform = MeshPlatform(port, crypto)
     }
 }
