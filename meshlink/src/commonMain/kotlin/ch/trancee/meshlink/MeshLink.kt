@@ -315,10 +315,9 @@ public class MeshLink private constructor(
     private suspend fun watch() {
         var written: MeshState = MeshState.Starting
         try {
-            combine(port.requirements, RadioRegistry.holders, ::Pair)
-                .map { (missing, holders) ->
-                    val holder = holders[port]
-                    val holding = holder === this || (holder == null && RadioRegistry.tryAcquire(port, this, holders))
+            combine(port.requirements, RadioRegistry.holder(port), ::Pair)
+                .map { (missing, holder) ->
+                    val holding = holder === this || (holder == null && RadioRegistry.tryAcquire(port, this))
                     val blockers = if (holding) missing else missing + Requirement.RadioInUse
                     val next = if (blockers.isEmpty()) MeshState.Running else MeshState.Blocked(blockers)
                     mutableState.compareAndSet(written, next)
