@@ -32,6 +32,7 @@ internal val acceptanceSteps =
         lifecycleSteps()
         discoverySteps()
         linkSteps()
+        meshDeliverySteps()
     }
 
 @OptIn(ExperimentalCoroutinesApi::class)

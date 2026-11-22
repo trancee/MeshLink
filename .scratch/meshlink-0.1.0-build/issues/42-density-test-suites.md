@@ -26,13 +26,13 @@ Two seeded `VirtualAir` suites guard routing against regressions. A failure is a
 
 ## Acceptance criteria
 
-- [ ] The agent maps the simulator's link capacity, mobility and cell definitions onto `VirtualAir`, picks the scheduled cells and seeds, and records the mapping and any gap in the PR. Bands are copied from the evidence, never tuned to pass.
-- [ ] The pull-request suite has at least one seeded scenario per covered behavior, including a line, a star, a 12-node random mesh and a churn run that drops and restores links. Each asserts delivery within lifetime, exactly once and intact.
-- [ ] Every test has a timeout; nothing retries (ADR 0017 decision 13). Each test is deterministic: two runs with one seed give identical traces.
-- [ ] The PR states the suite's measured wall time and shows the pull-request tier still fits within 15 min.
-- [ ] The scheduled job runs `./gradlew :meshlink-testing:densityTest`, a Gradle task outside `check`, on the Android host-test runtime of `:meshlink-testing`. The job is not required and publishes per-cell results with n. The PR adds the command to the spine's proof-command table (Constitution O1).
-- [ ] One scheduled run passes every band. Its results are attached to the PR.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] The agent maps the simulator's link capacity, mobility and cell definitions onto `VirtualAir`, picks the scheduled cells and seeds, and records the mapping and any gap in the PR. Bands are copied from the evidence, never tuned to pass.
+- [x] The pull-request suite has at least one seeded scenario per covered behavior, including a line, a star, a 12-node random mesh and a churn run that drops and restores links. Each asserts delivery within lifetime, exactly once and intact.
+- [x] Every test has a timeout; nothing retries (ADR 0017 decision 13). Each test is deterministic: two runs with one seed give identical traces.
+- [x] The PR states the suite's measured wall time and shows the pull-request tier still fits within 15 min.
+- [x] The scheduled job runs `./gradlew :meshlink-testing:densityTest`, a Gradle task outside `check`, on the Android host-test runtime of `:meshlink-testing`. The job is not required and publishes per-cell results with n. The PR adds the command to the spine's proof-command table (Constitution O1).
+- [ ] One scheduled run passes every band. Its results are attached to the PR. Moved to [ticket 42b](42b-density-bands-pass.md) (owner decision): without delivery receipts (ticket 47), origin retries push the busiest node of the low and medium cells over 4,700 B/s; every other band passes.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 

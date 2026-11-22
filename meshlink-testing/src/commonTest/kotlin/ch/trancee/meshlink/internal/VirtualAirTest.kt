@@ -241,6 +241,28 @@ class VirtualAirTest {
         }
 
     @Test
+    fun anUnrecordedAirKeepsNoCopiesOfWritesButTapsEachWithItsWriter() =
+        runTest {
+            // Arrange
+            val air = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1), recording = false)
+            val tapped = mutableListOf<Pair<VirtualRadio, List<Byte>>>()
+            air.onWrite = { radio, bytes -> tapped += radio to bytes.toList() }
+            val pair = linked(air, coc = true)
+            val channel = pair.link.openChannel(pair.peripheral.listenForChannels().ok()).ok()
+
+            // Act
+            pair.link.write(PAYLOAD_A).ok()
+            channel.write(PAYLOAD_B).ok()
+
+            // Assert
+            val link = pair.link as VirtualLinkEnd
+            assertEquals(listOf(pair.central to PAYLOAD_A.toList(), pair.central to PAYLOAD_B.toList()), tapped)
+            assertEquals(0, link.written.size)
+            assertEquals(emptyList(), link.writes)
+            assertEquals(0, (channel as VirtualChannelEnd).written.size)
+        }
+
+    @Test
     fun aChannelOpensOnlyToAListeningPeripheralAtItsPsm() =
         runTest {
             val air = air()

@@ -207,6 +207,15 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - The host test loads the main classes from AGP's `classes.jar`, not a directory; walking a directory found nothing and the test passed vacuously, so it now asserts that it finds decoders.
 - `testAndroidHostTest` is registered after the build script runs; `tasks.named` fails there, so the fuzz task reaches it through `tasks.withType<Test>().matching`.
 
+## Density suites
+
+- Code: `meshlink-testing/src/commonTest/kotlin/ch/trancee/meshlink/internal/` (`VirtualMesh`, `SeededCrypto`, `ReplayTest`, `MeshDeliverySteps`), `meshlink-testing/src/androidHostTest/kotlin/ch/trancee/meshlink/internal/` (`DensityCell`, `DensityCellTest`), `.github/workflows/density.yml`.
+- Recorded writes grow with every byte sent, which a 200-node, 17 min cell can't afford: the cells build `VirtualMesh(recording = false)`, which keeps no `written` copies, and count bytes through `VirtualAir.onWrite` (2026-11-22).
+- Writes are a byte stream: a record's 2-byte length prefix starts a record, but one record spans several writes and one write can end mid-record. Classify frames by reading `RecordReader().read(end.written)` per link end with recording on, never per write (2026-11-22).
+- Origin retries dominate the busiest node at low and medium density. One origin wrote one `MESSAGE` body 228 times in 15 min: [origin behavior](../spec/routing.md#origin-behavior) resends with backoff until expiry and on every new link, and at low density each resend floods. The routing simulator stopped on the first receipt, so its byte bands assume receipts (ticket 47, then 42b) (2026-11-22).
+- With `-q`, `densityTest` hides the cell log; read `meshlink-testing/build/density/<cell>.md` or `build/test-results/densityTest/*.xml`, and check its timestamp, since an earlier run's results stay in place (2026-11-22).
+- Inside `build.gradle.kts`, `java.time.Duration` resolves `java` to the `java` extension; import `java.time.Duration` at the top. `testAndroidHostTest` is reached through `tasks.withType<Test>().matching`, as for fuzzing (2026-11-22).
+
 ## Rust reference
 
 - Code: `tools/reference/` (test-only crate, Rust 1.100.0 from its `rust-toolchain.toml`); writes the tier 2 files in `docs/spec/vectors/`.

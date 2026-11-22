@@ -2,7 +2,6 @@
 
 package ch.trancee.meshlink
 
-import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.Discovery
@@ -378,7 +377,7 @@ public class MeshLink private constructor(
         public fun create(
             config: MeshLinkConfig,
             platform: MeshPlatform,
-        ): MeshLink = MeshLink(config, platform.port, SodiumCryptoProvider)
+        ): MeshLink = MeshLink(config, platform.port, platform.crypto)
     }
 }
 

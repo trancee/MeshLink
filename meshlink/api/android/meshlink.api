@@ -128,6 +128,7 @@ public final class ch/trancee/meshlink/MeshPlatform {
 
 public final class ch/trancee/meshlink/MeshPlatform$Companion {
 	public final fun of (Lch/trancee/meshlink/internal/PlatformPort;)Lch/trancee/meshlink/MeshPlatform;
+	public final fun of (Lch/trancee/meshlink/internal/PlatformPort;Lch/trancee/meshlink/internal/CryptoProvider;)Lch/trancee/meshlink/MeshPlatform;
 }
 
 public final class ch/trancee/meshlink/MeshPlatform_androidKt {

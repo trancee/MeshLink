@@ -429,6 +429,7 @@ final class ch.trancee.meshlink/MeshLinkConfigBuilder { // ch.trancee.meshlink/M
 final class ch.trancee.meshlink/MeshPlatform { // ch.trancee.meshlink/MeshPlatform|null[0]
     final object Companion { // ch.trancee.meshlink/MeshPlatform.Companion|null[0]
         final fun of(ch.trancee.meshlink.internal/PlatformPort): ch.trancee.meshlink/MeshPlatform // ch.trancee.meshlink/MeshPlatform.Companion.of|of(ch.trancee.meshlink.internal.PlatformPort){}[0]
+        final fun of(ch.trancee.meshlink.internal/PlatformPort, ch.trancee.meshlink.internal/CryptoProvider): ch.trancee.meshlink/MeshPlatform // ch.trancee.meshlink/MeshPlatform.Companion.of|of(ch.trancee.meshlink.internal.PlatformPort;ch.trancee.meshlink.internal.CryptoProvider){}[0]
     }
 }
 

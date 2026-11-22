@@ -1,0 +1,55 @@
+# Large seeded density meshes (ticket 42; ADR 0017 decisions 11 and 12). Scheduled and not a
+# required check. One job per cell runs its 5 seeds and fails on any band the pooled cell misses;
+# every job uploads its build/density/<cell>.{json,md} and adds its row to the run summary.
+name: Density
+
+on:
+  schedule:
+    - cron: "41 3 * * 6" # weekly, Saturday 03:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: density-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cell:
+    name: Density cell ${{ matrix.cell }} (scheduled, not required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        cell: [n50-low, n50-medium, n100-low, n100-medium, n100-high, n200-low, n200-medium, n200-high]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+      # Auto-download is off; point Gradle at the image's JDK 21 (toolchain) and JDK 25 (daemon).
+      - name: Use the image's JDKs
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64" >> ~/.gradle/gradle.properties
+          echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+      - run: ./gradlew :meshlink-testing:densityTest -Pdensity.cells=${{ matrix.cell }}
+      - name: Summarize the cell
+        if: always()
+        run: |
+          {
+            echo "| Cell | Unicast low | medium | high | Broadcast low | medium | high | Idle control | Busiest B/s | Wall | Verdict |"
+            echo "|---|---|---|---|---|---|---|---|---|---|---|"
+            cat meshlink-testing/build/density/*.md 2>/dev/null || echo "| ${{ matrix.cell }} | no result | | | | | | | | | **fail** |"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the cell results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: density-${{ matrix.cell }}
+          path: meshlink-testing/build/density/
+          if-no-files-found: ignore

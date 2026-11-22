@@ -123,6 +123,7 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Thin-adapter list (also in `check`) | `./gradlew checkThinAdapters` |
 | Fuzz every decoder for 30 s each (not in `check`; `-Pfuzz.seconds=N` per target); crash inputs land in `meshlink-core/build/fuzz/crashes/` | `./gradlew :meshlink-core:fuzz` |
 | Reseed and minimize the committed fuzz corpus from the vector files | `python3 tools/fuzz/seed_corpus.py build/fuzz-seeds && ./gradlew :meshlink-core:fuzz -Pfuzz.seeds=build/fuzz-seeds` |
+| Scheduled density cells (not in `check`; 90 min timeout; 8 GiB heap). `-Pdensity.cells` takes a comma list of `n50-low`, `n50-medium`, `n100-low`, `n100-medium`, `n100-high`, `n200-low`, `n200-medium`, `n200-high` (default all), `-Pdensity.seeds` a comma list of seeds (default `1,2,3,4,5`); results land in `meshlink-testing/build/density/` | `./gradlew :meshlink-testing:densityTest -Pdensity.cells=n50-low -Pdensity.seeds=1` |
 | Lab tools' unit tests (also in `docs.yml`) | `python3 -m unittest discover -s tools/lab/tests` |
 | One device scenario on two lab phones, from a dedicated clean worktree; `--profile` is `unsecured` (default), `classical` (needs ticket 24) or `post-quantum` (needs ticket 25) | `python3 tools/lab/lab.py run --scenario direct-message --devices <alias>,<alias> --profile unsecured` |
 | Turn runs into one T9 evidence record (repeat `--run`; several runs need `--name`) | `python3 tools/lab/lab.py evidence --run build/lab/<run> [--name <name>]` |
@@ -148,6 +149,7 @@ The `buildSodiumJni<Target>` tasks link `meshlink-crypto-sodium/native/meshlink_
 | iOS simulator tests and SwiftPM consumer (macOS) | `ubuntu-24.04` | Require success of all Apple phases | Yes |
 | Reference vectors (`reference-vectors.yml`, scheduled, not required) | `ubuntu-24.04` | `rustup toolchain install`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked`, `cargo run --locked`, diff `docs/spec/vectors/` | No; weekly and on manual dispatch |
 | Fuzz (`fuzz.yml`, scheduled, not required) | `ubuntu-24.04` | `./gradlew :meshlink-core:fuzz` with 300 s per target; 15 s on a pull request that changes the fuzz targets, corpus, `meshlink-core/build.gradle.kts`, `tools/fuzz/` or the workflow; uploads `meshlink-core/build/fuzz/crashes/` on failure | No; weekly, on manual dispatch and on those pull requests |
+| Density (`density.yml`, scheduled, not required) | `ubuntu-24.04` | `./gradlew :meshlink-testing:densityTest -Pdensity.cells=<cell>`, one job per cell with a 100 min timeout; writes a step-summary row per cell and uploads `meshlink-testing/build/density/` | No; weekly and on manual dispatch |
 
 On GitHub's runners, the Apple phases restore `~/.konan/dependencies` by runner OS, architecture, Xcode, Kotlin version and phase, falling back to another phase with the same toolchain; only `main` saves it. Libsodium cache restore falls back across version-catalog changes only when the pin, build script and toolchain match; the per-target stamp still checks the tarball, script and target toolchain before reuse. The SwiftPM script prints separate framework-build and simulator-test times.
 
