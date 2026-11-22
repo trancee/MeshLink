@@ -58,7 +58,9 @@ jobs:
           key: libsodium-v2-density-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: |
             libsodium-v2-density-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-
-      - run: ./gradlew :meshlink-testing:compileAndroidHostTest :meshlink-crypto-sodium:buildLibsodiumLinuxX8664
+      # densityTest reuses this task's classpath and JVM agents (Kover's included), so running it
+      # resolves everything a seed job needs; compiling alone left the Kover agent to 40 jobs.
+      - run: ./gradlew :meshlink-testing:testAndroidHostTest :meshlink-crypto-sodium:buildLibsodiumLinuxX8664
 
   seed:
     name: Density ${{ matrix.cell }} seed ${{ matrix.seed }} (scheduled, not required)
