@@ -1,7 +1,7 @@
 # Maintain the Fedora runners
 
 The three repository-scoped Linux runners use the `gh-runner` account and the
-`meshlink-linux` and `YOGA` labels. They have separate runner and work directories under
+`YOGA` label. They have separate runner and work directories under
 `/home/gh-runner`, but share the account, SDK and Gradle home. They can run
 three jobs at once; they do not form a pool with runners registered to other
 repositories.

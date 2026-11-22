@@ -22,7 +22,7 @@ class RequireAppleJobsTest(unittest.TestCase):
 
         self.assertIn(
             f"runs-on: ${{{{ {fork} && 'ubuntu-24.04'"
-            " || fromJSON('[\"self-hosted\",\"Linux\",\"X64\",\"meshlink-linux\"]') }}",
+            " || fromJSON('[\"self-hosted\",\"Linux\",\"X64\",\"YOGA\"]') }}",
             linux,
         )
         self.assertIn(
