@@ -1,8 +1,8 @@
 # Large seeded density meshes (ticket 42; ADR 0017 decisions 11 and 12). Scheduled and not a
 # required check. The warm job resolves the dependencies and builds libsodium once and saves both
 # caches, so 40 cold jobs never hit Maven Central at once (HTTP 429). One job per cell and seed then
-# records that seed's run without checking bands (a 200-node seed takes 20-41 min on a hosted
-# runner); the pool job pools each cell's seeds,
+# records that seed's run without checking bands (a 200-node seed alone takes up to 20 min on a
+# hosted runner, five in one job up to 41); the pool job pools each cell's seeds,
 # fails on any band a pooled cell misses, writes the run summary and uploads density-report.
 name: Density
 
