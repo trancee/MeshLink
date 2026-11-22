@@ -9,6 +9,7 @@ Blocked by: 42, 47
 Split from ticket 42 (owner decision). Ticket 42's scheduled suite enforces every band of the routing simulation, and one run must pass all of them.
 
 - **Measured miss (seed 1, ticket 42):** every cell delivered at least 99% of unicast and broadcast recipients (n100-high 342 of 343 unicast), but the busiest node wrote 6,756 B/s at n50-low and 6,226 B/s at n100-medium, against a band of 4,700 B/s. n100-high passed at 2,345 B/s.
+- **Scheduled run, 5 seeds ([run 45047999300](https://github.com/trancee/MeshLink/actions/runs/45047999300)):** every cell meets the delivery and idle-control bands, and n50-medium (3,720 B/s) and n100-high (2,506 B/s) pass. The busiest node, max over seeds, wrote 6,756 B/s at n50-low, 13,419 at n100-low, 6,763 at n100-medium, 24,132 at n200-low, 13,036 at n200-medium and 4,987 at n200-high.
 - **Cause:** 96% of the busiest node's bytes were `MESSAGE` frames, 15,244 frames for 1,517 distinct bodies; one origin wrote one body 228 times. [Origin behavior](../../../docs/spec/routing.md#origin-behavior) resends with backoff until expiry and on every new link, and at low density every resend floods. The routing simulator, whose bands the suite copies, stopped resending at the first receipt.
 - **Expected fix:** delivery receipts (ticket 47) end resends. If a run still misses a band after 47, the cause goes to the owner before any rule changes; the bands are never tuned.
 

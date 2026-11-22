@@ -160,6 +160,7 @@ Exit: routed unicast and broadcast (signed in secured profiles) cross multi-hop 
 | 42 | [Test routing at every density](issues/42-density-test-suites.md) | AFK | 38, 41, 42a |
 | 42a | [Learn reverse routes only from first copies](issues/42a-reverse-route-loops.md) | AFK | 37 |
 | 42b | [Pass every scheduled density band](issues/42b-density-bands-pass.md) | AFK | 42, 47 |
+| 42c | [Keep a seed's results identical when seeds run concurrently](issues/42c-concurrent-seed-determinism.md) | AFK | 42 |
 | 43 | [Prove a forced 3-hop line on real phones](issues/43-mesh-line-device-proof.md) | HITL | 33, 42 |
 
 ### M6 End-to-end

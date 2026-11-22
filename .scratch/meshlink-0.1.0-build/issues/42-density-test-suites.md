@@ -1,6 +1,6 @@
 # Test routing at every density
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 38, 41, 42a
 
@@ -16,6 +16,12 @@ Two seeded `VirtualAir` suites guard routing against regressions. A failure is a
   - the busiest node sends at most 4,700 B/s of routing bytes;
   - a delivery criterion applies to a sub-population only with at least 100 messages pooled over 5 seeds; smaller ones are reported with n.
 - The energy band (+3 mW) needs the simulator's energy model, which `VirtualAir` lacks. It stays out; ADR 0017 decision 11 asks for delivery and airtime only.
+
+## Outcome
+
+- Shipped in [#115](https://github.com/trancee/MeshLink/pull/115) (`85e2e0e`); the scheduled workflow was fixed in [#117](https://github.com/trancee/MeshLink/pull/117) (`3fff2c8`): `minisign` and libsodium setup, a warm job that fills the Gradle and libsodium caches, one job per cell and seed, and a pool job that applies the bands.
+- [Run 45047999300](https://github.com/trancee/MeshLink/actions/runs/45047999300) (5 seeds per cell, 26 min): all 8 cells meet the delivery and idle-control bands; n50-medium and n100-high pass every band. The busiest-node band fails at n50-low (6,756 B/s), n100-low (13,419), n100-medium (6,763), n200-low (24,132), n200-medium (13,036) and n200-high (4,987); ticket 42b tracks it.
+- Seeds running concurrently in one JVM changed n200-high seed 1's busiest node (4,628 against 4,700 B/s alone); ticket 42c tracks the shared state.
 
 ## Spec and ADR references
 
