@@ -137,6 +137,7 @@ Exit: links rotate, fragment, flow-control, rekey and upgrade to L2CAP CoC where
 | 31 | [Upgrade links to L2CAP CoC with GATT fallback](issues/31-coc-bearer-switch.md) | AFK | 17, 29 |
 | 32 | [Apply the PHY policy, advertising and scanning rules](issues/32-phy-advertising-scanning.md) | AFK | 17, 27 |
 | 66 | [Run phones that can't advertise MESH as central-only nodes](issues/66-central-only-nodes.md) | AFK | 17 |
+| 67 | [Prototype mutation testing with mutflow and decide whether to adopt it](issues/67-mutation-testing.md) | HITL | |
 | 33 | [Prove the link layer on real phone pairs](issues/33-link-device-proof.md) | HITL | 30, 31, 32 |
 | 34 | [Fuzz every decoder on a schedule with Jazzer](issues/34-jazzer-fuzzing.md) | AFK | 28 |
 
