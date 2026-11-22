@@ -222,3 +222,8 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - `markdownlint-cli2 --fix` mangles URLs that contain `(` and rewrites table separators. Review its diff, never trust it blindly.
 - lychee's `include_fragments` must be a string (`"full"`).
 - silabs.com blocks all automated clients, and eprint.iacr.org answers only browser user agents. Both are excluded in `lychee.toml`.
+
+## Self-hosted CI runner
+
+- The Mac mini runner (`gh-runner`) shares the owner's JDKs and Android SDK (ADR 0017, 2026-11-21 amendment). After installing or updating an NDK, run `find <ndk> -type f -perm -u+x ! -perm -g+x -exec chmod g+x {} +`: the NDK ships owner-only executables, and `buildLibsodiumAndroid` then fails with "C compiler cannot create executables" (2026-11-21).
+- Never print the environment (`env`, `printenv`, `set`) in a workflow step: job logs are public. A runner started from a terminal leaked an API key that way; run it only as the `gh-runner` launchd service (2026-11-21).
