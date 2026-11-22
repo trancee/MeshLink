@@ -22,13 +22,14 @@ class RequireAppleJobsTest(unittest.TestCase):
 
         self.assertIn(
             f"runs-on: ${{{{ {fork} && 'ubuntu-24.04'"
-            " || fromJSON('[\"self-hosted\",\"Linux\",\"X64\",\"YOGA\"]') }}",
+            " || fromJSON('[\"self-hosted\",\"Linux\",\"X64\",\"linux-ci\"]') }}",
             linux,
         )
         self.assertIn(
             "name: Install minisign\n        if: runner.environment != 'self-hosted'",
             linux,
         )
+        self.assertIn("sha256sum /etc/os-release", linux)
 
     def test_required_check_aggregates_the_apple_matrix(self):
         workflow = WORKFLOW.read_text()

@@ -18,7 +18,7 @@ concurrency:
 jobs:
   linux:
     name: Gradle check and Dokka (Linux)
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","YOGA"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","linux-ci"]') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +51,9 @@ jobs:
             "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
       - id: libsodium-toolchain
-        run: echo "id=$(cc -dumpfullversion)" >> "$GITHUB_OUTPUT"
+        run: |
+          os=$(sha256sum /etc/os-release)
+          echo "id=$(cc -dumpfullversion)-${os%% *}" >> "$GITHUB_OUTPUT"
       - &libsodium-cache
         name: Cache the libsodium build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
