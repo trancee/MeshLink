@@ -14,6 +14,7 @@ MeshLink is in its design phase. No library code exists yet, so this page lists 
 | What each security profile guarantees | [Security profile guarantees](reference/security-profile-guarantees.md) |
 | What relays and neighbors learn from routing messages | [What each observer learns](reference/observer-exposure.md) |
 | Dependencies and tools, with their rationale | [Dependency register](reference/dependencies.md) |
+| Setting up the self-hosted macOS CI runner | [How-to](how-to/set-up-self-hosted-runner.md) |
 | Terms such as node, peer and security profile | [Glossary](../GLOSSARY.md) |
 | Engineering rules | [Constitution](../CONSTITUTION.md) and [Kotlin guidance](../KOTLIN.md) |
 | Reporting a vulnerability | [Security policy](../SECURITY.md) |
