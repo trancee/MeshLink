@@ -126,9 +126,9 @@ internal class Router(
         bytes: ByteArray,
     ) {
         val now = clock.monotonicMillis()
+        if (seen.has(frame.header.messageId, now)) return
         routes.learn(frame.header.sourceTag, peer, now)
-        if (seen.has(frame.header.messageId, now) || frame.header.hopLimit - 1 < 1) return
-        val relayed = relayed(peer, frame, bytes)
+        val relayed = if (frame.header.hopLimit > 1) relayed(peer, frame, bytes) else null
         val route = relayed?.let { routes.use(frame.header.destinationTag, now)?.peer }
         val targets =
             when {

@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 15 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 16 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built; 2026-11-20, reverse-route loops). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -216,3 +216,7 @@ Results for the v1 configuration:
 - **Routed peers (ADR 0007 decision 10):** an `Unsecured` node lists a node as `Routed(hops)` while it has an active discovered route to that node's tag for the current epoch or either next to it, for the last 1,024 nodes it sent to or heard from. `lastSeen` is the later of the last message from it and the reply that found the route. A direct link wins over a route. When the route expires the node leaves `peers`; the ticket's `Unreachable` state was dropped (owner decision).
 - **Secured profiles:** a secured node forwards requests and replies by their headers but neither originates nor answers them, until certificate lookup gives it routing tags that others can resolve (ADR 0018 decision 9).
 - **Malformed frames:** a `ROUTE_REQUEST` or `ROUTE_REPLY` that fails to decode is dropped without state change. Other flood types are dropped until broadcast lands.
+
+2026-11-20, reverse-route loops (ticket 42a; host simulation in `VirtualAir`):
+
+- **Reverse routes (decision 4, D-50):** a relay records a reverse route only from a unicast copy it doesn't drop as a duplicate within `unicast-seen-window`. Learning from every copy let later, longer flood copies point two relays at each other, and the seen window then dropped every retry between them: 50 static nodes at low density delivered 115 of 123 messages within their lifetime. With the rule they delivered all 123 (owner decision).

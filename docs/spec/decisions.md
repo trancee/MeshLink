@@ -353,6 +353,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** after its `BEARER_SWITCH` the central writes nothing more on GATT, so it can't send the grant a credited peripheral would wait for: crediting the peripheral's last GATT records, or its `BEARER_SWITCH`, could stall the switch forever. CoC setup took about 160–380 ms on top of GATT in the lab ([ADR 0009](../adr/0009-ble-bearers-and-phy-policy.md)); 5 s bounds a central that sent `BEARER_SWITCH` without a channel.
 - **Alternatives:** credit `BEARER_SWITCH` (can deadlock with no credits left); keep granting on GATT after the switch (the central no longer writes on GATT); fall back to GATT after a lost channel with the old cipher state (ADR 0009 forbids moving cipher state after a failure, C-07).
 
+### D-50 Reverse routes from duplicate copies
+
+- **Question:** may a relay learn a reverse route from a unicast copy it drops as a duplicate?
+- **Decision:** no. A relay drops a copy whose `message_id` it forwarded within `unicast-seen-window` before it records a reverse route, so only the first copy, normally over the shortest path, teaches the route to `source_tag`. A copy that passes the window still teaches its route even if its hop limit stops it there. Owner decision 2026-11-20 (ticket 42a).
+- **Evidence:** in seeded `VirtualAir` meshes of 50 static nodes at low density (mean 6 peers in range), learning from every copy let later, longer flood copies overwrite the first copy's reverse route. Two relays then pointed at each other for the destination, and the seen window dropped the frame between them on every retry: 115 of 123 messages arrived within their 30 min lifetime although sender and destination stayed linked over 6–12 hops. With this rule, 123 of 123 arrived, and every 100- and 200-node cell at low, medium and high density delivered every message. Never using routes at relays also delivered every message, but took 5× the wall time because every frame flooded.
+- **Alternatives:** relays never use routes for unicast (floods every frame; loses the point of routes in the medium and high classes); keep the latest copy's route but compare hop counts (the unicast header carries no hop count); a longer seen window (blocks the origin's retries, as D-29 notes).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

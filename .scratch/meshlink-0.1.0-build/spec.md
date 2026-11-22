@@ -157,7 +157,8 @@ Exit: routed unicast and broadcast (signed in secured profiles) cross multi-hop 
 | 39a | [Sign mesh broadcasts in secured profiles](issues/39a-signed-broadcast.md) | AFK | 39 |
 | 40 | [Spread broadcasts with Plumtree](issues/40-plumtree.md) | AFK | 39a |
 | 41 | [Catch up missed broadcasts after reconnecting](issues/41-catch-up.md) | AFK | 40 |
-| 42 | [Test routing at every density](issues/42-density-test-suites.md) | AFK | 38, 41 |
+| 42 | [Test routing at every density](issues/42-density-test-suites.md) | AFK | 38, 41, 42a |
+| 42a | [Learn reverse routes only from first copies](issues/42a-reverse-route-loops.md) | AFK | 37 |
 | 43 | [Prove a forced 3-hop line on real phones](issues/43-mesh-line-device-proof.md) | HITL | 33, 42 |
 
 ### M6 End-to-end
