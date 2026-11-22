@@ -1,6 +1,8 @@
 # Large seeded density meshes (ticket 42; ADR 0017 decisions 11 and 12). Scheduled and not a
-# required check. One job per cell and seed records that seed's run without checking bands (a
-# 200-node seed takes 20-41 min on a hosted runner); the pool job then pools each cell's seeds,
+# required check. The warm job resolves the dependencies and builds libsodium once and saves both
+# caches, so 40 cold jobs never hit Maven Central at once (HTTP 429). One job per cell and seed then
+# records that seed's run without checking bands (a 200-node seed takes 20-41 min on a hosted
+# runner); the pool job pools each cell's seeds,
 # fails on any band a pooled cell misses, writes the run summary and uploads density-report.
 name: Density
 
@@ -17,16 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  seed:
-    name: Density ${{ matrix.cell }} seed ${{ matrix.seed }} (scheduled, not required)
+  warm:
+    name: Density dependencies (scheduled, not required)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        # The 200-node cells first: about 20 jobs run at once and they take longest.
-        cell: [n200-low, n200-medium, n200-high, n100-low, n100-medium, n100-high, n50-low, n50-medium]
-        seed: [1, 2, 3, 4, 5]
+    timeout-minutes: 30
     steps:
       - &checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,6 +46,7 @@ jobs:
       - &libsodium-toolchain
         id: libsodium-toolchain
         run: echo "id=$(cc -dumpfullversion)" >> "$GITHUB_OUTPUT"
+      # One key for every job here (same image and compiler): the warm job builds, the rest restore.
       - &libsodium-cache
         name: Cache the libsodium build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -57,9 +54,29 @@ jobs:
           path: |
             meshlink-crypto-sodium/build/libsodium/download
             meshlink-crypto-sodium/build/libsodium/out
-          key: libsodium-v2-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          key: libsodium-v2-density-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: |
-            libsodium-v2-${{ github.job }}-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-
+            libsodium-v2-density-${{ steps.libsodium-toolchain.outputs.id }}-${{ hashFiles('meshlink-crypto-sodium/libsodium.properties', 'meshlink-crypto-sodium/native/build-libsodium.sh') }}-
+      - run: ./gradlew :meshlink-testing:compileAndroidHostTest :meshlink-crypto-sodium:buildLibsodiumLinuxX8664
+
+  seed:
+    name: Density ${{ matrix.cell }} seed ${{ matrix.seed }} (scheduled, not required)
+    needs: warm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # The 200-node cells first: about 20 jobs run at once and they take longest.
+        cell: [n200-low, n200-medium, n200-high, n100-low, n100-medium, n100-high, n50-low, n50-medium]
+        seed: [1, 2, 3, 4, 5]
+    steps:
+      - *checkout
+      - *setup-gradle
+      - *jdks
+      - *minisign
+      - *libsodium-toolchain
+      - *libsodium-cache
       - run: >-
           ./gradlew :meshlink-testing:densityTest -Pdensity.measureOnly=true
           -Pdensity.cells=${{ matrix.cell }} -Pdensity.seeds=${{ matrix.seed }}
