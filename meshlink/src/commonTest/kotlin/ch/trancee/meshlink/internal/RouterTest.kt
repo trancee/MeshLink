@@ -60,13 +60,14 @@ class RouterTest {
         runTest {
             // Arrange
             val router = router()
-            val frame = message(hopLimit = 5)
+            // Hop limit 2 is the lowest that is still forwarded.
+            val frame = message(hopLimit = 2)
 
             // Act
             router.received(a, frame)
 
             // Assert
-            val relayed = frame.copyOf().also { it[1] = 4 }
+            val relayed = frame.copyOf().also { it[1] = 1 }
             val waiting = waiting()
             assertEquals(emptyList(), waiting.getValue(a))
             listOf(b, c).forEach { assertContentEquals(relayed, waiting.getValue(it).single()) }
@@ -125,6 +126,22 @@ class RouterTest {
             // Assert
             assertTrue(within.values.all { it.isEmpty() })
             assertEquals(1, waiting().getValue(a).size)
+        }
+
+    @Test
+    fun aDuplicateCopyWithinTheSeenWindowTeachesNoReverseRoute() =
+        runTest {
+            // Arrange: the first copy came from A; a later copy over a longer path comes from B.
+            val router = router()
+            router.received(a, message(id = 1, source = tag(9), destination = tag(7)))
+            router.received(b, message(id = 1, source = tag(9), destination = tag(7)))
+            waiting()
+
+            // Act
+            router.received(c, message(id = 2, destination = tag(9)))
+
+            // Assert
+            assertEquals(listOf(1, 0, 0), waiting().values.map { it.size })
         }
 
     @Test

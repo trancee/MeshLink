@@ -32,6 +32,7 @@ internal fun StepsBuilder.topologySteps() {
     val nodes = mutableListOf<MeshLink>()
     val platforms = mutableListOf<VirtualPlatform>()
     val inboxes = List(3) { mutableListOf<ReceivedMessage>() }
+    val aliceInbox = mutableListOf<ReceivedMessage>()
 
     after {
         nodes.forEach { it.close() }
@@ -84,6 +85,19 @@ internal fun StepsBuilder.topologySteps() {
         )
     }
 
+    // Bob and Carol each hear the other's copy of a flooded frame, so either could learn a route through the other.
+    given("Alice, Bob, Carol and Dave are running with Bob and Carol linked to each other and to both ends") {
+        createTopology(
+            listOf(0.0 to 0.0, 20.0 to -12.0, 20.0 to 12.0, 40.0 to 0.0),
+            listOf(listOf(1, 2), listOf(0, 2, 3), listOf(0, 1, 3), listOf(1, 2)),
+        )
+    }
+
+    given("Alice is collecting messages") {
+        scope.backgroundScope.launch { nodes[0].messages.collect { aliceInbox += it } }
+        scope.testScheduler.runCurrent()
+    }
+
     given("Bob, Carol and Dave are collecting messages") {
         nodes.drop(1).forEachIndexed { index, node ->
             scope.backgroundScope.launch { node.messages.collect { inboxes[index] += it } }
@@ -109,6 +123,18 @@ internal fun StepsBuilder.topologySteps() {
             assertIs<SendResult.Accepted>(nodes[0].send(daveId, payload.encodeToByteArray()))
             scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
             assertEquals(listOf(payload), inboxes[2].map { it.payload.decodeToString() })
+        }
+
+        given("Dave has sent {string} to Alice through the mesh") { payload: String ->
+            assertIs<SendResult.Accepted>(nodes[3].send(aliceId, payload.encodeToByteArray()))
+            scope.testScheduler.advanceTimeBy(REPLY_DELAY_MILLIS)
+            assertEquals(listOf(payload), aliceInbox.map { it.payload.decodeToString() })
+        }
+
+        whenever("Alice replies {string} to the sender of {string}") { reply: String, payload: String ->
+            val sender = aliceInbox.single { it.payload.decodeToString() == payload }.sender
+            assertIs<SendResult.Accepted>(nodes[0].send(sender, reply.encodeToByteArray()))
+            scope.testScheduler.advanceTimeBy(TOPOLOGY_SETTLE_MILLIS)
         }
 
         whenever("Bob leaves and Carol and Dave move closer") {
@@ -211,3 +237,6 @@ internal fun StepsBuilder.topologySteps() {
 }
 
 private const val TOPOLOGY_SETTLE_MILLIS = 60_000L
+
+// Within reverse-route-timeout (6 s), so the reply finds the reverse routes the first message taught.
+private const val REPLY_DELAY_MILLIS = 1_000L

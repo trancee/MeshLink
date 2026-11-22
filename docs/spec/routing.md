@@ -87,13 +87,13 @@ Total: 18 B.
 
 ## Unicast forwarding
 
-(ADR 0008 decisions 3 to 5 and amendments; ADR 0013 amendment to ADR 0008; [D-29].)
+(ADR 0008 decisions 3 to 5 and amendments; ADR 0013 amendment to ADR 0008; [D-29]; [D-50].)
 
 When a node receives a unicast frame:
 
 1. If `destination_tag` is one of its own tags, it processes the frame. It does not forward it.
-2. Otherwise, it records or refreshes a route to `source_tag` through the incoming link (a reverse route, `reverse-route-timeout`).
-3. If it forwarded the same `message_id` within the last `unicast-seen-window`, it drops the frame.
+2. Otherwise, if it forwarded the same `message_id` within the last `unicast-seen-window`, it drops the frame. A dropped copy teaches no route.
+3. Otherwise, it records or refreshes a route to `source_tag` through the incoming link (a reverse route, `reverse-route-timeout`).
 4. If it has an active route to `destination_tag`, it forwards on that link only, and refreshes that route.
 5. Otherwise, if the frame is small, it forwards on every other link (flooding, bounded by the hop limit). It MAY also hold the frame ([Holding](#holding)).
 6. A large frame without a route is dropped.

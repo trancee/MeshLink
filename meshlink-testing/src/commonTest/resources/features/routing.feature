@@ -27,3 +27,12 @@ Feature: Routed messages
     And Alice sends "After" to Dave through the mesh
     Then Dave receives "Before" and "After" from Alice once each
     And Alice, Carol and Dave have links only to their new neighbors
+
+  Scenario: A reply reaches the sender when relays also hear each other's copies
+    Given Alice, Bob, Carol and Dave are running with Bob and Carol linked to each other and to both ends
+    And Bob, Carol and Dave are collecting messages
+    And Alice is collecting messages
+    And Dave has sent "Ping" to Alice through the mesh
+    When Alice replies "Pong" to the sender of "Ping"
+    Then Dave receives the direct message "Pong" from Alice once
+    And Bob and Carol receive no direct messages
