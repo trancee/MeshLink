@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 11 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps; 2026-11-16, Rust reference; 2026-11-21, self-hosted runner).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 12 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps; 2026-11-16, Rust reference; 2026-11-21, self-hosted runner; 2026-11-22, Fedora runners).
 
 ## Context
 
@@ -251,3 +251,9 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **Preview job removed:** the weekly, non-required `xcode-27` job and its schedule are deleted, because the required phases now build with Xcode 27.2. The 2026-11-13 rejection of "every job on the `xcode-27` preview image" stands: the required phases use the self-hosted Mac, not that image.
 - **JDKs and Android SDK:** the runner's `.env` sets the hosted image's variable names, `JAVA_HOME_21_arm64`, `JAVA_HOME_25_arm64` and `ANDROID_HOME`, so the workflow has no machine paths; the workflow checks both JDKs and installs the catalog's NDK only when it is missing.
 - **Release workflow (ADR 0019 decision 7):** unchanged; it doesn't exist yet and stays planned for `macos-26`.
+
+2026-11-22, Fedora runners (owner request: run Linux CI on two hosts):
+
+- **Linux CI:** pushes, same-repository PRs and dispatches use the Fedora runners; fork PRs select `ubuntu-24.04`. The runner account supplies JDK 21 and 25, `minisign`, Android SDK platform 37.0 and the catalog's NDK. The hosted job installs `minisign`; either runner installs the pinned NDK only if missing.
+- **Cache:** each self-hosted account retains its Gradle home and skips the Gradle Actions cache; GitHub-hosted jobs keep it. The libsodium Actions cache stays enabled; its Linux key includes the compiler version and OS release so Fedora 44, Fedora 45 and Ubuntu do not share native outputs.
+- **Alternatives and risk:** GitHub-hosted Linux avoids persistent-host exposure; Fedora's system packages and shared SDK require separate maintenance. The security decision and migration are in [ADR 0017](0017-testing-architecture.md).
