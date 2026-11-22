@@ -16,6 +16,20 @@ def run_gate(status):
 
 
 class RequireAppleJobsTest(unittest.TestCase):
+    def test_linux_build_uses_self_hosted_runner_except_for_forks(self):
+        linux = re.search(r"(?ms)^  linux:\n(.*?)(?=^  apple:)", WORKFLOW.read_text()).group(1)
+        fork = "github.event.pull_request.head.repo.fork"
+
+        self.assertIn(
+            f"runs-on: ${{{{ {fork} && 'ubuntu-24.04'"
+            " || fromJSON('[\"self-hosted\",\"Linux\",\"X64\",\"meshlink-linux\"]') }}",
+            linux,
+        )
+        self.assertIn(
+            "name: Install minisign\n        if: runner.environment != 'self-hosted'",
+            linux,
+        )
+
     def test_required_check_aggregates_the_apple_matrix(self):
         workflow = WORKFLOW.read_text()
         apple = re.search(r"(?ms)^  apple:\n(.*?)(?=^  macos:)", workflow)
