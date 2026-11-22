@@ -90,7 +90,9 @@ internal class SeedRun(
     val rejected: Int,
     val idleControlShare: Double,
     val busiestBytesPerSecond: Double,
-)
+) {
+    companion object
+}
 
 /** A message the run sent: [to] is -1 for a broadcast; [recipients] could reach it at send time. */
 private class CellMessage(

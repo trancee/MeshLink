@@ -32,7 +32,9 @@ cucumberKmp {
 
 // The scheduled density suite (ADR 0017 decision 11, ticket 42): not part of check. It runs the
 // DensityCellTest of the Android host tests alone, cell by cell; `-Pdensity.cells=n200-high,n50-low`
-// and `-Pdensity.seeds=1,2` narrow it, and each cell writes build/density/<cell>.{json,md}.
+// and `-Pdensity.seeds=1,2` narrow it; each cell writes build/density/<cell>.{json,md} and each seed
+// <cell>-seed<N>.run. `-Pdensity.pool=DIR` runs no mesh and pools the .run files under DIR instead;
+// `-Pdensity.measureOnly` writes the reports without checking the bands (the per-seed CI jobs).
 tasks.withType<Test>().matching { it.name == "testAndroidHostTest" }.configureEach {
     filter { excludeTestsMatching("*DensityCellTest") }
 }
@@ -54,5 +56,7 @@ tasks.register<Test>("densityTest") {
     systemProperty("density.out", out.get().asFile.path)
     providers.gradleProperty("density.cells").orNull?.let { systemProperty("density.cells", it) }
     providers.gradleProperty("density.seeds").orNull?.let { systemProperty("density.seeds", it) }
+    providers.gradleProperty("density.pool").orNull?.let { systemProperty("density.pool", file(it).path) }
+    providers.gradleProperty("density.measureOnly").orNull?.let { systemProperty("density.measureOnly", it) }
     testLogging { showStandardStreams = true }
 }

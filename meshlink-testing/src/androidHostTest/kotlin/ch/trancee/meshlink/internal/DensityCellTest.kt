@@ -6,26 +6,51 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * The scheduled density suite (ADR 0017 decision 11): each cell, over each seed, must meet the routing
+ * The scheduled density suite (ADR 0017 decision 11): each cell, pooled over its seeds, must meet the routing
  * simulation's delivery and airtime bands. Runs only through `./gradlew :meshlink-testing:densityTest`;
  * `-Pdensity.cells=n200-high` and `-Pdensity.seeds=1,2` narrow it. A cell's seeds share nothing, so they run
- * on parallel threads: five 200-node seeds in sequence would take longer than the task's 90 min timeout.
+ * on parallel threads. Every seed also writes `<cell>-seed<N>.run`; `-Pdensity.pool=DIR` runs nothing and
+ * instead pools every such file under DIR, so CI can run each seed in its own job. `-Pdensity.measureOnly`
+ * writes the reports but leaves the bands to the pooling run.
  */
 class DensityCellTest {
     @Test
     fun everyCellMeetsTheRoutingBands() {
-        val cells = System.getProperty("density.cells")?.split(',')?.map(Cell::labeled) ?: Cell.entries
-        val seeds = System.getProperty("density.seeds")?.split(',')?.map { it.trim().toLong() } ?: DEFAULT_SEEDS
         val out = File(System.getProperty("density.out") ?: "build/density").apply { mkdirs() }
+        val pool = System.getProperty("density.pool")
+        val runs = if (pool == null) runCells(out) else pooled(File(pool))
+        check(runs.isNotEmpty()) { "no seed runs to pool under $pool" }
         val misses =
-            cells.flatMap { cell ->
-                val report = CellReport(cell, inParallel(seeds) { runCell(cell, it) })
+            runs.map { (cell, seedRuns) ->
+                val report = CellReport(cell, seedRuns.sortedBy { it.seed })
                 File(out, "${cell.label}.json").writeText(report.json())
                 File(out, "${cell.label}.md").writeText(report.markdown())
                 report.misses
             }
-        assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+        if (System.getProperty("density.measureOnly") == null) {
+            assertTrue(misses.flatten().isEmpty(), misses.flatten().joinToString("\n"))
+        }
     }
+
+    private fun runCells(out: File): List<Pair<Cell, List<SeedRun>>> {
+        val cells = System.getProperty("density.cells")?.split(',')?.map(Cell::labeled) ?: Cell.entries
+        val seeds = System.getProperty("density.seeds")?.split(',')?.map { it.trim().toLong() } ?: DEFAULT_SEEDS
+        return cells.map { cell ->
+            cell to
+                inParallel(seeds) { seed ->
+                    runCell(cell, seed).also { File(out, "${cell.label}-seed$seed.run").writeText(it.encode(cell)) }
+                }
+        }
+    }
+
+    private fun pooled(dir: File): List<Pair<Cell, List<SeedRun>>> =
+        dir
+            .walk()
+            .filter { it.isFile && it.name.endsWith(".run") }
+            .map { SeedRun.decode(it.readText()) }
+            .groupBy({ it.first }, { it.second })
+            .toList()
+            .sortedBy { it.first.ordinal }
 
     private fun <T, R> inParallel(
         items: List<T>,
@@ -42,6 +67,37 @@ class DensityCellTest {
     private companion object {
         val DEFAULT_SEEDS = listOf(1L, 2L, 3L, 4L, 5L)
     }
+}
+
+/** One line of `key=value` fields; tallies list recipients, delivered and duplicates per class. */
+internal fun SeedRun.encode(cell: Cell): String {
+    fun tally(t: Tally) = listOf(t.recipients, t.delivered, t.duplicates).joinToString("/") { it.joinToString(",") }
+    return "cell=${cell.label} seed=$seed wallMillis=$wallMillis rejected=$rejected idle=$idleControlShare " +
+        "busiest=$busiestBytesPerSecond unicast=${tally(unicast)} broadcast=${tally(broadcast)}\n"
+}
+
+/** Reads a line [encode] wrote. */
+internal fun SeedRun.Companion.decode(text: String): Pair<Cell, SeedRun> {
+    val fields = text.trim().split(' ').associate { it.substringBefore('=') to it.substringAfter('=') }
+
+    fun tally(value: String): Tally {
+        val (recipients, delivered, duplicates) = value.split('/').map { part -> part.split(',').map(String::toInt) }
+        return Tally().apply {
+            recipients.forEachIndexed { i, n -> this.recipients[i] = n }
+            delivered.forEachIndexed { i, n -> this.delivered[i] = n }
+            duplicates.forEachIndexed { i, n -> this.duplicates[i] = n }
+        }
+    }
+    return Cell.labeled(fields.getValue("cell")) to
+        SeedRun(
+            seed = fields.getValue("seed").toLong(),
+            wallMillis = fields.getValue("wallMillis").toLong(),
+            unicast = tally(fields.getValue("unicast")),
+            broadcast = tally(fields.getValue("broadcast")),
+            rejected = fields.getValue("rejected").toInt(),
+            idleControlShare = fields.getValue("idle").toDouble(),
+            busiestBytesPerSecond = fields.getValue("busiest").toDouble(),
+        )
 }
 
 /** A cell's runs pooled over seeds, and the bands they miss. */
