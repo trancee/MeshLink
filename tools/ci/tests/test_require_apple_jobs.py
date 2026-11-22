@@ -19,36 +19,52 @@ class RequireAppleJobsTest(unittest.TestCase):
     def test_required_check_aggregates_the_apple_matrix(self):
         workflow = WORKFLOW.read_text()
         apple = re.search(r"(?ms)^  apple:\n(.*?)(?=^  macos:)", workflow)
-        macos = re.search(r"(?ms)^  macos:\n(.*?)(?=^  xcode-27:)", workflow)
+        macos = re.search(r"(?ms)^  macos:\n(.*)", workflow)
 
         self.assertIsNotNone(apple)
         self.assertIsNotNone(macos)
         self.assertIn("phase: [simulator, swiftpm, maven]", apple.group(1))
         self.assertIn("fail-fast: false", apple.group(1))
         self.assertIn("needs: [apple]", macos.group(1))
-        self.assertIn("if: always() && github.event_name != 'schedule'", macos.group(1))
+        self.assertIn("if: always()\n", macos.group(1))
         self.assertIn("APPLE_RESULT: ${{ needs.apple.result }}", macos.group(1))
-        self.assertIn("phase: [preview]", workflow)
-        self.assertIn("steps: *apple", workflow)
+
+    def test_same_repository_runs_use_the_self_hosted_mac_and_forks_the_hosted_image(self):
+        apple = re.search(r"(?ms)^  apple:\n(.*?)(?=^  macos:)", WORKFLOW.read_text()).group(1)
+        fork = "github.event.pull_request.head.repo.fork"
+
+        self.assertIn(
+            f"runs-on: ${{{{ {fork} && 'macos-26' || fromJSON('[\"self-hosted\",\"macOS\",\"ARM64\"]') }}}}",
+            apple,
+        )
+        self.assertIn(
+            f"DEVELOPER_DIR: ${{{{ {fork} && '/Applications/Xcode_26.4.1.app/Contents/Developer'"
+            " || '/Applications/Xcode-27.2.0.app/Contents/Developer' }}",
+            apple,
+        )
+
+    def test_no_scheduled_preview_job_remains(self):
+        workflow = WORKFLOW.read_text()
+
+        self.assertNotIn("schedule", workflow)
+        self.assertNotIn("xcode-27", workflow)
+        self.assertNotIn("preview", workflow)
 
     def test_apple_phases_retain_the_required_checks(self):
         workflow = WORKFLOW.read_text()
         checks = (
-            ("matrix.phase == 'simulator' || matrix.phase == 'preview'", "./gradlew iosSimulatorArm64Test --profile"),
-            ("matrix.phase == 'swiftpm' || matrix.phase == 'preview'", "tools/swiftpm-consumer/test.sh"),
+            ("matrix.phase == 'simulator'", "./gradlew iosSimulatorArm64Test --profile"),
+            ("matrix.phase == 'swiftpm'", "tools/swiftpm-consumer/test.sh"),
             ("matrix.phase == 'maven'", "./gradlew buildLibsodiumAndroid"),
             ("matrix.phase == 'maven'", "tools/maven-consumer/test.sh"),
-            ("matrix.phase == 'swiftpm' || matrix.phase == 'preview'", "./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols"),
+            ("matrix.phase == 'swiftpm'", "./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols"),
         )
 
         for condition, command in checks:
             with self.subTest(command=command):
                 self.assertIn(f"      - if: {condition}\n        run: {command}", workflow)
         self.assertIn("      - name: Install the pinned NDK\n        if: matrix.phase == 'maven'", workflow)
-        self.assertIn(
-            "if: ${{ !cancelled() && (matrix.phase == 'simulator' || matrix.phase == 'preview') }}",
-            workflow,
-        )
+        self.assertIn("if: ${{ !cancelled() && matrix.phase == 'simulator' }}", workflow)
 
     def test_simulator_diagnostics_run_only_after_swiftpm_failure(self):
         workflow = WORKFLOW.read_text()
