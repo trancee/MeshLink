@@ -16,6 +16,7 @@ START done iff behavior authority + proof commands known. Ecosystem/version reci
 ## PATH
 
 - feature|fix => T1: one behavior test red for intended reason -> smallest complete implementation -> green -> refactor green -> repeat. Pre-change pass/setup-failure != red.
+- feature (and fix observable through the public API) => R `gherkin` skill: add/extend a scenario in `meshlink-testing/src/commonTest/resources/features/` with `VirtualAir` step glue, red before / green after, run on Android host + iOS simulator (`PROJECT.md` commands).
 - refactor => green baseline; preserve behavior; migrate all callers; delete obsolete path. Alias/dead path only for Q7 deprecation.
 - docs-only => source/config/command-backed claims + O6 checks; X unrelated app suite unless executable/generated content affected.
 - review|investigate|explain => read-only unless edits requested; findings R path/lines + limitations.

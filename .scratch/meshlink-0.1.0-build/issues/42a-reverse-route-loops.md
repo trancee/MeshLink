@@ -1,6 +1,6 @@
 # Learn reverse routes only from first copies
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 37
 
@@ -20,12 +20,12 @@ Split from ticket 42, whose research probes found it. A relay learned a reverse 
 
 ## Acceptance criteria
 
-- [ ] A `RouterTest` case: after a first copy from A and a duplicate from B within the seen window, a frame for the source goes to A only. It fails before the fix.
-- [ ] A `routing.feature` scenario: Dave, linked to both Bob and Carol, which are linked to each other, sends "Ping" to Alice, and Alice's reply "Pong" reaches Dave once. It fails before the fix, because Bob and Carol learn their routes to Dave through each other.
-- [ ] The existing rule that a copy whose next hop limit would be 0 still teaches its route keeps passing.
-- [ ] The spec, D-50, the ADR 0008 amendment and the CHANGELOG describe the rule.
-- [ ] Every mutant of the change is killed.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] A `RouterTest` case: after a first copy from A and a duplicate from B within the seen window, a frame for the source goes to A only. It fails before the fix.
+- [x] A `routing.feature` scenario: Dave, linked to both Bob and Carol, which are linked to each other, sends "Ping" to Alice, and Alice's reply "Pong" reaches Dave once. It fails before the fix, because Bob and Carol learn their routes to Dave through each other.
+- [x] The existing rule that a copy whose next hop limit would be 0 still teaches its route keeps passing.
+- [x] The spec, D-50, the ADR 0008 amendment and the CHANGELOG describe the rule.
+- [x] Every mutant of the change is killed.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
@@ -35,3 +35,13 @@ Split from ticket 42, whose research probes found it. A relay learned a reverse 
 ./gradlew check
 ./gradlew iosSimulatorArm64Test
 ```
+
+## Outcome
+
+Shipped in [#113](https://github.com/trancee/MeshLink/pull/113) (`46b6776`).
+
+- **Code:** `Router.relay` checks the seen window before `routes.learn`, and forwards only while the hop limit is above 1. A copy stopped by its hop limit still teaches its route.
+- **Tests:**
+  - `RouterTest.aDuplicateCopyWithinTheSeenWindowTeachesNoReverseRoute`: red before the fix.
+  - The flood test now uses hop limit 2, the lowest that is still forwarded, which kills the `> 2` mutant. The `>= 1` mutant is killed by the existing hop-limit-1 test.
+  - `routing.feature`, "A reply reaches the sender when relays also hear each other's copies": in a diamond whose relays also link to each other, Alice's reply never reached Dave before the fix, even after 60 s of retries. It now passes on the Android host and the iOS simulator.
