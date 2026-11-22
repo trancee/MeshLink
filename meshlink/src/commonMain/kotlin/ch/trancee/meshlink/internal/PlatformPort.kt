@@ -6,7 +6,8 @@ import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlin.experimental.ExperimentalObjCRefinement
 import kotlin.native.HiddenFromObjC
@@ -39,28 +40,28 @@ public interface PlatformPort {
     public val random: RandomSource
 }
 
-/** Which node holds each platform radio; a node runs only while it holds its radio. */
+/**
+ * Which node holds each platform radio; a node runs only while it holds its radio. Every radio in the
+ * process shares the registry, but a node claims and watches only its own radio, so a node on another
+ * radio, such as one of another mesh, never makes its claim fail.
+ */
 internal object RadioRegistry {
-    private val mutableHolders = MutableStateFlow<Map<PlatformPort, Any>>(emptyMap())
+    private val holders = MutableStateFlow<Map<PlatformPort, Any>>(emptyMap())
 
-    /** The holder of each held radio. */
-    val holders: StateFlow<Map<PlatformPort, Any>> = mutableHolders
+    /** The holder of [port], or null while it is free, after every change to the registry. */
+    fun holder(port: PlatformPort): Flow<Any?> = holders.map { it[port] }
 
-    /**
-     * Makes [owner] the holder of [port], which is free in [seen], if [holders] is still [seen];
-     * returns whether it did. On false, [holders] has changed and its new value tells the caller more.
-     */
+    /** Makes [owner] the holder of [port] if [port] is free; returns whether it did. */
     fun tryAcquire(
         port: PlatformPort,
         owner: Any,
-        seen: Map<PlatformPort, Any>,
-    ): Boolean = mutableHolders.compareAndSet(seen, seen + (port to owner))
+    ): Boolean = port !in holders.getAndUpdate { if (port in it) it else it + (port to owner) }
 
     /** Frees [port] if [owner] holds it. */
     fun release(
         port: PlatformPort,
         owner: Any,
     ) {
-        mutableHolders.update { if (it[port] === owner) it - port else it }
+        holders.update { if (it[port] === owner) it - port else it }
     }
 }

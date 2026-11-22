@@ -22,6 +22,24 @@ Feature: Node lifecycle
     When the node starts
     Then the node is running
 
+  Scenario: Nodes starting together on different radios both run without being blocked
+    Given two stopped nodes on different radios
+    And both nodes' lifecycles are observed
+    When both nodes start at the same time
+    Then both nodes are running and neither was blocked
+
+  Scenario: A node waiting for a radio in use leaves the radio with its holder when it stops
+    Given a running node
+    And a second node on the same radio is blocked because the radio is in use
+    When the waiting node stops
+    Then a third node started on that radio is blocked because the radio is in use
+
+  Scenario: Only one waiting node takes a radio when its holder stops
+    Given a running node
+    And two more nodes on the same radio are blocked because the radio is in use
+    When the running node stops
+    Then exactly one waiting node is running and the other is blocked because the radio is in use
+
   Scenario: A closed node cannot start
     Given a closed node
     When the node tries to start
