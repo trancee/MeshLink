@@ -43,6 +43,17 @@ class RequireAppleJobsTest(unittest.TestCase):
             apple,
         )
 
+    def test_the_self_hosted_mac_skips_the_actions_cache_for_its_persistent_homes(self):
+        apple = re.search(r"(?ms)^  apple:\n(.*?)(?=^  macos:)", WORKFLOW.read_text()).group(1)
+        self_hosted = "runner.environment == 'self-hosted'"
+        hosted = "runner.environment != 'self-hosted'"
+
+        self.assertIn(f"cache-disabled: ${{{{ {self_hosted} }}}}", apple)
+        restore = re.search(r"(?ms)- name: Restore Kotlin/Native dependencies\n(.*?)(?=^      - )", apple).group(1)
+        save = re.search(r"(?ms)- name: Save Kotlin/Native dependencies\n(.*?)(?=^      - |\Z)", apple).group(1)
+        self.assertIn(f"if: {hosted}\n", restore)
+        self.assertIn(f"if: {hosted} && github.ref == 'refs/heads/main'", save)
+
     def test_no_scheduled_preview_job_remains(self):
         workflow = WORKFLOW.read_text()
 
