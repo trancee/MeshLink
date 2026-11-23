@@ -15,7 +15,7 @@ The owner's session did the research, the device tests and the implementation. W
   - `BleScanner.kt`: `overflowBit32`/CRC-8 derive `MESH_OVERFLOW_BIT` (123); `appleDataHasMeshBit` walks Apple sub-fields (type, length, data; type `0x01` has no length byte and a 16-byte bitmap).
   - `AndroidRadioDiscoveryTest.kt`: a packed case (`ff 4c 00 | 10 05 … | 01 <bitmap>`) in `anOverflowMeshBitAnywhereInTheAdvertisementIsSightedWithoutPayload`, which fails on `f6f1866`'s scanner; "every bit but 123" and "no overflow sub-field" cases in `appleDataWithoutTheOverflowMeshBitIsIgnored`.
   - `docs/research/2026-11-23-ios-overflow-area-android.md`: the source of truth for the format, the hash, AOSP's manufacturer-data handling, prior work and open questions.
-- **Passes locally:** the Gradle proof command below, 40/40 tests.
+- **Passes locally:** the Gradle proof command below, 40/40 tests, and `koverVerify` (100% branches; a lone-type-byte case was added after CI's first run).
 - **CI red on docs only** ("Markdown lint, spelling and ADR headers"), all in the research note:
   - 15 markdownlint errors. MD052: adjacent evidence labels such as `[CODE][LAB]` parse as a full reference link (a single `[LAB]` is fine; write combined labels as `[CODE, LAB]`). MD032: lists without a blank line before them (L69, L74, L86, L262, L271, L290, L343). MD028: blank line inside a blockquote (L104, L112).
   - 1 `typos` hit at L254: a misspelling inside a verbatim quote of AOSP's `scan_record_manufacturer_data_merge` description. Paraphrase it or mark it as a quote the way `_typos.toml` already allows.
