@@ -138,6 +138,8 @@ Exit: links rotate, fragment, flow-control, rekey and upgrade to L2CAP CoC where
 | 32 | [Apply the PHY policy, advertising and scanning rules](issues/32-phy-advertising-scanning.md) | AFK | 17, 27 |
 | 66 | [Run phones that can't advertise MESH as central-only nodes](issues/66-central-only-nodes.md) | AFK | 17 |
 | 67 | [Prototype mutation testing with mutflow and decide whether to adopt it](issues/67-mutation-testing.md) | HITL | |
+| 68 | [Find a background iPhone's MESH bit wherever iOS packs its overflow area](issues/68-overflow-bit-anywhere.md) | AFK | |
+| 69 | [Settle the open overflow-area questions on phones](issues/69-overflow-device-questions.md) | HITL | 68 |
 | 33 | [Prove the link layer on real phone pairs](issues/33-link-device-proof.md) | HITL | 30, 31, 32 |
 | 34 | [Fuzz every decoder on a schedule with Jazzer](issues/34-jazzer-fuzzing.md) | AFK | 28 |
 

@@ -125,13 +125,47 @@ private val BUDGET_WINDOW = 30.seconds
 private const val APPLE = 0x004C
 
 /**
- * Apple's overflow area as one AD structure: manufacturer data (`0xFF`) for Apple (`4C 00`), type
- * `0x01` and a 16-byte bitmap with one hash bit per overflowed service UUID. MESH is the last byte's
- * `0x08` (discovery evidence `docs/evidence/2026-11-discovery/README.md`; undocumented by Apple, ADR 0010).
+ * Apple's overflow area: within Apple manufacturer data (`FF 4C 00`), the sub-field type `0x01`
+ * followed, with no length byte, by a 16-byte bitmap with one hash bit per overflowed service UUID.
+ * Other Apple sub-fields are type, length, data. Undocumented by Apple (ADR 0010); the format and
+ * hash are in `docs/research/2026-11-23-ios-overflow-area-android.md` §4.2.
  */
-private val OVERFLOW_PREFIX = byteArrayOf(-1, 0x4C, 0, 0x01)
-private const val OVERFLOW_LENGTH = 20
-private const val MESH_BIT = 0x08
+private const val MANUFACTURER_DATA = 0xFF
+private const val OVERFLOW_TYPE = 0x01
+private const val OVERFLOW_BITMAP_SIZE = 16
+private const val BYTE_MASK = 0xFF
+private const val BITS_PER_BYTE = 8
+
+/** An Apple manufacturer-data AD structure's type and little-endian company identifier. */
+private val APPLE_MANUFACTURER_DATA =
+    byteArrayOf(MANUFACTURER_DATA.toByte(), APPLE.toByte(), (APPLE ushr BITS_PER_BYTE).toByte())
+
+/** CRC-8 with polynomial `0x09` (x⁸ + x³ + 1), initial value 0, of which the overflow keeps 7 bits. */
+private const val CRC_POLYNOMIAL = 0x09
+private const val CRC_TOP_BIT = 0x80
+private const val OVERFLOW_BIT_MASK = 0x7F
+private const val UUID32_SIZE = Int.SIZE_BYTES
+
+/** MESH's overflow bit, 123: the last bitmap byte's `0x08`. */
+private val MESH_OVERFLOW_BIT = overflowBit32((MeshGatt.MESH.mostSignificantBits ushr Int.SIZE_BITS).toInt())
+
+/**
+ * The overflow bit of the 32-bit service UUID [uuid]: the CRC over the UUID zero-padded on the
+ * right to 16 bytes. iOS zero-pads 32-bit UUIDs but expands 16-bit ones with the Base UUID
+ * (research note §4.2.7).
+ */
+private fun overflowBit32(uuid: Int): Int {
+    val padded = ByteArray(OVERFLOW_BITMAP_SIZE)
+    for (i in 0 until UUID32_SIZE) padded[i] = (uuid ushr (BITS_PER_BYTE * (UUID32_SIZE - 1 - i))).toByte()
+    var crc = 0
+    for (byte in padded) {
+        crc = crc xor (byte.toInt() and BYTE_MASK)
+        repeat(BITS_PER_BYTE) {
+            crc = ((crc shl 1) xor (if (crc and CRC_TOP_BIT != 0) CRC_POLYNOMIAL else 0)) and BYTE_MASK
+        }
+    }
+    return crc and OVERFLOW_BIT_MASK
+}
 
 /**
  * Whether [record] holds an overflow area with the MESH bit in any of its AD structures. It reads
@@ -144,23 +178,36 @@ private fun carriesOverflowMeshBit(record: ScanRecord): Boolean {
     var at = 0
     var found = false
     while (!found && at < bytes.size) {
-        val length = bytes[at].toInt() and 0xFF
+        val length = bytes[at].toInt() and BYTE_MASK
         if (length == 0 || at + length >= bytes.size) break
-        found = isOverflowMeshBit(bytes, at + 1, length)
-        at += length + 1
+        val end = at + length + 1
+        found =
+            length >= APPLE_MANUFACTURER_DATA.size &&
+            APPLE_MANUFACTURER_DATA.indices.all { bytes[at + 1 + it] == APPLE_MANUFACTURER_DATA[it] } &&
+            appleDataHasMeshBit(bytes, at + 1 + APPLE_MANUFACTURER_DATA.size, end)
+        at = end
     }
     return found
 }
 
-/** Whether the AD structure of [length] bytes at [start] is an overflow area with the MESH bit. */
-private fun isOverflowMeshBit(
+/**
+ * Whether the Apple sub-fields in [bytes] from [start] to [end] hold an overflow bitmap with the
+ * MESH bit. iOS has so far always put the overflow first; sub-fields before it are skipped anyway.
+ */
+private fun appleDataHasMeshBit(
     bytes: ByteArray,
     start: Int,
-    length: Int,
-): Boolean =
-    length >= OVERFLOW_LENGTH &&
-        bytes.copyOfRange(start, start + OVERFLOW_PREFIX.size).contentEquals(OVERFLOW_PREFIX) &&
-        bytes[start + OVERFLOW_LENGTH - 1].toInt() and MESH_BIT != 0
+    end: Int,
+): Boolean {
+    var at = start
+    while (at + 1 < end && bytes[at].toInt() != OVERFLOW_TYPE) at += 2 + (bytes[at + 1].toInt() and BYTE_MASK)
+    val bitmap = at + 1
+    val mask = 1 shl (MESH_OVERFLOW_BIT % BITS_PER_BYTE)
+    return at < end &&
+        bytes[at].toInt() == OVERFLOW_TYPE &&
+        bitmap + OVERFLOW_BITMAP_SIZE <= end &&
+        bytes[bitmap + MESH_OVERFLOW_BIT / BITS_PER_BYTE].toInt() and mask != 0
+}
 
 /**
  * Every Apple advertisement: a data mask cannot find the overflow area at a fixed offset once
