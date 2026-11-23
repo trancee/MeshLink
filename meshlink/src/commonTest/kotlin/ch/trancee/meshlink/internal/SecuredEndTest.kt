@@ -60,7 +60,8 @@ class SecuredEndTest {
         payload: ByteArray = PAYLOAD,
     ): Outbox.Entry {
         val now = SchedulerClock(testScheduler).wallClockMillis()
-        return Outbox.Entry(to, payload, now / 1_000 + 60, MutableStateFlow(DeliveryStatus.Queued), now + 600_000)
+        val status = MutableStateFlow<DeliveryStatus>(DeliveryStatus.Queued)
+        return Outbox.Entry(to, payload, now / 1_000 + 60, status, now + 600_000, directOnly = false)
     }
 
     private fun TestScope.nowSeconds() = SchedulerClock(testScheduler).wallClockMillis() / 1_000
@@ -239,18 +240,36 @@ class SecuredEndTest {
         }
 
     @Test
-    fun aSecuredEndCarriesFirstAndTransportMessagesAndHasNoTagToAnswerFrom() =
+    fun aSecuredEndCarriesEverySecuredContainerAndHasNoTagToAnswerFrom() =
         runTest {
             // Arrange
             val alice = node(1)
 
             // Act
-            val containers = listOf(Container.IK_INITIATOR, Container.TRANSPORT, Container.UNSECURED)
+            val containers =
+                listOf(Container.IK_INITIATOR, Container.IK_RESPONDER, Container.TRANSPORT, Container.UNSECURED)
             val carried = containers.map(alice.end::carries)
 
             // Assert
-            assertEquals(listOf(true, true, false), carried)
+            assertEquals(listOf(true, true, true, false), carried)
             assertNull(alice.end.tag())
+        }
+
+    @Test
+    fun aSecuredEndTakesNoRepeatOrReceiptBeforeItHasSessions() =
+        runTest {
+            // Arrange
+            val (alice, bob) = node(1) to node(2)
+            knows(alice, bob)
+            val frame = alice.end.frame(assertNotNull(alice.end.draft(entry(bob.nodeId))), hopLimit = 1)
+            bob.end.deliver(frame, nowSeconds())
+
+            // Act
+            bob.end.acknowledger.repeated(frame, nowSeconds())
+            bob.end.acknowledger.acknowledged(frame, nowSeconds())
+
+            // Assert
+            assertEquals(1, bob.heard.size)
         }
 
     private companion object {

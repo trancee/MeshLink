@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.update
  * is dropped. Thread-safe.
  */
 internal class Inbox {
-    private val channel = Channel<ReceivedMessage>(Channel.UNLIMITED)
+    private val channel = Channel<Waiting>(Channel.UNLIMITED)
     private val usage = MutableStateFlow(Usage())
     private val collecting = MutableStateFlow(false)
 
@@ -28,19 +28,26 @@ internal class Inbox {
         flow {
             if (!collecting.compareAndSet(expect = false, update = true)) throw MeshLinkException.AlreadyCollected()
             try {
-                for (message in channel) {
-                    usage.update { it - message }
-                    emit(message)
+                for (waiting in channel) {
+                    usage.update { it - waiting.message }
+                    waiting.taken()
+                    emit(waiting.message)
                 }
             } finally {
                 collecting.value = false
             }
         }
 
-    /** Adds [message] unless it would cross a bound; returns whether it was added. */
-    fun offer(message: ReceivedMessage): Boolean {
+    /**
+     * Adds [message] unless it would cross a bound; returns whether it was added. [taken] runs, on the
+     * collector's thread, when the app takes the message.
+     */
+    fun offer(
+        message: ReceivedMessage,
+        taken: () -> Unit = {},
+    ): Boolean {
         val fits = usage.getAndUpdate { if (it.fits(message)) it + message else it }.fits(message)
-        if (fits) channel.trySend(message)
+        if (fits) channel.trySend(Waiting(message, taken))
         return fits
     }
 
@@ -48,6 +55,11 @@ internal class Inbox {
     fun close() {
         channel.close()
     }
+
+    private class Waiting(
+        val message: ReceivedMessage,
+        val taken: () -> Unit,
+    )
 
     private class Usage(
         val count: Int = 0,

@@ -75,6 +75,15 @@ class RouterTest {
         messageBody(container),
     )
 
+    private fun TestScope.receipt(
+        id: Int,
+        destination: ByteArray,
+        container: Container = Container.Unsecured(ByteArray(32), byteArrayOf()),
+    ): ByteArray {
+        val header = UnicastHeader(5, messageId(id), (nowSeconds() + 60).toUInt(), destination, tag(8))
+        return DeliveryReceipt(header, listOf(Tombstone(messageId(id + 100), ByteArray(16))), container).encode()
+    }
+
     // Originates message [id] whose frame is its hop limit.
     private fun Router.send(
         id: Int,
@@ -224,8 +233,8 @@ class RouterTest {
             val now = nowSeconds()
 
             // Act
-            router.received(a, unicast(0x41, 5, messageId(1), now - 30, tag(9), tag(8)))
-            router.received(a, unicast(0x41, 5, messageId(2), now + 3_630, tag(9), tag(8)))
+            router.received(a, unicast(UNKNOWN_TYPE, 5, messageId(1), now - 30, tag(9), tag(8)))
+            router.received(a, unicast(UNKNOWN_TYPE, 5, messageId(2), now + 3_630, tag(9), tag(8)))
 
             // Assert
             assertEquals(2, waiting().getValue(b).size)
@@ -268,10 +277,10 @@ class RouterTest {
             val now = nowSeconds()
 
             // Act
-            router.received(a, unicast(0x41, 5, messageId(1), now, tag(9), tag(8), large))
+            router.received(a, unicast(UNKNOWN_TYPE, 5, messageId(1), now, tag(9), tag(8), large))
             val unrouted = waiting()
             router.received(b, message(id = 2, source = tag(9), destination = tag(7)))
-            router.received(a, unicast(0x41, 5, messageId(3), now, tag(9), tag(8), large))
+            router.received(a, unicast(UNKNOWN_TYPE, 5, messageId(3), now, tag(9), tag(8), large))
 
             // Assert
             assertTrue(unrouted.values.all { it.isEmpty() })
@@ -299,9 +308,9 @@ class RouterTest {
             // Arrange
             val router = router()
             val now = nowSeconds()
-            val header = unicast(0x41, 5, messageId(1), now, tag(9), tag(8)).size
+            val header = unicast(UNKNOWN_TYPE, 5, messageId(1), now, tag(9), tag(8)).size
             val body = ByteArray(Reassembly.FRAME_SMALL_MAX - header)
-            val frame = unicast(0x41, 5, messageId(1), now, tag(9), tag(8), body)
+            val frame = unicast(UNKNOWN_TYPE, 5, messageId(1), now, tag(9), tag(8), body)
 
             // Act
             router.received(a, frame)
@@ -325,7 +334,57 @@ class RouterTest {
             // Assert
             assertEquals(1, delivered.size)
             assertContentEquals(frame, delivered.single())
+            assertContentEquals(frame, endpoint.repeated.single())
             assertTrue(waiting().values.all { it.isEmpty() })
+        }
+
+    @Test
+    fun aFrameForThisNodeTeachesTheReverseRouteToItsSource() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.received(b, message(id = 1, destination = OWN, source = tag(9)))
+
+            // Act
+            router.received(a, message(id = 2, destination = tag(9)))
+
+            // Assert
+            val waiting = waiting()
+            assertEquals(listOf(1, 0), listOf(b, c).map { waiting.getValue(it).size })
+        }
+
+    @Test
+    fun aDeliveryReceiptForThisNodeIsAcknowledgedAndOneForAnotherIsRelayed() =
+        runTest {
+            // Arrange
+            val router = router()
+            val mine = receipt(id = 1, destination = OWN)
+
+            // Act
+            router.received(a, mine)
+            router.received(a, receipt(id = 2, destination = tag(9)))
+
+            // Assert
+            assertContentEquals(mine, endpoint.acknowledged.single())
+            assertEquals(emptyList(), delivered)
+            assertEquals(1, waiting().getValue(b).size)
+        }
+
+    @Test
+    fun aMalformedOrDisallowedDeliveryReceiptIsDropped() =
+        runTest {
+            // Arrange
+            val router = router(kinds = setOf(Container.IK_RESPONDER, Container.TRANSPORT))
+            val malformed = receipt(id = 1, destination = OWN).let { it.copyOf(it.size - 1) }
+
+            // Act
+            router.received(a, malformed)
+            router.received(a, receipt(id = 2, destination = OWN))
+            router.received(a, receipt(id = 3, destination = tag(9), container = Container.IkResponder(ByteArray(48))))
+
+            // Assert
+            assertEquals(emptyList(), endpoint.acknowledged)
+            assertEquals(1, waiting().getValue(b).size)
         }
 
     @Test
@@ -339,7 +398,7 @@ class RouterTest {
 
             // Act
             router.received(a, message(destination = OWN))
-            router.received(a, unicast(0x41, 5, messageId(2), nowSeconds(), OWN, tag(8)))
+            router.received(a, unicast(UNKNOWN_TYPE, 5, messageId(2), nowSeconds(), OWN, tag(8)))
 
             // Assert
             assertEquals(2, delivered.size)
@@ -564,5 +623,6 @@ class RouterTest {
         val UNSECURED = Container.Unsecured(ByteArray(32), byteArrayOf())
         val TRANSPORT = Container.Transport(0u, ByteArray(17))
         val FLOOD_TYPE: Byte = 0x80.toByte()
+        const val UNKNOWN_TYPE = 0x4e
     }
 }

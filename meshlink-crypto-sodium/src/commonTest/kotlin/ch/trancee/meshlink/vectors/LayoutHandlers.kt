@@ -7,6 +7,7 @@ import ch.trancee.meshlink.internal.CapabilityRecord
 import ch.trancee.meshlink.internal.Container
 import ch.trancee.meshlink.internal.Content
 import ch.trancee.meshlink.internal.Decoded
+import ch.trancee.meshlink.internal.DeliveryReceipt
 import ch.trancee.meshlink.internal.FloodFrame
 import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
@@ -228,6 +229,22 @@ internal val messageFrame: Handler =
         assertContainer(decoded["container"], frame.container)
     }
 
+internal val deliveryReceipt: Handler =
+    layout({ _, bytes -> DeliveryReceipt.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), DeliveryReceipt.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["destination_tag"].string, frame.header.destinationTag.hex(), "destination_tag")
+        assertEquals(decoded["source_tag"].string, frame.header.sourceTag.hex(), "source_tag")
+        assertEquals(
+            decoded["tombstones"].list.map { it["message_id"].string to it["k"].string },
+            frame.tombstones.map { it.messageId.hex() to it.k.hex() },
+            "tombstones",
+        )
+        assertContainer(decoded["container"], frame.container)
+    }
+
 internal val broadcastFrame: Handler =
     layout({ _, bytes -> BroadcastFrame.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
         assertEquals(decoded["type"].code(), BroadcastFrame.TYPE, "type")
@@ -258,6 +275,10 @@ private fun assertContainer(
     assertEquals(container["kind"].code(), actual.kind, "container.kind")
     when (actual) {
         is Container.IkInitiator -> {
+            assertEquals(container["noise_message"].string, actual.noiseMessage.hex(), "container.noise_message")
+        }
+
+        is Container.IkResponder -> {
             assertEquals(container["noise_message"].string, actual.noiseMessage.hex(), "container.noise_message")
         }
 

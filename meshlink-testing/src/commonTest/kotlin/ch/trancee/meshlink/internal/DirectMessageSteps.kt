@@ -246,8 +246,8 @@ private class DirectMessageScenario {
             )
         }
 
-        then("Alice's message is sent") {
-            assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
+        then("Alice's message is delivered") {
+            assertEquals(DeliveryStatus.Delivered, assertIs<SendResult.Accepted>(result).message.status.value)
         }
 
         then("Alice's message remains expired") {

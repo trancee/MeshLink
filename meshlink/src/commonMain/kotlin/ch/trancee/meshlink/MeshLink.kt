@@ -186,10 +186,12 @@ public class MeshLink private constructor(
     }
 
     /**
-     * Sends [payload] to [to] (ADR 0007 decision 7). Doesn't suspend: the message is queued, and
-     * [SendResult.Accepted.message] reports its [DeliveryStatus]. The message travels over other
-     * nodes when [to] is not linked (ADR 0008), and MeshLink sends it again on a schedule until it
-     * expires. While this node has no link at all, the message waits as [DeliveryStatus.Held].
+     * Sends [payload] to [to] as [options] say (ADR 0007 decision 7). Doesn't suspend: the message is
+     * queued, and [SendResult.Accepted.message] reports its [DeliveryStatus]. The message travels over
+     * other nodes when [to] is not linked (ADR 0008), and MeshLink sends it again on a schedule until it
+     * expires or [to]'s delivery receipt makes it [DeliveryStatus.Delivered] (ADR 0013). While this node
+     * has no link at all, the message waits as [DeliveryStatus.Held]. A [SendOptions.directOnly] message
+     * travels only over a link to [to], and waits as [DeliveryStatus.Held] while there is none.
      * In `Classical` and `PostQuantum` the message is sealed end to end to [to]'s certificate
      * (ADR 0016); relays see only its size. Without that certificate it stays [DeliveryStatus.Queued]
      * while MeshLink looks it up (ADR 0018), and only one message to [to] is in flight at a time.
@@ -206,9 +208,10 @@ public class MeshLink private constructor(
     public fun send(
         to: NodeId,
         payload: ByteArray,
+        options: SendOptions = SendOptions(),
     ): SendResult {
         ensureOpen(closed)
-        return post.send(to, payload, mutableState.value)
+        return post.send(to, payload, options, mutableState.value)
     }
 
     /**

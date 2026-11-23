@@ -401,7 +401,7 @@ class RouteDiscoveryTest {
         runTest {
             // Arrange
             val nodeId = ByteArray(32) { 3 }
-            val end = UnsecuredEnd(SodiumCryptoProvider, SchedulerClock(testScheduler), Inbox(), {}) {}
+            val end = UnsecuredEnd(SodiumCryptoProvider, SchedulerClock(testScheduler), Inbox(), receipts(), {}) {}
             end.begin(nodeId)
             val router = router(end)
             val own = Derivations(SodiumCryptoProvider).unsecuredTag(nodeId, Derivations.epoch(nowSeconds()))

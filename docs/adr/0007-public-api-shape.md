@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 16 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast; 2026-11-20, broadcast).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 17 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast; 2026-11-20, broadcast; 2026-11-23, delivery receipts).
 
 ## Context
 
@@ -185,7 +185,7 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 
 2026-11-14, direct messages (0.1.0 backlog ticket "Send and receive a direct message between two nodes"):
 
-- **No send options yet (amends decision 7):** `send(to, payload)` takes no `options` until the direct-only option changes what a send does (ticket 47) (owner decision). Until routing lands (ticket 37), every message travels only over a direct link to its destination, with `hop_limit` 1. Why: an option with no effect misleads callers, and the build allows no suppression of the unused parameter. Adding a defaulted parameter later keeps Kotlin call sites compiling; the ABI dump records the binary change.
+- **No send options yet (amends decision 7):** `send(to, payload)` takes no `options` until the direct-only option changes what a send does (ticket 47) (owner decision). Until routing lands (ticket 37), every message travels only over a direct link to its destination, with `hop_limit` 1. Why: an option with no effect misleads callers, and the build allows no suppression of the unused parameter. Adding a defaulted parameter later keeps Kotlin call sites compiling; the ABI dump records the binary change. (Superseded by the amendment of 2026-11-23.)
 - **Inbox count (decision 9):** the inbox holds at most 1,024 messages beside its 1 MiB and ¼-per-sender bounds. A message that would cross any bound is dropped before the app sees it; a collected message frees its room.
 - **One collector at a time (decisions 9 and 11):** `messages` is the one Flow that throws, and only `MeshLinkException.AlreadyCollected` to a second collector while another is active. Once the first collector stops, a later one may collect and gets the messages still waiting. The flow completes when the node closes.
 - **Send-queue cap (amendment of 2026-11-03):** `send` returns `Rejected(QueueFull)` only while the unwritten payloads already reach 1 MiB, so the queue may exceed the cap by at most one message. A message frees its bytes once written or finished.
@@ -226,3 +226,9 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **Validation (owner decision):** a `hopLimit` outside 1 to 255 returns the new `Rejected(InvalidHopLimit)`, rather than being clamped or thrown; a payload above 1,024 B returns `Rejected(TooLarge)`; `NotRunning` and `Closed` apply as for `send`; the payload counts against the 1 MiB send queue until the broadcast ends, so `QueueFull` applies.
 - **No link (owner decision):** a broadcast accepted while the node has no link waits `Queued`, never `Held`, and goes out on the first link that opens.
 - **Secured profiles:** until signed broadcasts land (ticket 39a), a `Classical` or `PostQuantum` broadcast stays `Queued` without a frame until it expires, and a secured node neither delivers nor relays another node's broadcast.
+
+2026-11-23, delivery receipts (0.1.0 backlog ticket "Report delivery with delivery receipts"):
+
+- **Send options (amends decision 7; supersedes the "No send options yet" amendment of 2026-11-14):** `send(to, payload, options = SendOptions())` takes a `SendOptions`, a regular class whose only property is `directOnly: Boolean = false` (owner decision). Kotlin callers that pass no options keep compiling; the ABI dump records the new signature. Later options, such as the read-receipt request of ticket 48, join `SendOptions` rather than `send`.
+  - Why a class and not a `Boolean` parameter: options grow, and named properties on one value read better at the call site than a row of flags. Why not a data class: decision 11 keeps `copy` and `componentN` out of the public ABI.
+- **`Delivered` (decision 8):** a unicast's status now becomes `Delivered` when its destination's delivery receipt arrives, in `Unsecured`. In `Classical` and `PostQuantum` no receipt is sent or taken until secured sessions land (ticket 46), so a secured message still ends `Expired`.

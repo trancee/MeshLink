@@ -7,6 +7,7 @@ import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.SecurityProfile
+import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.SendResult
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import ch.trancee.meshlink.meshLinkConfig
@@ -31,7 +32,7 @@ import kotlin.time.Duration.Companion.minutes
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoutedUnicastTest {
     @Test
-    fun inTheLowClassAMessageFloodsFiveHopsArrivesOnceIntactAndIsSentThenExpired() =
+    fun inTheLowClassAMessageFloodsFiveHopsArrivesOnceIntactAndIsSentThenDelivered() =
         runTest(timeout = 5.minutes) {
             // Arrange: F links to A first, then moves to the far end of the line.
             val air = air()
@@ -51,7 +52,7 @@ class RoutedUnicastTest {
             // Assert
             assertEquals(1, inbox.size)
             assertContentEquals(PAYLOAD, inbox.single())
-            assertEquals(listOf(DeliveryStatus.Queued, DeliveryStatus.Sent, DeliveryStatus.Expired), status)
+            assertEquals(listOf(DeliveryStatus.Queued, DeliveryStatus.Sent, DeliveryStatus.Delivered), status)
         }
 
     @Test
@@ -99,7 +100,39 @@ class RoutedUnicastTest {
 
             // Assert
             assertEquals(1, inbox.size)
-            assertEquals(listOf(DeliveryStatus.Held, DeliveryStatus.Sent), status)
+            assertEquals(listOf(DeliveryStatus.Held, DeliveryStatus.Sent, DeliveryStatus.Delivered), status)
+        }
+
+    @Test
+    fun aDirectOnlyMessageGoesWithHopLimitOneOnlyOverALinkToItsDestination() =
+        runTest(timeout = 5.minutes) {
+            // Arrange: C, apart from A, is reachable only through B.
+            val line = apart(air())
+            val inbox = inbox(line.nodes.last())
+            val status = statuses(line.nodes.first().send(line.c, PAYLOAD, SendOptions(directOnly = true)))
+            advanceTimeBy(SETTLE_MILLIS)
+            val relayed = inbox.size
+
+            // Act
+            line.moveC(0.0)
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(0, relayed)
+            assertEquals(1, inbox.size)
+            assertEquals(listOf(DeliveryStatus.Held, DeliveryStatus.Sent, DeliveryStatus.Delivered), status)
+            val toC =
+                line.platforms
+                    .first()
+                    .radio.ends
+                    .filter { it.remote == line.platforms.last().radio }
+            val hopLimits =
+                toC
+                    .flatMap(::bodies)
+                    .filter { it[0] == MESSAGE_TYPE }
+                    .map { it[1].toInt() }
+                    .toSet()
+            assertEquals(setOf(1), hopLimits)
         }
 
     @Test
@@ -165,6 +198,30 @@ class RoutedUnicastTest {
             air.move(platform.radio, if (beside) 0.0 else index * SPACING, 0.0)
         }
 
+    /** Three started short-lived nodes A, B and C, linked while side by side, then [SPACING] apart in a line. */
+    private suspend fun TestScope.apart(air: VirtualAir): Apart {
+        val platforms = List(3) { air.platform(StandardTestDispatcher(testScheduler)) }
+        val nodes = platforms.map(::shortLivedNode).onEach { it.start() }
+        advanceTimeBy(SETTLE_MILLIS)
+        val c = nodes.first().peerOn(platforms.last())
+        platforms.forEachIndexed { index, platform -> air.move(platform.radio, index * SPACING, 0.0) }
+        advanceTimeBy(SETTLE_MILLIS)
+        return Apart(air, platforms, nodes, c)
+    }
+
+    /** The [nodes] on [platforms] in a line, and C's NodeId [c] as A knows it. */
+    private class Apart(
+        private val air: VirtualAir,
+        val platforms: List<VirtualPlatform>,
+        val nodes: List<MeshLink>,
+        val c: NodeId,
+    ) {
+        /** Moves C to [x]. */
+        fun moveC(x: Double) {
+            air.move(platforms.last().radio, x, 0.0)
+        }
+    }
+
     /** A stopped `unsecured` node whose messages live 120 s. */
     private fun shortLivedNode(platform: VirtualPlatform): MeshLink =
         MeshLink.create(
@@ -229,5 +286,7 @@ class RoutedUnicastTest {
 
         /** A `MESSAGE` frame's commitment follows its 34-byte unicast header. */
         const val COMMITMENT_OFFSET = 34
+
+        val MESSAGE_TYPE = MessageFrame.TYPE.toByte()
     }
 }

@@ -21,7 +21,6 @@ public class UnsecuredMessaging(
      *
      * @param payload at most [PAYLOAD_MAX] bytes, so the frame is a small frame.
      * @param expiry Unix seconds; the caller adds the message lifetime to the current time.
-     * @param hopLimit 1 for a direct-only send.
      */
     public fun draft(
         destination: ByteArray,
@@ -57,6 +56,48 @@ public class UnsecuredMessaging(
     }
 
     /**
+     * A `DELIVERY_RECEIPT` from this node to [destination] for [tombstones], oldest first, with a
+     * fresh `message_id` and the given [expiry]: the latest expiry of the acknowledged messages.
+     */
+    public fun receipt(
+        destination: ByteArray,
+        tombstones: List<Tombstone>,
+        expiry: UInt,
+    ): ReceiptDraft {
+        val messageId = crypto.randomBytes(MESSAGE_ID)
+        val ids = Tlv(MESSAGE_IDS, tombstones.fold(ByteArray(0)) { bytes, tombstone -> bytes + tombstone.messageId })
+        val plaintext = ReceiptContent(messageId, expiry, listOf(ids)).encode(secured = false)
+        return ReceiptDraft(destination, messageId, expiry, tombstones, Container.Unsecured(nodeId, plaintext))
+    }
+
+    /** The `DELIVERY_RECEIPT` bytes of [receipt], tagged for [epoch] with [hopLimit]. */
+    public fun frame(
+        receipt: ReceiptDraft,
+        epoch: UInt,
+        hopLimit: Int,
+    ): ByteArray {
+        val destination = derivations.unsecuredTag(receipt.destination, epoch)
+        val source = derivations.unsecuredTag(nodeId, epoch)
+        val header = UnicastHeader(hopLimit, receipt.messageId, receipt.expiry, destination, source)
+        return DeliveryReceipt(header, receipt.tombstones, receipt.container).encode()
+    }
+
+    /**
+     * What the `DELIVERY_RECEIPT` in [bytes] acknowledges, or `null` to ignore it. It must decode,
+     * carry this node's tag like [accept], use an `unsecured` container whose plaintext repeats the
+     * header's `message_id` and `expiry`, and list in `MESSAGE_IDS` the IDs of its tombstones in the
+     * same order. Its expiry must lie within [LIFETIME_MAX_SECONDS] of [nowSeconds], allowing
+     * [CLOCK_SKEW_SECONDS] either way.
+     */
+    public fun acknowledged(
+        bytes: ByteArray,
+        nowSeconds: Long,
+    ): Acknowledgement? {
+        val frame = (DeliveryReceipt.decode(bytes) as? Decoded.Valid)?.value
+        return frame?.takeIf { owns(it.header.destinationTag, nowSeconds) }?.let { acknowledgement(it, nowSeconds) }
+    }
+
+    /**
      * The message in [bytes] if it is for this node, or `null` to drop it. It must decode, carry
      * this node's tag for epoch e − 1, e or e + 1, where e is the epoch of [nowSeconds], use an
      * `unsecured` container whose plaintext repeats the header's `message_id` and `expiry`, commit
@@ -89,8 +130,25 @@ public class UnsecuredMessaging(
         val container = frame.container as? Container.Unsecured ?: return null
         val content = (MessageContent.decode(container.plaintext, secured = false) as? Decoded.Valid)?.value
         return content?.takeIf { derivations.bound(frame, it, nowSeconds) }?.let {
-            Delivery(container.senderNodeId, it.payload)
+            Delivery(container.senderNodeId, it.payload, Tombstone(it.messageId, it.k), it.expiry)
         }
+    }
+
+    private fun acknowledgement(
+        frame: DeliveryReceipt,
+        nowSeconds: Long,
+    ): Acknowledgement? {
+        val container = frame.container as? Container.Unsecured
+        val content = container?.let { (ReceiptContent.decode(it.plaintext, secured = false) as? Decoded.Valid)?.value }
+        val ids = frame.tombstones.map { it.messageId }
+        val listed = content?.let { receipt -> receipt.extensions.firstOrNull { it.type == MESSAGE_IDS }?.value }
+        val matches =
+            content != null && listed != null &&
+                content.messageId.contentEquals(frame.header.messageId) &&
+                content.expiry == frame.header.expiry &&
+                listed.contentEquals(ids.fold(ByteArray(0)) { bytes, id -> bytes + id }) &&
+                frame.header.expiry.toLong() in live(nowSeconds)
+        return if (matches) Acknowledgement(container.senderNodeId, ids) else null
     }
 
     private fun window(epoch: UInt): List<ByteArray> {
@@ -116,7 +174,14 @@ public class UnsecuredMessaging(
 
         private const val MESSAGE_ID = 12
         private const val K = 16
+        private const val MESSAGE_IDS = 0x83
     }
+}
+
+/** The expiries a frame received at Unix second [nowSeconds] may carry, allowing `clock-skew` either way. */
+private fun live(nowSeconds: Long): LongRange {
+    val skew = UnsecuredMessaging.CLOCK_SKEW_SECONDS
+    return nowSeconds - skew..nowSeconds + UnsecuredMessaging.LIFETIME_MAX_SECONDS + skew
 }
 
 /**
@@ -128,14 +193,11 @@ internal fun Derivations.bound(
     frame: MessageFrame,
     content: MessageContent,
     nowSeconds: Long,
-): Boolean {
-    val skew = UnsecuredMessaging.CLOCK_SKEW_SECONDS
-    val window = nowSeconds - skew..nowSeconds + UnsecuredMessaging.LIFETIME_MAX_SECONDS + skew
-    return content.messageId.contentEquals(frame.header.messageId) &&
+): Boolean =
+    content.messageId.contentEquals(frame.header.messageId) &&
         content.expiry == frame.header.expiry &&
         tombstoneCommitment(content.k).contentEquals(frame.commitment) &&
-        content.expiry.toLong() in window
-}
+        content.expiry.toLong() in live(nowSeconds)
 
 /**
  * A drafted message to [destination]: everything its frames keep across retries. Each write sets
@@ -152,8 +214,28 @@ public class Draft internal constructor(
     internal val conversation: ByteArray = ByteArray(0),
 )
 
-/** An accepted message: the claimed [sender] NodeId and the [payload]. */
+/**
+ * An accepted message: the claimed [sender] NodeId, the [payload], and the [tombstone] and [expiry]
+ * its delivery receipt carries.
+ */
 public class Delivery(
     public val sender: ByteArray,
     public val payload: ByteArray,
+    public val tombstone: Tombstone,
+    public val expiry: UInt,
+)
+
+/** A drafted `DELIVERY_RECEIPT` to [destination]: everything its frames keep across epochs. */
+public class ReceiptDraft internal constructor(
+    public val destination: ByteArray,
+    public val messageId: ByteArray,
+    public val expiry: UInt,
+    public val tombstones: List<Tombstone>,
+    public val container: Container,
+)
+
+/** An accepted delivery receipt: the claimed [sender] NodeId and the [messageIds] it acknowledges, in order. */
+public class Acknowledgement(
+    public val sender: ByteArray,
+    public val messageIds: List<ByteArray>,
 )

@@ -1,6 +1,6 @@
 # 0013: Message lifecycle and receipts
 
-Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 5 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata).
+Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 6 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata; 2026-11-23, delivery receipts built).
 
 ## Context
 
@@ -88,3 +88,11 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
 2026-11-13, errata (0.1.0 backlog review):
 
 - **`Failed` reasons (decision 5):** the protocol spec has no list of `Failed` reasons, because they are local API results. This ADR defines them, and decision 9's `Stopped` is the only one.
+
+2026-11-23, delivery receipts built (0.1.0 backlog ticket "Report delivery with delivery receipts"):
+
+- **Batching (decisions 1 and 2; D-38):** a destination batches the messages it took from one sender and sends their receipt 500 ms after the first, or at once when the batch holds 32. The receipt's header has a fresh `message_id` and the latest expiry of the messages it acknowledges.
+- **Duplicates (decision 2):** a later copy is acknowledged again only once the app took the first; a copy that arrives before then gets no receipt of its own, and the retry after it does.
+- **Who may deliver (decisions 5 and 6):** the origin takes a receipt only if it decodes, carries the origin's tag, lists in `MESSAGE_IDS` the IDs of its tombstones in the same order, and expires within the maximum message lifetime of now, with 30 s of clock skew either way. It then delivers only its messages to the receipt's sender. A receipt that arrives after the retries ran out still delivers until the expiry plus 30 s (decision 6).
+- **Direct-only (decision 8):** a direct-only message goes only to a linked destination, with `hop_limit` 1, and waits `Held` otherwise; ordinary retries resend it while it lives.
+- **Profiles:** receipts run end to end in `unsecured` only. Secured receipts ride in `IK` message 2 and transport frames, which come with secured sessions (ticket 46); until then a secured relay forwards receipts by header and a secured origin ignores them.

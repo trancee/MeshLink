@@ -66,6 +66,10 @@ _Avoid_: Packet, payload, file, stream
 A unicast message above the small-message limit (4 KiB) that travels only over a direct link or a discovered route and is never held by relays.
 _Avoid_: File, attachment, blob
 
+**Direct-only message**:
+A unicast message its sender allows to travel only over a link to its destination, never through other nodes; it waits while no such link exists.
+_Avoid_: Local message, one-hop message, neighbor message
+
 **Delivery receipt**:
 The confirmation a destination always returns for a unicast message once its application has taken the message; it also tells the mesh the way back works. Mesh broadcasts never get one.
 _Avoid_: Ack, routing ack, read receipt

@@ -252,17 +252,6 @@ public sealed interface LinkFrame {
             }
         }
 
-        /** A delivered unicast's tombstone: its [messageId] and the commitment's preimage [k]. */
-        public class Tombstone(
-            public val messageId: ByteArray,
-            public val k: ByteArray,
-        ) {
-            init {
-                require(messageId.size == MESSAGE_ID) { "message_id must be $MESSAGE_ID bytes" }
-                require(k.size == K) { "k must be $K bytes" }
-            }
-        }
-
         public companion object {
             /** `catch-up-offered-max`: the most broadcasts one `CATCH_UP` offers. */
             public const val OFFERED_MAX: Int = 128

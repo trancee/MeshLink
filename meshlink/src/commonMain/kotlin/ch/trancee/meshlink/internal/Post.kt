@@ -7,6 +7,7 @@ import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.OutgoingMessage
 import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.Requirement
+import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.SendResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,12 +117,23 @@ internal class Post(
     private val tags = if (secured) SecuredPeerTags(crypto, certificates) else UnsecuredPeerTags(crypto)
     private val routed = RoutedPeers(clock, scope, routes, roster, tags)
     private val releases = Releases(outbox, routed, density) { end.destination(it) }
-    private val unsecuredEnd = UnsecuredEnd(crypto, clock, inbox, routed::heard, releases::found)
+
+    // A delivery receipt goes back on the reverse route its messages came on, else like any unicast.
+    private val receipts: Receipts =
+        Receipts(clock, scope, { to, tombstones, expiry ->
+            val acknowledger = unsecuredEnd.acknowledger
+            val receipt = acknowledger.receipt(to, tombstones, expiry)
+            router.originate(acknowledger.destination(receipt), unsecuredEnd.tag(), density(), search = false) {
+                acknowledger.parcel(receipt, it)
+            }
+        }, outbox::delivered)
+    private val unsecuredEnd: UnsecuredEnd =
+        UnsecuredEnd(crypto, clock, inbox, receipts, routed::heard, releases::found)
     private val securedEnd = SecuredEnd(crypto, clock, inbox, certificates, routed::heard, releases::found)
     private val end: Origin = if (secured) securedEnd else unsecuredEnd
     private val codec = BroadcastCodec(crypto, secured)
     private val floods = Floods(lanes, codec, Plumtree(lanes, clock, scope, density)) { inbox.offer(it) }
-    private val router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
+    private val router: Router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
 
     /** This node's broadcasts. */
     val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, lifetimeSeconds)
@@ -132,6 +144,7 @@ internal class Post(
         codec.begin(identity)
         self.value = NodeId(identity.nodeId)
         outbox.begin()
+        receipts.begin()
         broadcasts.begin()
         lookups?.begin(releases::arrived)
     }
@@ -144,15 +157,17 @@ internal class Post(
     /** Ends the run: unfinished messages and broadcasts fail with `Stopped`, and no routed peer is listed. */
     suspend fun end() {
         outbox.end()
+        receipts.end()
         broadcasts.end()
         routed.end()
         lookups?.end()
     }
 
-    /** Accepts or rejects a message of [payload] to [to] from a node in [state]. */
+    /** Accepts or rejects a message of [payload] to [to], sent as [options] say, from a node in [state]. */
     fun send(
         to: NodeId,
         payload: ByteArray,
+        options: SendOptions,
         state: MeshState,
     ): SendResult {
         val reason =
@@ -171,7 +186,7 @@ internal class Post(
         val deadline = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS) * MILLIS_PER_SECOND
         val add = {
             routed.sending(to)
-            outbox.add(Outbox.Entry(to, bytes, expiry, status, deadline))
+            outbox.add(Outbox.Entry(to, bytes, expiry, status, deadline, options.directOnly))
         }
         scope.launch { add() }.invokeOnCompletion {
             if (it != null) status.value = DeliveryStatus.Failed(FailureReason.Stopped)
@@ -186,7 +201,7 @@ internal class Post(
 
     override fun linked(peer: NodeId): LinkFrame {
         lanes.open(peer)
-        outbox.linked()
+        outbox.linked(peer)
         return floods.linked(peer)
     }
 
@@ -226,18 +241,26 @@ internal class Post(
         search: Boolean = false,
     ) {
         val draft = entry.draft ?: end.draft(entry)?.also { entry.draft = it }
-        if (lanes.peers.isEmpty()) return entry.hold()
-        if (draft == null) return
+        val reachable = if (entry.directOnly) entry.to in lanes.peers else lanes.peers.isNotEmpty()
+        if (!reachable) return entry.hold()
+        val sealed = draft ?: return
         val parcel = { hopLimit: Int ->
-            Parcel(draft.messageId, relayed = false, { end.frame(draft, hopLimit) }) {
+            Parcel(sealed.messageId, relayed = false, { end.frame(sealed, hopLimit) }) {
                 if (it == Settled.SENT) entry.sent()
             }
         }
-        val hops = router.originate(end.destination(draft), end.origin(draft), density(), search, parcel)
-        entry.sentMillis = clock.monotonicMillis()
-        if (hops != null && !entry.resent) {
-            entry.resent = true
-            outbox.after(entry, RESEND_BASE_MILLIS + RESEND_PER_HOP_MILLIS * hops) { transmit(entry, search = true) }
+        // A direct-only message goes only to its destination's lane, which no node relays (ADR 0013 decision 8).
+        if (entry.directOnly) {
+            lanes.put(entry.to, parcel(1))
+            entry.sentMillis = clock.monotonicMillis()
+        } else {
+            val hops = router.originate(end.destination(sealed), end.origin(sealed), density(), search, parcel)
+            entry.sentMillis = clock.monotonicMillis()
+            if (hops != null && !entry.resent) {
+                entry.resent = true
+                val resend = RESEND_BASE_MILLIS + RESEND_PER_HOP_MILLIS * hops
+                outbox.after(entry, resend) { transmit(entry, search = true) }
+            }
         }
     }
 

@@ -151,6 +151,7 @@ internal val vectorSets: List<VectorSet> =
             "vectors/routed-frames.json",
             mapOf(
                 "0x40" to messageFrame,
+                "0x41" to deliveryReceipt,
                 "0x43" to routeReply,
                 "0x44" to lookupReply,
                 "0x7e" to unicastFrame,
@@ -207,8 +208,7 @@ private fun pending(
 
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
-    pending("routed-frames.json", "47", "0x41") +
-        pending("routed-frames.json", "48", "0x42") +
+    pending("routed-frames.json", "48", "0x42") +
         OTHER_HPKE_SUITES.map {
             Skip.NotApplicable(
                 "hpke-pq/test-vectors.json",
