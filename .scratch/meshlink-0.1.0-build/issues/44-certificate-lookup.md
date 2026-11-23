@@ -1,6 +1,6 @@
 # Find a peer's certificate by lookup
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 21, 37
 
@@ -16,6 +16,18 @@ In `Classical` and `PostQuantum`, a node that needs a peer's identity certificat
 - **Profiles:** `Unsecured` has no certificates and no lookups. In a gated mesh, lookups ride the mesh-key links like every routed frame.
 - **API:** no public change. `send` waiting as `Queued` for a lookup, and `peers` showing `Routed` for secured peers, land with ticket 45.
 
+## Outcome
+
+- Shipped in [#121](https://github.com/trancee/MeshLink/pull/121) (`28d893b`).
+- The line criterion changed (owner decision, option A). Frank's neighbor Eve holds Frank's certificate from their link. So Eve, 4 hops from Alice, answers, and the request never reaches Frank. The criterion below says what is now proved.
+- `certificate-lookup.feature` has 4 seeded `VirtualAir` cases:
+  - the line answered by Eve, `Classical` 222 B and `PostQuantum` 1,438 B;
+  - a middle node, Carol, answering from her lookup cache, with Dave seeing no request;
+  - the gated mesh, where Mallory sees no lookup frame and no lookup frame is sent unencrypted.
+- The tier 2 sets were generated with the Rust reference: `lookup-reply.json` and `lookup-reply-key` in `derivations.json`.
+- Lookups have their own `LookupRequest` and `LookupReply` fuzz targets with a committed corpus.
+- Code split: `Lookups` sends this node's lookups and opens the replies. `LookupAnswers` answers other nodes' requests and gives relays the first-reply-per-salt rule. `Router` learns the reverse route for each new request.
+
 ## Spec and ADR references
 
 - [routing.md, Certificate lookup](../../../docs/spec/routing.md#certificate-lookup): [LOOKUP_REQUEST](../../../docs/spec/routing.md#lookup_request), [LOOKUP_REPLY](../../../docs/spec/routing.md#lookup_reply); [Rules](../../../docs/spec/routing.md#rules).
@@ -26,15 +38,15 @@ In `Classical` and `PostQuantum`, a node that needs a peer's identity certificat
 
 ## Acceptance criteria
 
-- [ ] `LOOKUP_REQUEST` and `LOOKUP_REPLY` codecs pass every matching `routed-frames.json` vector. The `lookup-tag` and `lookup-reply-key` derivations pass `derivations.json`. Each new decoder has a deterministic mutation test.
-- [ ] The tier 2 sets "Sealed lookup replies" and "Lookup-reply key from X25519" pass in the vector runner. If ticket 20 left them pending, this ticket generates them with the Rust reference.
-- [ ] Seeded `VirtualAir` test, 6 nodes in a line, `Classical`: A gets F's certificate by lookup from F 5 hops away; a second lookup is answered by a middle node that cached it, and the request stops there.
-- [ ] The same in `PostQuantum`, with the 1,438 B reply.
-- [ ] Seeded tests show one outstanding lookup per NodeId, a fresh salt, key and `message_id` per retry, relays passing only the first reply per salt, and the requester dropping later replies.
-- [ ] A unit test shows LRU eviction at 64 entries and removal at `not_after` in virtual time.
-- [ ] T10: an all-zero shared secret, a reply failing AEAD, a certificate for another NodeId, an expired certificate, a bad signature and an unrequested reply are rejected and never cached.
-- [ ] A seeded gated-mesh test shows a non-member sees no lookup frame.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] `LOOKUP_REQUEST` and `LOOKUP_REPLY` codecs pass every matching `routed-frames.json` vector. The `lookup-tag` and `lookup-reply-key` derivations pass `derivations.json`. Each new decoder has a deterministic mutation test.
+- [x] The tier 2 sets "Sealed lookup replies" and "Lookup-reply key from X25519" pass in the vector runner. If ticket 20 left them pending, this ticket generates them with the Rust reference.
+- [x] Seeded `VirtualAir` test, 6 nodes in a line, `Classical`: A gets F's certificate by lookup, answered by F's neighbor E from the certificate their link proved, and F receives no request. A second lookup is answered by a middle node that cached it, and the request stops there.
+- [x] The same in `PostQuantum`, with the 1,438 B reply.
+- [x] Seeded tests show one outstanding lookup per NodeId, a fresh salt, key and `message_id` per retry, relays passing only the first reply per salt, and the requester dropping later replies.
+- [x] A unit test shows LRU eviction at 64 entries and removal at `not_after` in virtual time.
+- [x] T10: an all-zero shared secret, a reply failing AEAD, a certificate for another NodeId, an expired certificate, a bad signature and an unrequested reply are rejected and never cached.
+- [x] A seeded gated-mesh test shows a non-member sees no lookup frame.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
