@@ -1,6 +1,6 @@
 # Report delivery with delivery receipts
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 45
 
@@ -26,17 +26,28 @@ Tombstone handling by relays is ticket 51. The routed-unicast toggle is ticket 5
 - [D-27](../../../docs/spec/decisions.md#d-27-routing-header-and-hop-limit), [D-38](../../../docs/spec/decisions.md#d-38-delivery-receipt-batching).
 - [ADR 0013](../../../docs/adr/0013-message-lifecycle-and-receipts.md) decisions 1, 2, 5, 6, 8 and 9; [ADR 0008](../../../docs/adr/0008-routing-topology-and-density-adaptation.md) (its 2026-11-02 ADR 0013 amendment); [ADR 0007](../../../docs/adr/0007-public-api-shape.md) decisions 7 and 8.
 
+## Outcome
+
+- Shipped in [#127](https://github.com/trancee/MeshLink/pull/127) (`7efec4c`).
+- New public API: `send(to, payload, options = SendOptions())` and `SendOptions(directOnly = false)`, a regular class rather than a data class (ADR 0007 amendment of 2026-11-23); `DeliveryStatus.Delivered`.
+- `Receipts` batches up to 32 IDs for at most 500 ms; the header expiry is the latest acknowledged expiry. A repeated copy is acknowledged again only after the original was taken. The origin accepts a receipt only if it carries the origin's tag, repeats the header in its plaintext, lists the tombstone IDs in order and falls within the skew window (ADR 0013 amendment of 2026-11-23).
+- `DeliveryReceiptsTest` (seeded six-node line, 40 messages): all `Delivered`, receipts of 1..32 IDs, first acknowledgement within 500 ms of the take, and no `MESSAGE` from A after the last `Delivered`. `DeliveryOrderTest` is the status-order property test.
+- Gherkin: `delivery-receipts.feature` (5 scenarios). `mesh-delivery.feature`, ticket 42's pull-request suite, now asserts `Delivered` for every sender and runs in about 1.7 s of test time.
+- Hand mutants: 5 killed. `Outbox.delivered`'s `to == from` filter survives the system tests but `OutboxTest` kills it; a disallowed container kind is rejected both by `Router` and the codec, so neither check alone is observable.
+- The `Failed` reasons item was already resolved by ADR 0013's 2026-11-13 errata: they are local API results, and `Stopped` is the only one.
+- Secured profiles still end unicast messages `Expired` until ticket 46 adds secured receipts. The density bands stay with ticket 42b.
+
 ## Acceptance criteria
 
-- [ ] The `DELIVERY_RECEIPT` codec passes every matching `routed-frames.json` vector; receipt plaintexts pass `inner-plaintext.json`. Its decoder has a deterministic mutation test.
-- [ ] Seeded `VirtualAir` test, 6-node line, `Unsecured`: 40 messages from A to F all reach `Delivered`, in batches of at most 32, each within 500 ms of the app taking the message, and A's retries stop.
-- [ ] A seeded test duplicates a message and shows a second receipt with no second delivery.
-- [ ] A seeded test drops every receipt until the retries run out, then lets a late one through before expiry: status turns `Delivered`. Without it, status turns `Expired` at expiry + 30 s.
-- [ ] Seeded direct-only tests: `Held` while unlinked, `Sent` then `Delivered` after linking, `Expired` if no link forms. No relay forwards or holds the frame.
-- [ ] A property test checks the status order rules over random event sequences.
-- [ ] T10: mismatched `MESSAGE_IDS` and tombstones, `count` 0 or 33, a receipt for an unknown ID, and a receipt with a disallowed kind change no status.
-- [ ] Ticket 42's pull-request suite runs the receipt scenarios and still fits its time budget.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] The `DELIVERY_RECEIPT` codec passes every matching `routed-frames.json` vector; receipt plaintexts pass `inner-plaintext.json`. Its decoder has a deterministic mutation test.
+- [x] Seeded `VirtualAir` test, 6-node line, `Unsecured`: 40 messages from A to F all reach `Delivered`, in batches of at most 32, each within 500 ms of the app taking the message, and A's retries stop.
+- [x] A seeded test duplicates a message and shows a second receipt with no second delivery.
+- [x] A seeded test drops every receipt until the retries run out, then lets a late one through before expiry: status turns `Delivered`. Without it, status turns `Expired` at expiry + 30 s.
+- [x] Seeded direct-only tests: `Held` while unlinked, `Sent` then `Delivered` after linking, `Expired` if no link forms. No relay forwards or holds the frame.
+- [x] A property test checks the status order rules over random event sequences.
+- [x] T10: mismatched `MESSAGE_IDS` and tombstones, `count` 0 or 33, a receipt for an unknown ID, and a receipt with a disallowed kind change no status.
+- [x] Ticket 42's pull-request suite runs the receipt scenarios and still fits its time budget.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
