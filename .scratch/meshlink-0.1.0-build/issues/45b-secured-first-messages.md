@@ -1,6 +1,6 @@
 # Seal first messages with HPKE in secured sends
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 44, 45a
 
@@ -30,14 +30,27 @@ In `Classical` and `PostQuantum`, `send(to, payload)` to any peer, direct or rou
 - [ADR 0002](../../../docs/adr/0002-noise-suites-and-handshake-patterns.md) decisions "End-to-end layer", "Post-quantum first and held messages" and "Conformance vectors"; [ADR 0004](../../../docs/adr/0004-crypto-provider-libsodium.md) (HPKE ours, X-Wing pin, hpke-pq gate).
 - [ADR 0016](../../../docs/adr/0016-routing-metadata-exposure.md) decisions 1 and 2; [ADR 0018](../../../docs/adr/0018-certificate-acquisition.md) decisions 8 and 9.
 
+## Outcome
+
+- Shipped in [#125](https://github.com/trancee/MeshLink/pull/125) (`d9bbea6`).
+- `FirstMessages` (meshlink-core) seals and opens message 1. `SecuredEnd` (meshlink) owns the conversations, holds one outstanding first message per destination, and answers for the public tags of every certificate whose keys it still holds (`static-key-grace`).
+- For a 22 B payload, relays see 407 B frames in `Classical` and 3,959 B in `PostQuantum`. The 3,552 B difference matches `first-message.json` (320 vs 3,872 B): a larger certificate, the `IKhfs` KEM key and the 1,136 B HPKE seal.
+- `secured-messaging.feature` has 5 scenarios. A route found to one node leaves a message that waits for another node's certificate `Queued`.
+- Hand mutants: 8 killed. The null-draft guard in `Releases.found` is an equivalent mutant: an entry with no draft only retries its deduplicated certificate lookup.
+- To stay within detekt's function limit without a suppression:
+  - `Post` hands route and certificate releases to `Releases`;
+  - `NoiseHandshake.remoteStaticKey` is a property;
+  - the unused `Draft.hopLimit` is gone.
+- [Security profile guarantees](../../../docs/reference/security-profile-guarantees.md) already matched the tested rows, so it did not change.
+
 ## Acceptance criteria
 
-- [ ] Secured plaintexts pass `inner-plaintext.json`. Each new decoder has a deterministic mutation test.
-- [ ] Seeded `VirtualAir` tests, 5-node line, in `Classical` and in `PostQuantum`: A sends to E with no cached certificate; status stays `Queued` during the lookup; E receives once, intact; relays see only header, commitment and a padded size.
-- [ ] A seeded test with no reachable certificate holder ends in `Expired` at the lifetime plus 30 s.
-- [ ] T10: wrong padding, a missing `CONVERSATION_SEED` or `SENDER_CERTIFICATE`, a certificate whose `x25519_key` differs from the Noise static key, a tampered `enc` or `ct`, a mismatched inner `message_id` or `expiry`, and kind `0x04` in a secured mesh are all dropped without delivery.
-- [ ] A seeded test shows `peers` turning `Routed(hops)` for a secured node with a valid certificate and a route, and not without either.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] Secured plaintexts pass `inner-plaintext.json`. Each new decoder has a deterministic mutation test.
+- [x] Seeded `VirtualAir` tests, 5-node line, in `Classical` and in `PostQuantum`: A sends to E with no cached certificate; status stays `Queued` during the lookup; E receives once, intact; relays see only header, commitment and a padded size.
+- [x] A seeded test with no reachable certificate holder ends in `Expired` at the lifetime plus 30 s.
+- [x] T10: wrong padding, a missing `CONVERSATION_SEED` or `SENDER_CERTIFICATE`, a certificate whose `x25519_key` differs from the Noise static key, a tampered `enc` or `ct`, a mismatched inner `message_id` or `expiry`, and kind `0x04` in a secured mesh are all dropped without delivery.
+- [x] A seeded test shows `peers` turning `Routed(hops)` for a secured node with a valid certificate and a route, and not without either.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
