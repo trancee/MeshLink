@@ -377,14 +377,15 @@ class AndroidRadioDiscoveryTest {
             val flags = byteArrayOf(2, 1, 0x1A)
             val nearbyInfo = byteArrayOf(10, -1, 0x4C, 0, 0x10, 5, 1, 2, 3, 4, 5)
             val overflow = overflowArea(meshBit = true)
+            val packed = byteArrayOf(27, -1, 0x4C, 0, 0x10, 5, 1, 2, 3, 4, 5) + overflow.copyOfRange(4, overflow.size)
 
             // Act
-            listOf(flags + nearbyInfo + overflow, flags + overflow + nearbyInfo, overflow).forEach {
+            listOf(flags + nearbyInfo + overflow, flags + overflow + nearbyInfo, overflow, flags + packed).forEach {
                 callback.onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, result(device, record(it)))
             }
 
             // Assert
-            assertEquals(3, events.size)
+            assertEquals(4, events.size)
             events.forEach {
                 val sighting = assertIs<RadioEvent.Sighted>(it).sighting
                 assertNull(sighting.payload)
@@ -407,9 +408,16 @@ class AndroidRadioDiscoveryTest {
             val otherCompany = overflowArea(meshBit = true).also { it[2] = 0x4D }
             val afterTheEnd = byteArrayOf(0) + overflowArea(meshBit = true)
             val truncated = overflowArea(meshBit = true).copyOf(OVERFLOW_SIZE)
+            val allButMesh =
+                overflowArea(meshBit = false).also {
+                    it.fill(-1, 5)
+                    it[it.size - 1] = 0xF7.toByte()
+                }
+            val noMeshArea = overflowArea(meshBit = false)
+            val records = listOf(nearbyInfo, short, otherCompany, noMeshArea, afterTheEnd, truncated, allButMesh)
 
             // Act
-            listOf(nearbyInfo, short, otherCompany, overflowArea(meshBit = false), afterTheEnd, truncated).forEach {
+            records.forEach {
                 callback.onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, result(device, record(it)))
             }
 
