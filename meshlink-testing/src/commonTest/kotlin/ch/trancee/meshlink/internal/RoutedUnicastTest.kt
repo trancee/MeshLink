@@ -143,8 +143,8 @@ class RoutedUnicastTest {
             advanceTimeBy(SETTLE_MILLIS)
             val nowSeconds = (TestClock.WALL_CLOCK_START_MILLIS + testScheduler.currentTime) / MILLIS_PER_SECOND
             val sender = UnsecuredMessaging(SodiumCryptoProvider, FAKE_ID)
-            val draft = sender.draft(nodeId(alice), PAYLOAD, (nowSeconds + MINUTE).toUInt(), 1)
-            val intact = sender.frame(draft, Derivations.epoch(nowSeconds))
+            val draft = sender.draft(nodeId(alice), PAYLOAD, (nowSeconds + MINUTE).toUInt())
+            val intact = sender.frame(draft, Derivations.epoch(nowSeconds), hopLimit = 1)
             val tampered = intact.copyOf().also { it[COMMITMENT_OFFSET] = (it[COMMITMENT_OFFSET] + 1).toByte() }
 
             // Act

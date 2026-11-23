@@ -307,6 +307,12 @@ public class NoiseHandshake(
     /** Whether every handshake message has been written or read, so [split] may follow. */
     public val isComplete: Boolean get() = !closed && index == pattern.messages.size
 
+    /**
+     * The peer's static key as far as the handshake knows it: given, or read from a message; empty
+     * before then. An `IK` responder learns it from message 1.
+     */
+    public val remoteStaticKey: ByteArray get() = remoteStatic.copyOf()
+
     /** The next handshake message, carrying [payload]: encrypted once the pattern has mixed in a key. */
     public fun writeMessage(payload: ByteArray): NoiseResult<ByteArray> =
         turn(writing = true) {

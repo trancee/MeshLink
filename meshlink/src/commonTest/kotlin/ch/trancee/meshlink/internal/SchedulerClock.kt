@@ -86,3 +86,19 @@ internal fun lowTree(
     scope: TestScope = TestScope(),
     clock: Clock = SchedulerClock(scope.testScheduler),
 ): Plumtree = Plumtree(lanes, clock, scope) { DensityClass.LOW }
+
+/**
+ * The Classical first-message keys of the node with [identityKey] [seed]: a fresh static key under a
+ * certificate valid for [validity] from [clock]'s now.
+ */
+internal fun securedKeys(
+    clock: Clock,
+    seed: Int,
+    validity: kotlin.time.Duration = kotlin.time.Duration.parse("24h"),
+): SecuredKeys {
+    val crypto = SodiumCryptoProvider
+    val identity = identityKey(seed)
+    val static = crypto.x25519KeyPair()
+    val certificate = IdentityCertificate.issue(crypto, clock, identity, StaticKeys(static.publicKey, null), validity)
+    return SecuredKeys(Derivations(crypto).nodeId(identity.publicKey), static, null, certificate)
+}

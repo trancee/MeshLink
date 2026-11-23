@@ -298,10 +298,11 @@ class UnsecuredLinkTest {
             fake.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
             advanceTimeBy(SETTLE_MILLIS)
             val sender = UnsecuredMessaging(SodiumCryptoProvider, FAKE_ID)
-            val draft = sender.draft(nodeId(alice), PAYLOADS[0], (now().epochSeconds + LIFETIME_SECONDS).toUInt(), 1)
+            val draft = sender.draft(nodeId(alice), PAYLOADS[0], (now().epochSeconds + LIFETIME_SECONDS).toUInt())
 
             // Act
-            fake.write(record(LinkFrame.Rekey) + record(sender.frame(draft, Derivations.epoch(now().epochSeconds))))
+            val frame = sender.frame(draft, Derivations.epoch(now().epochSeconds), hopLimit = 1)
+            fake.write(record(LinkFrame.Rekey) + record(frame))
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
@@ -573,10 +574,10 @@ class UnsecuredLinkTest {
             val inboundEnd = alice.radio.ends.first()
             val drainingAfterClose = inboundEnd.open
             val sender = UnsecuredMessaging(SodiumCryptoProvider, HIGH_ID)
-            val draft = sender.draft(nodeId(alice), PAYLOADS[0], (now().epochSeconds + LIFETIME_SECONDS).toUInt(), 1)
+            val draft = sender.draft(nodeId(alice), PAYLOADS[0], (now().epochSeconds + LIFETIME_SECONDS).toUInt())
 
             // Act
-            inbound.write(record(sender.frame(draft, Derivations.epoch(now().epochSeconds))))
+            inbound.write(record(sender.frame(draft, Derivations.epoch(now().epochSeconds), hopLimit = 1)))
             (0..Reassembly.SLOTS).forEach { stream ->
                 inbound.write(record(LinkFrame.Fragment(stream, 0, false, byteArrayOf(MESSAGE_TYPE))))
             }
@@ -810,10 +811,10 @@ class UnsecuredLinkTest {
             val fake = connectFake(air, alice)
             val sender = UnsecuredMessaging(SodiumCryptoProvider, FAKE_ID)
             val expiry = (now().epochSeconds + LIFETIME_SECONDS).toUInt()
-            val draft = sender.draft(nodeId(alice), PAYLOADS[0], expiry, hopLimit = 1)
+            val draft = sender.draft(nodeId(alice), PAYLOADS[0], expiry)
 
             // Act
-            fake.write(record(sender.frame(draft, Derivations.epoch(now().epochSeconds))))
+            fake.write(record(sender.frame(draft, Derivations.epoch(now().epochSeconds), hopLimit = 1)))
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert

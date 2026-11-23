@@ -17,12 +17,12 @@ internal class RouteDiscovery(
     private val floods = MessageIds()
     private var sequence = 1u
 
-    /** Sends a route request for [targetTag] on every link, if this node has a tag to send it from. */
+    /** Sends a route request for [targetTag] from [origin], the tag its replies come back to, on every link. */
     fun search(
         targetTag: ByteArray,
+        origin: ByteArray,
         nowSeconds: Long,
     ) {
-        val origin = endpoint.tag() ?: return
         sequence = Sequence.next(sequence)
         val header = FloodHeader(RADIUS, random(MESSAGE_ID), (nowSeconds + LIFETIME_MIN_SECONDS).toUInt())
         val request = RouteRequest(header, targetTag, origin, sequence, routes.sequence(targetTag), 0).encode()

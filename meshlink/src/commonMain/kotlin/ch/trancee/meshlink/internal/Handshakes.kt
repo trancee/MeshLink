@@ -125,16 +125,17 @@ internal class Handshakes(
 }
 
 /**
- * A node's link credentials for one run: a fresh X25519 [static] key and the [certificate] that
+ * A node's link credentials for one session: a fresh X25519 [static] key and the [certificate] that
  * binds it to the installation identity, for the mesh of [meshIdDigest] in [profile]. In
- * `PostQuantum` the certificate also binds a fresh X-Wing key, whose secret key is not kept until
- * end-to-end messages use it.
+ * `PostQuantum` the certificate also binds a fresh X-Wing key pair [xWing], which first messages are
+ * sealed to.
  */
 internal class LinkCredentials(
     val profile: WireProfile,
     val meshIdDigest: ByteArray,
     val static: KeyPair,
     val certificate: IdentityCertificate,
+    val xWing: KeyPair?,
 ) {
     companion object {
         /** Fresh credentials for a run of the node with [identity]. */
@@ -146,9 +147,10 @@ internal class LinkCredentials(
             meshIdDigest: ByteArray,
         ): LinkCredentials {
             val static = crypto.x25519KeyPair()
-            val xWing = if (profile == WireProfile.POST_QUANTUM) crypto.xWingKeyPair().publicKey else null
-            val certificate = IdentityCertificate.issue(crypto, clock, identity, StaticKeys(static.publicKey, xWing))
-            return LinkCredentials(profile, meshIdDigest, static, certificate)
+            val xWing = if (profile == WireProfile.POST_QUANTUM) crypto.xWingKeyPair() else null
+            val keys = StaticKeys(static.publicKey, xWing?.publicKey)
+            val certificate = IdentityCertificate.issue(crypto, clock, identity, keys)
+            return LinkCredentials(profile, meshIdDigest, static, certificate, xWing)
         }
     }
 }

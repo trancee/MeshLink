@@ -201,7 +201,7 @@ private class LookupLine {
  * A node's crypto that keeps every plaintext it opens, by key: on a link, each key carries one
  * direction of the link's records.
  */
-private class OpenedFrames(
+internal class OpenedFrames(
     private val crypto: CryptoProvider,
 ) : CryptoProvider by crypto {
     private val opened = mutableListOf<Pair<List<Byte>, ByteArray>>()
@@ -217,19 +217,7 @@ private class OpenedFrames(
         }
 
     /** Every frame opened so far, each reassembled from its `FRAGMENT`s on its key. */
-    fun frames(): List<ByteArray> =
-        opened.groupBy({ it.first }, { it.second }).values.flatMap { bodies ->
-            val streams = mutableMapOf<Int, ByteArray>()
-            bodies.mapNotNull { body ->
-                val fragment = (LinkFrame.decode(body) as? Decoded.Valid)?.value as? LinkFrame.Fragment
-                val data = fragment?.let { streams.getOrElse(it.streamId) { ByteArray(0) } + it.data }
-                when {
-                    fragment == null -> body
-                    fragment.last -> data.also { streams -= fragment.streamId }
-                    else -> null.also { streams[fragment.streamId] = data!! }
-                }
-            }
-        }
+    fun frames(): List<ByteArray> = opened.groupBy({ it.first }, { it.second }).values.flatMap { it.reassembled() }
 }
 
 private val ByteArray.type: Int get() = if (isEmpty()) -1 else this[0].toInt() and 0xFF

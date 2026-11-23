@@ -366,8 +366,8 @@ class BearerSwitchTest {
     ): ByteArray {
         val seconds = (TestClock.WALL_CLOCK_START_MILLIS + testScheduler.currentTime) / MILLIS_PER_SECOND
         val sender = UnsecuredMessaging(SodiumCryptoProvider, FAKE_ID)
-        val draft = sender.draft(nodeId(platform), text.encodeToByteArray(), (seconds + LIFETIME_SECONDS).toUInt(), 1)
-        return sender.frame(draft, Derivations.epoch(seconds))
+        val draft = sender.draft(nodeId(platform), text.encodeToByteArray(), (seconds + LIFETIME_SECONDS).toUInt())
+        return sender.frame(draft, Derivations.epoch(seconds), hopLimit = 1)
     }
 
     private fun lastFrame(platform: VirtualPlatform): LinkFrame = frames(platform.radio.ends.single { it.open }).last()

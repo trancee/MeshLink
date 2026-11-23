@@ -70,7 +70,10 @@ class RouteDiscoveryTest {
         tag: ByteArray,
         search: Boolean = false,
         density: DensityClass = DensityClass.MEDIUM,
-    ) = originate(tag, density, search) { Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {} }
+        origin: ByteArray? = OWN,
+    ) = originate(tag, origin, density, search) { hopLimit ->
+        Parcel(messageId(id), relayed = false, { byteArrayOf(hopLimit.toByte()) }) {}
+    }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
 
@@ -319,11 +322,11 @@ class RouteDiscoveryTest {
         }
 
     @Test
-    fun anOriginWithoutARouteOrSearchingAgainSendsARouteRequestFromItsTag() =
+    fun anOriginWithoutARouteOrSearchingAgainSendsARouteRequestFromTheTagItIsGiven() =
         runTest {
             // Arrange: a reply from b found the target with sequence 5.
-            val router = router()
-            router.received(b, reply(targetSequence = 5u))
+            val router = router(FakeEndpoint(null))
+            router.received(b, reply(destination = ORIGIN, targetSequence = 5u))
             waiting()
 
             // Act
@@ -347,13 +350,13 @@ class RouteDiscoveryTest {
         }
 
     @Test
-    fun aNodeWithoutATagSendsNoRouteRequest() =
+    fun anOriginWithoutATagSendsNoRouteRequest() =
         runTest {
             // Arrange
-            val router = router(FakeEndpoint(null))
+            val router = router()
 
             // Act
-            router.send(1, TARGET)
+            router.send(1, TARGET, origin = null)
 
             // Assert
             assertEquals(listOf(3, 3, 3), waiting().values.map { it.single()[0].toInt() })
@@ -398,7 +401,7 @@ class RouteDiscoveryTest {
         runTest {
             // Arrange
             val nodeId = ByteArray(32) { 3 }
-            val end = UnsecuredEnd(SodiumCryptoProvider, SchedulerClock(testScheduler), Inbox(), secured = false, {}) {}
+            val end = UnsecuredEnd(SodiumCryptoProvider, SchedulerClock(testScheduler), Inbox(), {}) {}
             end.begin(nodeId)
             val router = router(end)
             val own = Derivations(SodiumCryptoProvider).unsecuredTag(nodeId, Derivations.epoch(nowSeconds()))
@@ -406,7 +409,7 @@ class RouteDiscoveryTest {
             // Act
             router.received(a, request(target = own))
             val answered = waiting().getValue(a).single()
-            router.send(2, TARGET)
+            router.send(2, TARGET, origin = end.tag())
 
             // Assert
             assertContentEquals(own, decodedReply(answered).targetTag)
@@ -414,27 +417,37 @@ class RouteDiscoveryTest {
         }
 
     @Test
-    fun aSecuredNodeFloodsOnARequestForItsUnsecuredTagOrForARouteItKnowsWithoutAnswering() =
+    fun aSecuredNodeAnswersARequestForItsPublicTagButFloodsOnItsUnsecuredTagOrARouteItKnows() =
         runTest {
             // Arrange: a secured node whose route to TARGET a relayed reply from b taught.
-            val nodeId = ByteArray(32) { 3 }
-            val end = UnsecuredEnd(SodiumCryptoProvider, SchedulerClock(testScheduler), Inbox(), secured = true, {}) {}
-            end.begin(nodeId)
+            val clock = SchedulerClock(testScheduler)
+            val lookups =
+                Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, lanes) {
+                    DensityClass.MEDIUM
+                }
+            val end = SecuredEnd(SodiumCryptoProvider, clock, Inbox(), lookups, {}) {}
+            val keys = securedKeys(clock, seed = 3)
+            end.certify(keys)
             val router = router(end)
             router.received(b, reply(destination = ORIGIN))
             waiting()
-            val own = Derivations(SodiumCryptoProvider).unsecuredTag(nodeId, Derivations.epoch(nowSeconds()))
+            val epoch = Derivations.epoch(nowSeconds())
+            val public = EndToEndTags(Derivations(SodiumCryptoProvider)).publicTag(keys.static.publicKey, epoch)
+            val unsecured = Derivations(SodiumCryptoProvider).unsecuredTag(keys.nodeId, epoch)
 
             // Act
-            router.received(a, request(target = own, id = 1))
-            router.received(a, request(id = 2, targetSequence = 5u))
+            router.received(a, request(target = public, id = 1))
+            val answered = waiting().getValue(a).single()
+            router.received(a, request(target = unsecured, id = 2))
+            router.received(a, request(id = 3, targetSequence = 5u))
 
             // Assert
+            assertContentEquals(public, decodedReply(answered).targetTag)
             val waiting = waiting()
             assertEquals(emptyList(), waiting.getValue(a))
             listOf(b, c).forEach { peer ->
                 val relayed = waiting.getValue(peer).map(::decodedRequest)
-                assertEquals(listOf(own.toList(), TARGET.toList()), relayed.map { it.targetTag.toList() })
+                assertEquals(listOf(unsecured.toList(), TARGET.toList()), relayed.map { it.targetTag.toList() })
             }
         }
 
