@@ -74,9 +74,9 @@ class FirstMessagesTest {
 
             // Assert
             assertNotNull(delivery, "$profile")
-            assertContentEquals(alice.nodeId, delivery.sender)
+            assertContentEquals(alice.nodeId, delivery.message.sender)
             assertContentEquals(alice.certificate.encode(), delivery.certificate.encode())
-            assertContentEquals(PAYLOAD, delivery.payload)
+            assertContentEquals(PAYLOAD, delivery.message.payload)
             assertFalse(delivery.readReceipt)
         }
 
@@ -184,7 +184,6 @@ class FirstMessagesTest {
             assertFalse(bob.codec.owns(tags.publicTag(bob.static.publicKey, it), NOW), "epoch $it")
         }
         assertFalse(bob.codec.owns(tags.publicTag(alice.static.publicKey, epoch), NOW))
-        assertContentEquals(tags.publicTag(bob.static.publicKey, epoch), alice.codec.publicTag(bob.certificate, epoch))
     }
 
     @Test
@@ -249,6 +248,16 @@ class FirstMessagesTest {
     }
 
     @Test
+    fun aPostQuantumFirstMessageWhoseKemKeyCannotBeEncapsulatedToGetsNoAnswerAndIsDropped() {
+        val (alice, bob) = sides(WireProfile.POST_QUANTUM)
+        val invalid = KeyPair(ByteArray(KEM_SECRET), ByteArray(KEM_PUBLIC) { -1 })
+
+        val frame = Forgery(alice, bob).frame(kemKeyPair = invalid)
+
+        assertNull(bob.codec.accept(frame, NOW))
+    }
+
+    @Test
     fun anExpiredSenderCertificateOrMessageIsDroppedAllowingClockSkew() {
         val (alice, bob) = sides(WireProfile.CLASSICAL)
         val draft = assertNotNull(alice.codec.draft(bob.certificate, PAYLOAD, EXPIRY, readReceipt = false))
@@ -272,7 +281,7 @@ class FirstMessagesTest {
             val draft = assertNotNull(alice.codec.draft(bob.certificate, PAYLOAD, EXPIRY, readReceipt = false))
 
             mutationInputs(alice.codec.frame(draft, epoch, HOP_LIMIT)).forEach { input ->
-                bob.codec.accept(input, NOW)?.let { assertContentEquals(PAYLOAD, it.payload, "$profile") }
+                bob.codec.accept(input, NOW)?.let { assertContentEquals(PAYLOAD, it.message.payload, "$profile") }
             }
         }
 
@@ -304,10 +313,11 @@ class FirstMessagesTest {
             responderStatic: ByteArray = bob.static.publicKey,
             seal: (ByteArray) -> ByteArray = { it },
             container: Container? = null,
+            kemKeyPair: KeyPair? = null,
         ): ByteArray {
             val pattern = if (alice.profile == WireProfile.POST_QUANTUM) NoisePattern.IK_HFS else NoisePattern.IK
             val prologue = Derivations.e2ePrologue(1, alice.profile)
-            val keys = NoiseKeys(alice.static, remoteStatic = responderStatic)
+            val keys = NoiseKeys(alice.static, kemKeyPair = kemKeyPair, remoteStatic = responderStatic)
             val initiator = NoiseHandshake(crypto, pattern, NoiseRole.INITIATOR, prologue, keys)
             val payload =
                 bob.certificate.xWingKey?.let {
@@ -329,6 +339,8 @@ class FirstMessagesTest {
         const val BLOCK = 32
         const val COMMITMENT = 16
         const val TRANSPORT_MIN = 17
+        const val KEM_PUBLIC = 1_184
+        const val KEM_SECRET = 2_400
         const val HOP_LIMIT = 255
         const val SENDER_CERTIFICATE = 0x01
         const val CONVERSATION_SEED = 0x82

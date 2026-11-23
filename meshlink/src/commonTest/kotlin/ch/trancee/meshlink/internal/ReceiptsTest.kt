@@ -22,11 +22,11 @@ class ReceiptsTest {
         val expiry: UInt,
     )
 
-    private fun TestScope.receipts(): Receipts {
+    private fun TestScope.receipts(prompt: (NodeId) -> Boolean = { false }): Receipts<NodeId> {
         val receipts =
             Receipts(SchedulerClock(testScheduler), backgroundScope, { to, tombstones, expiry ->
                 sent += Sent(testScheduler.currentTime, to, tombstones.map { it.messageId[0].toInt() }, expiry)
-            }) { from, ids -> delivered += from to ids.size }
+            }, { from, ids -> delivered += from to ids.size }, prompt)
         receipts.begin()
         return receipts
     }
@@ -103,6 +103,26 @@ class ReceiptsTest {
 
             // Assert
             assertEquals(listOf(listOf(2), listOf(2)), sent.map { it.ids })
+        }
+
+    @Test
+    fun aPromptReceiptGoesAloneAtOnceEachTime() =
+        runTest {
+            // Arrange
+            val receipts = receipts { it == PEER }
+            receipts.taken(OTHER, tombstone(3), expiry())
+
+            // Act
+            receipts.taken(PEER, tombstone(1), expiry())
+            receipts.taken(PEER, tombstone(2), expiry())
+            runCurrent()
+            receipts.again(PEER, tombstone(1), expiry())
+
+            // Assert
+            assertEquals(listOf(listOf(1), listOf(2), listOf(1)), sent.map { it.ids })
+            assertEquals(List(3) { 0L }, sent.map { it.at })
+            advanceTimeBy(501)
+            assertEquals(listOf(OTHER to listOf(3)), sent.drop(3).map { it.to to it.ids })
         }
 
     @Test

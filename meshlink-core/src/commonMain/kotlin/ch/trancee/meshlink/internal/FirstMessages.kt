@@ -46,12 +46,23 @@ public class FirstMessages(
                 Tlv(CONVERSATION_SEED, seed),
             )
         val plaintext = MessageContent(messageId, expiry, k, extensions, payload).encode(secured = true)
-        val message = seal(responder, plaintext) ?: return null
+        // Fixed ephemeral keys, so the opening can replay message 1 for each message 2 it tries.
+        val kem = crypto.mlKem768KeyPair().takeIf { pattern == NoisePattern.IK_HFS }
+        val ephemeral = crypto.x25519KeyPair()
+        val noiseKeys =
+            NoiseKeys(keys.static, ephemeral = ephemeral, kemKeyPair = kem, remoteStatic = responder.x25519Key)
+        val start = { NoiseHandshake(crypto, pattern, NoiseRole.INITIATOR, prologue, noiseKeys) }
+        val written =
+            seal(responder, plaintext)?.let { sealed ->
+                (start().writeMessage(sealed) as? NoiseResult.Ok)?.let { sealed to it.value }
+            } ?: return null
+        val (sealed, message) = written
         val responderNodeId = derivations.nodeId(responder.ed25519Key)
-        val conversation = tags.conversationSecret(seed, keys.nodeId, responderNodeId)
+        val secret = tags.conversationSecret(seed, keys.nodeId, responderNodeId)
+        val replay = { start().also { it.writeMessage(sealed) } }
+        val opening = Opening(crypto, replay, secret, keys.nodeId, responderNodeId, messageId)
         val commitment = derivations.tombstoneCommitment(k)
-        val container = Container.IkInitiator(message)
-        return Draft(responder.x25519Key, messageId, expiry, commitment, container, conversation)
+        return Draft(responder.x25519Key, messageId, expiry, commitment, Container.IkInitiator(message), opening)
     }
 
     /** The `MESSAGE` bytes of [draft] tagged for [epoch] with [hopLimit]; a retry re-tags the same container. */
@@ -65,17 +76,14 @@ public class FirstMessages(
         return MessageFrame(header, draft.commitment, draft.container).encode()
     }
 
-    /** [draft]'s source tag for [epoch]: its conversation's tag for direction `0x02`, the reply-to tag. */
+    /**
+     * The source tag for [epoch] of [draft], a first message of this codec's: its conversation's tag for
+     * direction `0x02`, the reply-to tag.
+     */
     public fun sourceTag(
         draft: Draft,
         epoch: UInt,
-    ): ByteArray = tags.conversationTag(draft.conversation, REPLY_DIRECTION, epoch)
-
-    /** The public tag of [certificate]'s X25519 key for [epoch]. */
-    public fun publicTag(
-        certificate: IdentityCertificate,
-        epoch: UInt,
-    ): ByteArray = tags.publicTag(certificate.x25519Key, epoch)
+    ): ByteArray = tags.conversationTag((draft.sealer as Opening).secret, REPLY_DIRECTION, epoch)
 
     /**
      * Whether [tag] is this node's public tag for epoch e − 1, e or e + 1, where e is the epoch of
@@ -99,7 +107,8 @@ public class FirstMessages(
      * open its HPKE seal in `PostQuantum`, and hold a plaintext that keeps every MUST: aligned zero
      * padding, the header's `message_id` and `expiry`, the commitment to its `k`, an unexpired
      * `expiry`, a `CONVERSATION_SEED`, and a valid `SENDER_CERTIFICATE` whose X25519 key is the
-     * Noise remote static key.
+     * Noise remote static key. Its answer, message 2, is written and the responder's session split
+     * (spec "Answering"); `null` if message 2 can't be written.
      */
     public fun accept(
         bytes: ByteArray,
@@ -117,26 +126,17 @@ public class FirstMessages(
         val read = handshake.readMessage(message.noiseMessage) as? NoiseResult.Ok ?: return null
         val remoteStatic = handshake.remoteStaticKey
         val decoded = open(remoteStatic, read.value)?.let { MessageContent.decode(it, secured = true) }
-        return (decoded as? Decoded.Valid)?.let { Opened(remoteStatic, it.value) }
+        return (decoded as? Decoded.Valid)?.let { Opened(handshake, remoteStatic, it.value) }
     }
 
-    // Message 1 to [responder] carrying [plaintext], sealed with HPKE first in PostQuantum.
+    // The message 1 payload to [responder] carrying [plaintext]: sealed with HPKE in PostQuantum.
     private fun seal(
         responder: IdentityCertificate,
         plaintext: ByteArray,
     ): ByteArray? {
-        val noiseKeys = NoiseKeys(keys.static, remoteStatic = responder.x25519Key)
-        val handshake = NoiseHandshake(crypto, pattern, NoiseRole.INITIATOR, prologue, noiseKeys)
-        val xWingKey = responder.xWingKey
-        val payload =
-            if (xWingKey == null) {
-                plaintext
-            } else {
-                val info = Derivations.hpkeInfo(keys.static.publicKey, derivations.nodeId(responder.ed25519Key))
-                (Hpke(crypto).seal(xWingKey, info, plaintext) as? CryptoResult.Ok)?.value
-            }
-        val written = payload?.let { handshake.writeMessage(it) } as? NoiseResult.Ok
-        return written?.value
+        val xWingKey = responder.xWingKey ?: return plaintext
+        val info = Derivations.hpkeInfo(keys.static.publicKey, derivations.nodeId(responder.ed25519Key))
+        return (Hpke(crypto).seal(xWingKey, info, plaintext) as? CryptoResult.Ok)?.value
     }
 
     // The padded plaintext of a message 1 [payload] from [remoteStatic]: opened in PostQuantum.
@@ -152,11 +152,34 @@ public class FirstMessages(
     // The delivery of [opened] if it carries a seed and a valid sender certificate for its static key.
     private fun delivery(opened: Opened): FirstDelivery? {
         val types = opened.content.extensions.associateBy { it.type }
-        val bytes = types[SENDER_CERTIFICATE]?.let { it.value.takeIf { CONVERSATION_SEED in types } }
         val readReceipt = READ_RECEIPT_REQUESTED in types
-        return bytes?.let { certified(it, opened.remoteStatic) }?.let {
-            FirstDelivery(derivations.nodeId(it.ed25519Key), it, opened.content.payload, readReceipt)
+        return types[CONVERSATION_SEED]?.let { seed ->
+            val certificate = types[SENDER_CERTIFICATE]?.let { certified(it.value, opened.remoteStatic) }
+            certificate?.let { answered(opened, it, seed.value, readReceipt) }
         }
+    }
+
+    // [opened] from the holder of [sender] with its answer: a receipt for it as message 2, after which
+    // the responder's session splits. `null` if message 2 can't be written.
+    private fun answered(
+        opened: Opened,
+        sender: IdentityCertificate,
+        seed: ByteArray,
+        readReceipt: Boolean,
+    ): FirstDelivery? {
+        val content = opened.content
+        val senderNodeId = derivations.nodeId(sender.ed25519Key)
+        val tombstone = Tombstone(content.messageId, content.k)
+        val receiptId = crypto.randomBytes(MESSAGE_ID)
+        val plaintext = receiptPlaintext(receiptId, content.expiry, listOf(tombstone), secured = true)
+        val written = opened.handshake.writeMessage(plaintext) as? NoiseResult.Ok ?: return null
+        val session = (opened.handshake.session() as NoiseResult.Ok).value
+        val secret = tags.conversationSecret(seed, senderNodeId, keys.nodeId)
+        val conversation = Conversation(crypto, session, secret, senderNodeId, keys.nodeId, initiator = false)
+        val container = Container.IkResponder(written.value)
+        val answer = ReceiptDraft(senderNodeId, receiptId, content.expiry, listOf(tombstone), container)
+        val message = Delivery(senderNodeId, content.payload, tombstone, content.expiry)
+        return FirstDelivery(sender, message, readReceipt, conversation, answer)
     }
 
     // The certificate encoded in [bytes] if it is valid and binds [remoteStatic].
@@ -170,8 +193,9 @@ public class FirstMessages(
         return check?.let { it.certificate.takeIf { held -> held.x25519Key.contentEquals(remoteStatic) } }
     }
 
-    // A message 1 that opened: its sender's [remoteStatic] key and its plaintext [content].
+    // A message 1 that opened: the responder's [handshake], its sender's [remoteStatic] key and its plaintext [content].
     private class Opened(
+        val handshake: NoiseHandshake,
         val remoteStatic: ByteArray,
         val content: MessageContent,
     )
@@ -203,12 +227,15 @@ public class SecuredKeys(
 )
 
 /**
- * An opened first message: the [sender]'s NodeId and validated [certificate], the app [payload], and
- * whether the sender asked for a [readReceipt].
+ * An opened first message: the sender's validated [certificate], the [message] with the sender's
+ * NodeId, whether the sender asked for a [readReceipt], the responder's [conversation], and its
+ * [answer]: the delivery receipt that carries message 2, which [conversation] frames and which is
+ * resent unchanged for every later copy (spec "Answering").
  */
 public class FirstDelivery(
-    public val sender: ByteArray,
     public val certificate: IdentityCertificate,
-    public val payload: ByteArray,
+    public val message: Delivery,
     public val readReceipt: Boolean,
+    public val conversation: Conversation,
+    public val answer: ReceiptDraft,
 )
