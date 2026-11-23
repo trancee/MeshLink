@@ -36,6 +36,7 @@ internal val acceptanceSteps =
         meshDeliverySteps()
         certificateLookupSteps()
         securedMessagingSteps()
+        securedLinkSteps()
     }
 
 /** The nodes of one lifecycle scenario, on one scheduler; each [create]d node gets its own radio. */
