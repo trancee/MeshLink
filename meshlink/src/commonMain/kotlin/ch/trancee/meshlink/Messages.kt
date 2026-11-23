@@ -51,7 +51,11 @@ public class OutgoingMessage internal constructor(
 
 /** Where an [OutgoingMessage] is (ADR 0013 decision 5). */
 public sealed interface DeliveryStatus {
-    /** Accepted; nothing is on air yet. */
+    /**
+     * Accepted; nothing is on air yet. In `Classical` and `PostQuantum` a message also waits here
+     * while MeshLink looks up its destination's certificate, or while an earlier message to that
+     * destination opens the conversation.
+     */
     public data object Queued : DeliveryStatus
 
     /** Waiting because this node has no link at all. */

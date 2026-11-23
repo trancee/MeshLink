@@ -22,6 +22,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -165,7 +166,7 @@ abstract class SecuredLinkTest(
         }
 
     @Test
-    fun aSendOverASecuredLinkStaysQueuedAndReceivedMessagesAreDropped() =
+    fun aSendOverASecuredLinkIsAFirstMessageOnlyTheLinkedPeerOpensAndAForgedOneIsDropped() =
         runTest {
             // Arrange
             val air = air()
@@ -176,7 +177,7 @@ abstract class SecuredLinkTest(
             val fake = FakePeer(wire, TestClock(testScheduler))
             val link = connectFake(air, alice)
             val end = alice.radio.ends.single()
-            val transport = initiate(fake, link, end)
+            val transport = initiateGranting(fake, link, end)
 
             // Act
             val result =
@@ -190,9 +191,12 @@ abstract class SecuredLinkTest(
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            assertEquals(DeliveryStatus.Queued, assertIs<SendResult.Accepted>(result).message.status.value)
+            assertEquals(DeliveryStatus.Sent, assertIs<SendResult.Accepted>(result).message.status.value)
             assertEquals(emptyList(), received)
-            assertEquals(emptyList(), sealedFrames(end, transport))
+            val nowSeconds = TestClock(testScheduler).wallClockMillis() / 1_000
+            val sealed = sealedFrames(end, transport).reassembled().single()
+            val opened = assertNotNull(fake.opened(sealed, nowSeconds))
+            assertContentEquals("hello".encodeToByteArray(), opened.payload)
             assertTrue(end.open)
         }
 
@@ -772,4 +776,49 @@ abstract class SecuredLinkTest(
     }
 }
 
-class ClassicalLinkTest : SecuredLinkTest(SecurityProfile.Classical, WireProfile.CLASSICAL)
+@OptIn(ExperimentalCoroutinesApi::class)
+class ClassicalLinkTest : SecuredLinkTest(SecurityProfile.Classical, WireProfile.CLASSICAL) {
+    @Test
+    fun aSealedMessageFrameFillsOneRecordUpToItsSealedBodyAndGoesAsFragmentsAbove() {
+        val records = mutableListOf<Pair<Int, Int>>()
+        listOf(FITTING_PAYLOAD to FITTING_FRAME, OVER_PAYLOAD to OVER_FRAME).forEach { (payload, size) ->
+            runTest {
+                // Arrange
+                val air = air()
+                val alice = air.platform(StandardTestDispatcher(testScheduler))
+                val node = securedNode(alice, null).also { it.start() }
+                val fake = FakePeer(wire, TestClock(testScheduler))
+                val link = connectFake(air, alice)
+                val end = alice.radio.ends.single()
+                val transport = initiateGranting(fake, link, end)
+
+                // Act
+                node.send(
+                    node.peers.value
+                        .single()
+                        .nodeId,
+                    ByteArray(payload),
+                )
+                advanceTimeBy(SETTLE_MILLIS)
+
+                // Assert
+                val frames = sealedFrames(end, transport)
+                val fragments = frames.count { (LinkFrame.decode(it) as? Decoded.Valid)?.value is LinkFrame.Fragment }
+                val sealed = frames.reassembled().single()
+                assertEquals(size, sealed.size)
+                assertNotNull(fake.opened(sealed, TestClock(testScheduler).wallClockMillis() / MILLIS_PER_SECOND))
+                records += frames.size to fragments
+            }
+        }
+        assertEquals(listOf(1 to 0, 2 to 2), records)
+    }
+
+    private companion object {
+        // A first message's plaintext is padded to 32 B, so its frame grows in steps of 32 B.
+        const val FITTING_PAYLOAD = 592
+        const val FITTING_FRAME = 983
+        const val OVER_PAYLOAD = 624
+        const val OVER_FRAME = 1_015
+        const val MILLIS_PER_SECOND = 1_000L
+    }
+}

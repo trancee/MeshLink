@@ -3,7 +3,6 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.NodeId
-import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
@@ -37,9 +36,8 @@ class OutboxTest {
         size: Int = 1,
         lifetimeMillis: Long = 600_000,
     ): Outbox.Entry {
-        val draft = UnsecuredMessaging(SodiumCryptoProvider, SENDER).draft(to.toByteArray(), ByteArray(1), 1u, 1)
         val deadline = SchedulerClock(testScheduler).wallClockMillis() + lifetimeMillis
-        return Outbox.Entry(to, draft, size, MutableStateFlow(DeliveryStatus.Queued), deadline)
+        return Outbox.Entry(to, ByteArray(size), deadline / 1_000, MutableStateFlow(DeliveryStatus.Queued), deadline)
     }
 
     private fun TestScope.times(untilMillis: Long): List<Long> {

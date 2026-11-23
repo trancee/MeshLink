@@ -27,14 +27,13 @@ public class UnsecuredMessaging(
         destination: ByteArray,
         payload: ByteArray,
         expiry: UInt,
-        hopLimit: Int,
     ): Draft {
         require(payload.size <= PAYLOAD_MAX) { "payload must be at most $PAYLOAD_MAX bytes, not ${payload.size}" }
         val messageId = crypto.randomBytes(MESSAGE_ID)
         val k = crypto.randomBytes(K)
         val plaintext = MessageContent(messageId, expiry, k, emptyList(), payload).encode(secured = false)
         val container = Container.Unsecured(nodeId, plaintext)
-        return Draft(destination, hopLimit, messageId, expiry, derivations.tombstoneCommitment(k), container)
+        return Draft(destination, messageId, expiry, derivations.tombstoneCommitment(k), container)
     }
 
     /**
@@ -44,7 +43,7 @@ public class UnsecuredMessaging(
     public fun frame(
         draft: Draft,
         epoch: UInt,
-        hopLimit: Int = draft.hopLimit,
+        hopLimit: Int,
     ): ByteArray {
         val header =
             UnicastHeader(
@@ -89,20 +88,9 @@ public class UnsecuredMessaging(
     ): Delivery? {
         val container = frame.container as? Container.Unsecured ?: return null
         val content = (MessageContent.decode(container.plaintext, secured = false) as? Decoded.Valid)?.value
-        return content?.takeIf { bound(frame, it, nowSeconds) }?.let { Delivery(container.senderNodeId, it.payload) }
-    }
-
-    private fun bound(
-        frame: MessageFrame,
-        content: MessageContent,
-        nowSeconds: Long,
-    ): Boolean {
-        val expiry = content.expiry.toLong()
-        val window = nowSeconds - CLOCK_SKEW_SECONDS..nowSeconds + LIFETIME_MAX_SECONDS + CLOCK_SKEW_SECONDS
-        return content.messageId.contentEquals(frame.header.messageId) &&
-            content.expiry == frame.header.expiry &&
-            derivations.tombstoneCommitment(content.k).contentEquals(frame.commitment) &&
-            expiry in window
+        return content?.takeIf { derivations.bound(frame, it, nowSeconds) }?.let {
+            Delivery(container.senderNodeId, it.payload)
+        }
     }
 
     private fun window(epoch: UInt): List<ByteArray> {
@@ -132,16 +120,36 @@ public class UnsecuredMessaging(
 }
 
 /**
+ * Whether [content] belongs to [frame] at Unix second [nowSeconds] (spec "Plaintext"): it repeats the
+ * header's `message_id` and `expiry`, commits to its `k`, and has not expired, allowing `clock-skew`
+ * either way.
+ */
+internal fun Derivations.bound(
+    frame: MessageFrame,
+    content: MessageContent,
+    nowSeconds: Long,
+): Boolean {
+    val skew = UnsecuredMessaging.CLOCK_SKEW_SECONDS
+    val window = nowSeconds - skew..nowSeconds + UnsecuredMessaging.LIFETIME_MAX_SECONDS + skew
+    return content.messageId.contentEquals(frame.header.messageId) &&
+        content.expiry == frame.header.expiry &&
+        tombstoneCommitment(content.k).contentEquals(frame.commitment) &&
+        content.expiry.toLong() in window
+}
+
+/**
  * A drafted message to [destination]: everything its frames keep across retries. Each write sets
- * the routing tags for its epoch ([UnsecuredMessaging.frame]).
+ * the routing tags for its epoch ([UnsecuredMessaging.frame], [FirstMessages.frame]). A first
+ * message's [destination] is the responder's certified X25519 key, and its [conversation] the
+ * conversation secret its source tags come from.
  */
 public class Draft internal constructor(
     public val destination: ByteArray,
-    public val hopLimit: Int,
     public val messageId: ByteArray,
     public val expiry: UInt,
     public val commitment: ByteArray,
     public val container: Container,
+    internal val conversation: ByteArray = ByteArray(0),
 )
 
 /** An accepted message: the claimed [sender] NodeId and the [payload]. */

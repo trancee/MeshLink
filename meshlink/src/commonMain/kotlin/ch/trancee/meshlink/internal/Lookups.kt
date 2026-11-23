@@ -36,12 +36,17 @@ internal class Lookups(
     private val attempts = mutableMapOf<String, Attempt>()
     private val outstanding = mutableMapOf<NodeId, Job>()
     private var run = CoroutineScope(Job().apply { cancel() })
+    private var arrived: (NodeId) -> Unit = {}
 
     /** Answers the lookup requests of other nodes. */
     val answers = LookupAnswers(crypto, clock, lanes, certificates, floods)
 
-    /** Starts a run. */
-    fun begin() {
+    /**
+     * Starts a run; [arrived] hears the NodeId of each certificate it comes to hold from a link, a
+     * lookup or a first message.
+     */
+    fun begin(arrived: (NodeId) -> Unit) {
+        this.arrived = arrived
         run = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext.job))
     }
 
@@ -56,12 +61,13 @@ internal class Lookups(
         answers.certify(certificate)
     }
 
-    /** A link proved [peer]'s valid [certificate]. */
+    /** A link or a first message proved [peer]'s valid [certificate]. */
     fun linked(
         peer: NodeId,
         certificate: IdentityCertificate,
     ) {
         certificates.put(peer.toByteArray(), certificate, clock.nowSeconds())
+        arrived(peer)
     }
 
     /** The certificate this node holds for [peer], or `null`. */
@@ -103,6 +109,7 @@ internal class Lookups(
             certificates.put(target, check.certificate, clock.nowSeconds())
             outstanding.getValue(attempt.target).cancel()
             forget(attempt.target)
+            arrived(attempt.target)
         }
         return true
     }

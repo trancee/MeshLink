@@ -10,22 +10,21 @@ import kotlinx.coroutines.launch
 import kotlin.time.Instant
 
 /**
- * The peers an `unsecured` node reaches on a route (ADR 0007 decision 10, ADR 0008 amendment): of the
- * last [KNOWN_MAX] nodes it sent to or heard from, those with an active route found by route
- * discovery to their tag for the current epoch or either next to it. Each is listed in [roster] as
- * [Reachability.Routed] with the route's hop count, until the route expires.
+ * The peers a node reaches on a route (ADR 0007 decision 10, ADR 0008 amendment): of the last
+ * [KNOWN_MAX] nodes it sent to or heard from, those with an active route found by route discovery
+ * to one of their [tags] for the current epoch or either next to it. Each is listed in [roster] as
+ * [Reachability.Routed] with the route's hop count, until the route expires or the key the tags
+ * derive from lapses: in a secured mesh, only while a valid certificate of the node is held.
  *
  * Runs on [scope]'s serial dispatcher.
  */
 internal class RoutedPeers(
-    crypto: CryptoProvider,
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val routes: Routes,
     private val roster: Roster,
+    private val tags: PeerTags,
 ) {
-    private val derivations = Derivations(crypto)
-
     // Each known node, the oldest first.
     private val known = LinkedHashMap<NodeId, Known>()
     private var expiry: Job? = null
@@ -40,22 +39,27 @@ internal class RoutedPeers(
         remember(id, clock.wallClockMillis())
     }
 
-    /** Lists the peers anew, and again when the first listed route expires. */
+    /** Lists the peers anew, and again when the first listed route expires or key lapses. */
     fun update() {
         expiry?.cancel()
         val now = clock.monotonicMillis()
-        val epoch = Derivations.epoch(clock.wallClockMillis() / MILLIS_PER_SECOND)
-        val listed = known.mapNotNull { (id, node) -> route(id, node, epoch, now)?.let { Triple(id, node.heard, it) } }
+        val wall = clock.wallClockMillis()
+        val epoch = Derivations.epoch(wall / MILLIS_PER_SECOND)
+        val listed =
+            known.mapNotNull { (id, node) ->
+                val key = tags.key(id)
+                key?.let { route(node, it.bytes, epoch, now) }?.let { Listed(id, node.heard, it, key.untilMillis) }
+            }
         roster.routed(
             listed.map { (id, heard, route) ->
                 val lastSeen = Instant.fromEpochMilliseconds(maxOf(heard, route.heardMillis))
-                Peer(id, Reachability.Routed(route.hops), secured = false, lastSeen, proximity = null)
+                Peer(id, Reachability.Routed(route.hops), tags.secured, lastSeen, proximity = null)
             },
         )
-        val first = listed.minOfOrNull { it.third.expiry } ?: return
+        val first = listed.minOfOrNull { minOf(it.route.expiry - now, it.untilMillis - wall) } ?: return
         expiry =
             scope.launch {
-                delay(first - now)
+                delay(first)
                 update()
             }
     }
@@ -77,26 +81,36 @@ internal class RoutedPeers(
         update()
     }
 
-    // The active route found by route discovery to [id]'s tag for [epoch], or else the one before or after.
+    // The active route found by route discovery to the tag of [key] for [epoch], or else the one before or after.
     private fun route(
-        id: NodeId,
         node: Known,
+        key: ByteArray,
         epoch: UInt,
         now: Long,
     ): Routes.Route? {
-        val tags =
-            node.tags?.takeIf { node.epoch == epoch }
-                ?: listOf(epoch, epoch - 1u, epoch + 1u).map { derivations.unsecuredTag(id.toByteArray(), it) }
+        val cached = node.tags?.takeIf { node.epoch == epoch && node.key.contentEquals(key) }
+        val tags = cached ?: listOf(epoch, epoch - 1u, epoch + 1u).map { this.tags.tag(key, it) }
         node.epoch = epoch
+        node.key = key
         node.tags = tags
         return tags.firstNotNullOfOrNull { tag -> routes.active(tag, now)?.takeIf { it.sequence != 0u } }
     }
 
-    // When this node last heard a message from a known node by the wall clock, and its tags for [epoch].
+    // When this node last heard a message from a known node by the wall clock, and its tags for [epoch]
+    // derived from [key].
     private class Known(
         var heard: Long = 0,
         var epoch: UInt = 0u,
+        var key: ByteArray = ByteArray(0),
         var tags: List<ByteArray>? = null,
+    )
+
+    // A listed peer: its route, and the wall-clock millisecond its key lapses.
+    private data class Listed(
+        val id: NodeId,
+        val heard: Long,
+        val route: Routes.Route,
+        val untilMillis: Long,
     )
 
     companion object {
@@ -106,3 +120,24 @@ internal class RoutedPeers(
         private const val MILLIS_PER_SECOND = 1_000L
     }
 }
+
+/** How [RoutedPeers] finds the routing tags of other nodes. */
+internal interface PeerTags {
+    /** Whether a routed peer's messages are end-to-end encrypted to its authenticated keys. */
+    val secured: Boolean
+
+    /** The key [id]'s tags derive from, or `null` while there is none. */
+    fun key(id: NodeId): PeerKey?
+
+    /** The tag of [key] for [epoch]. */
+    fun tag(
+        key: ByteArray,
+        epoch: UInt,
+    ): ByteArray
+}
+
+/** The key [bytes] a node's tags derive from, until the wall-clock millisecond [untilMillis]. */
+internal class PeerKey(
+    val bytes: ByteArray,
+    val untilMillis: Long,
+)

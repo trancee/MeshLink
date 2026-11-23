@@ -14,6 +14,9 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -24,7 +27,39 @@ class RoutedPeersTest {
 
     private fun TestScope.routed(): RoutedPeers {
         val clock = SchedulerClock(testScheduler)
-        return RoutedPeers(SodiumCryptoProvider, clock, this, routes, roster)
+        return RoutedPeers(clock, this, routes, roster, UnsecuredPeerTags(SodiumCryptoProvider))
+    }
+
+    // A secured node's routed peers, and the lookups whose certificates they are listed by.
+    private fun TestScope.securedRouted(): Pair<RoutedPeers, Lookups> {
+        val clock = SchedulerClock(testScheduler)
+        val lookups =
+            Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, Lanes()) {
+                DensityClass.MEDIUM
+            }
+        lookups.begin {}
+        return RoutedPeers(clock, this, routes, roster, SecuredPeerTags(SodiumCryptoProvider, lookups)) to lookups
+    }
+
+    private fun TestScope.certificate(
+        seed: Int,
+        validity: Duration = 24.hours,
+    ): IdentityCertificate {
+        val keys = StaticKeys(SodiumCryptoProvider.x25519KeyPair().publicKey, null)
+        val clock = SchedulerClock(testScheduler)
+        return IdentityCertificate.issue(SodiumCryptoProvider, clock, identityKey(seed), keys, validity)
+    }
+
+    private fun securedId(seed: Int) = NodeId(derivations.nodeId(identityKey(seed).publicKey))
+
+    // A route found to [certificate]'s public tag for this epoch.
+    private fun TestScope.foundPublic(
+        certificate: IdentityCertificate,
+        lifeMillis: Long = Routes.FORWARD_MILLIS,
+    ) {
+        val now = testScheduler.currentTime
+        val tag = EndToEndTags(derivations).publicTag(certificate.x25519Key, epoch())
+        routes.offer(tag, Routes.Route(nodeId(9), now + lifeMillis, 2u, 3, 0), now)
     }
 
     private fun TestScope.epoch() = Derivations.epoch(SchedulerClock(testScheduler).wallClockMillis() / 1_000)
@@ -222,6 +257,66 @@ class RoutedPeersTest {
 
             assertEquals(emptyList(), ended)
             assertEquals(emptyList(), listed())
+        }
+
+    @Test
+    fun aSecuredNodeIsListedOnlyWhileACertificateIsHeldAndARouteLeadsToItsPublicTag() =
+        runTest {
+            val (peers, lookups) = securedRouted()
+            val routedCertificate = certificate(5)
+            val unroutedCertificate = certificate(6)
+            foundPublic(routedCertificate)
+            peers.heard(securedId(5))
+            peers.heard(securedId(6))
+            val uncertified = listed()
+
+            lookups.linked(securedId(5), routedCertificate)
+            lookups.linked(securedId(6), unroutedCertificate)
+            peers.update()
+
+            assertEquals(emptyList(), uncertified)
+            val peer = roster.peers.value.single()
+            assertEquals(securedId(5) to Reachability.Routed(3), peer.nodeId to peer.reachability)
+            assertEquals(true, peer.secured)
+            peers.end()
+        }
+
+    @Test
+    fun aSecuredRoutedPeerLeavesWhenItsCertificateLapsesBeforeItsRoute() =
+        runTest {
+            val (peers, lookups) = securedRouted()
+            val brief = certificate(5, validity = 60.seconds)
+            foundPublic(brief, lifeMillis = 120_000)
+            lookups.linked(securedId(5), brief)
+            peers.heard(securedId(5))
+
+            advanceTimeBy(59_999)
+            runCurrent()
+            val before = listed()
+            advanceTimeBy(1)
+            runCurrent()
+
+            assertEquals(listOf(securedId(5) to Reachability.Routed(3)), before)
+            assertEquals(emptyList(), listed())
+            peers.end()
+        }
+
+    @Test
+    fun aNewerCertificateOfASecuredPeerIsRoutedByItsOwnTags() =
+        runTest {
+            val (peers, lookups) = securedRouted()
+            val older = certificate(5, validity = 1.hours)
+            foundPublic(older)
+            lookups.linked(securedId(5), older)
+            peers.heard(securedId(5))
+            val first = listed()
+
+            lookups.linked(securedId(5), certificate(5))
+            peers.update()
+
+            assertEquals(listOf(securedId(5) to Reachability.Routed(3)), first)
+            assertEquals(emptyList(), listed())
+            peers.end()
         }
 
     @Test

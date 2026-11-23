@@ -16,7 +16,7 @@ internal interface Endpoint {
         nowSeconds: Long,
     ): Boolean
 
-    /** This node's current routing tag to answer and send route requests from; `null` if it has none. */
+    /** This node's current routing tag to answer route requests from a route it knows; `null` if it has none. */
     fun tag(): ByteArray?
 
     /** A route discovery found a route to [tag]. */
@@ -87,11 +87,13 @@ internal class Router(
     /**
      * Places this node's [parcel] for the destination whose current tag is [tag], from a node of
      * class [density]: on an active route unless [search], else flooded to every link with a route
-     * request alongside in the medium and high classes. [parcel] makes the frame for a hop limit.
-     * Returns the hop count of the route it went on, 0 for a route without one, or `null` if flooded.
+     * request from [origin] alongside in the medium and high classes; none without an [origin].
+     * [parcel] makes the frame for a hop limit. Returns the hop count of the route it went on, 0 for
+     * a route without one, or `null` if flooded.
      */
     fun originate(
         tag: ByteArray,
+        origin: ByteArray?,
         density: DensityClass,
         search: Boolean,
         parcel: (hopLimit: Int) -> Parcel,
@@ -99,7 +101,9 @@ internal class Router(
         val now = clock.monotonicMillis()
         val low = density == DensityClass.LOW
         val route = if (low || search) null else routes.use(tag, now)
-        if (!low && route == null) discovery.search(tag, clock.wallClockMillis() / MILLIS_PER_SECOND)
+        if (!low && route == null && origin != null) {
+            discovery.search(tag, origin, clock.wallClockMillis() / MILLIS_PER_SECOND)
+        }
         val made = parcel(if (low || route != null) HOP_LIMIT_MAX else FLOOD_RADIUS)
         seen.put(made.messageId, now + SEEN_WINDOW_MILLIS)
         val targets = if (route != null) listOf(route.peer) else lanes.peers

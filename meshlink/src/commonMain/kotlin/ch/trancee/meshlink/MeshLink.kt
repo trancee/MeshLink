@@ -22,6 +22,7 @@ import ch.trancee.meshlink.internal.RadioRegistry
 import ch.trancee.meshlink.internal.Recognition
 import ch.trancee.meshlink.internal.Router
 import ch.trancee.meshlink.internal.Scanner
+import ch.trancee.meshlink.internal.SecuredKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -178,7 +179,7 @@ public class MeshLink private constructor(
     override fun close() {
         if (closed.compareAndSet(expect = false, update = true)) {
             scope.cancel()
-            post.close()
+            post.inbox.close()
             RadioRegistry.release(port, this)
             mutableState.value = MeshState.Stopped
         }
@@ -189,6 +190,9 @@ public class MeshLink private constructor(
      * [SendResult.Accepted.message] reports its [DeliveryStatus]. The message travels over other
      * nodes when [to] is not linked (ADR 0008), and MeshLink sends it again on a schedule until it
      * expires. While this node has no link at all, the message waits as [DeliveryStatus.Held].
+     * In `Classical` and `PostQuantum` the message is sealed end to end to [to]'s certificate
+     * (ADR 0016); relays see only its size. Without that certificate it stays [DeliveryStatus.Queued]
+     * while MeshLink looks it up (ADR 0018), and only one message to [to] is in flight at a time.
      *
      * Rejects the message with [RejectionReason.NotRunning] unless the node is [MeshState.Running]
      * or [MeshState.Blocked] on anything but [Requirement.IdentityUnavailable];
@@ -345,6 +349,9 @@ public class MeshLink private constructor(
                 if (lookups != null) {
                     val credentials = LinkCredentials.issue(crypto, port.clock, identity.keyPair, profile, digest)
                     lookups.certify(credentials.certificate)
+                    val keys =
+                        SecuredKeys(identity.nodeId, credentials.static, credentials.xWing, credentials.certificate)
+                    post.certify(keys)
                     Handshakes(crypto, port.clock, credentials, meshKey, diagnostics, lookups::linked)
                 } else {
                     null

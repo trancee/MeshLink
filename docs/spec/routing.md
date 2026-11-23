@@ -220,7 +220,7 @@ Total: 47 B.
 - The node that owns `target_tag` answers with a `ROUTE_REPLY` and does not forward the request.
 - An intermediate node with an active route to `target_tag` whose sequence is at least `target_sequence` MAY answer instead, with its route's sequence and hop count, and then does not forward the request. It never answers from a route without a sequence, or from one through the link the request came from (split horizon). `target_sequence` 0 accepts any sequence.
 - Each relay of a reply increments `hop_count` and records a forward route to `target_tag` through the link the reply came from. A node prefers the route with the newest sequence number, then the fewest hops. Any discovered route replaces a route without a sequence; a route without a sequence never replaces a live one with a sequence through another link.
-- A node that answers or searches needs a tag this route discovery can use. Until certificate lookup lands (ADR 0018), a node of a secured profile forwards requests and replies but neither originates nor answers them.
+- In `unsecured` a node searches from and answers for its unsecured tag. In a secured profile a node originates a request from the conversation tag of the first message it sends (`origin_tag`), searches for the destination's public tag, and answers for its own public tags, including those of an earlier certificate during `static-key-grace`.
 - v1 has no route error message. Broken routes expire, and the origin's resend uses a new search.
 - v1 has no route-request rate limit (ADR 0008 amendment, "Route-request rate limit").
 

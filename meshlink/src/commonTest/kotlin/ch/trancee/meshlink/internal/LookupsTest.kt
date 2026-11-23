@@ -28,12 +28,14 @@ class LookupsTest {
     private val c = nodeId(3)
     private val derivations = Derivations(crypto)
 
-    // The node with identity seed [seed] in [profile], begun and holding its own certificate.
+    // The node with identity seed [seed] in [profile], begun and holding its own certificate; [arrived]
+    // records the NodeIds of the certificates it came to hold.
     private class Node(
         val lookups: Lookups,
         val lanes: Lanes,
         val nodeId: ByteArray,
         val certificate: IdentityCertificate,
+        val arrived: MutableList<NodeId>,
     )
 
     private fun TestScope.node(
@@ -45,9 +47,10 @@ class LookupsTest {
         val lookups = Lookups(crypto, clock(), backgroundScope, profile, lanes) { density }
         val nodeId = derivations.nodeId(identityKey(seed).publicKey)
         val certificate = certificate(seed, profile)
-        lookups.begin()
+        val arrived = mutableListOf<NodeId>()
+        lookups.begin { arrived += it }
         lookups.certify(certificate)
-        return Node(lookups, lanes, nodeId, certificate)
+        return Node(lookups, lanes, nodeId, certificate, arrived)
     }
 
     private fun TestScope.clock() = SchedulerClock(testScheduler)
@@ -318,6 +321,22 @@ class LookupsTest {
             assertTrue(first)
             assertFalse(later)
             assertEquals(emptyList(), requester.lanes.frames(a))
+            assertEquals(listOf(NodeId(responder.nodeId)), requester.arrived)
+        }
+
+    @Test
+    fun aCertificateALinkOrFirstMessageProvedArrives() =
+        runTest {
+            // Arrange
+            val node = node(1)
+            val peer = NodeId(derivations.nodeId(identityKey(9).publicKey))
+
+            // Act
+            node.lookups.linked(peer, certificate(9))
+
+            // Assert
+            assertEquals(listOf(peer), node.arrived)
+            assertNotNull(node.lookups.certificate(peer))
         }
 
     @Test
@@ -386,6 +405,7 @@ class LookupsTest {
             assertEquals(forged.map { true }, taken)
             assertNull(cached)
             assertTrue(requester.lanes.requests(a).isNotEmpty())
+            assertEquals(emptyList(), requester.arrived)
         }
 
     @Test

@@ -8,19 +8,15 @@ import ch.trancee.meshlink.ReceivedMessage
  * epoch it is written in (spec "Origin behavior"), and hands messages for it to [inbox], telling
  * whom it [heard] from. Hears of each route a route discovery [found].
  *
- * A [secured] mesh may not carry the unsecured container (spec "End-to-end"): it owns no tag, so it
- * takes no message and neither sends nor answers route requests, but still relays them.
- *
  * Runs on the node's serial dispatcher.
  */
 internal class UnsecuredEnd(
     private val crypto: CryptoProvider,
     private val clock: Clock,
     private val inbox: Inbox,
-    private val secured: Boolean,
     private val heard: (sender: NodeId) -> Unit,
     private val found: (tag: ByteArray) -> Unit,
-) : Endpoint {
+) : Origin {
     private val derivations = Derivations(crypto)
     private lateinit var codec: UnsecuredMessaging
     private var nodeId = ByteArray(0)
@@ -31,18 +27,16 @@ internal class UnsecuredEnd(
         codec = UnsecuredMessaging(crypto, nodeId)
     }
 
-    /** A message of [payload] to [to] that expires at Unix second [expiry]. */
-    fun draft(
-        to: NodeId,
-        payload: ByteArray,
-        expiry: Long,
-    ): Draft = codec.draft(to.toByteArray(), payload, expiry.toUInt(), Router.HOP_LIMIT_MAX)
+    override fun draft(entry: Outbox.Entry): Draft {
+        val expiry = entry.expiry.toUInt()
+        return codec.draft(entry.to.toByteArray(), entry.payload, expiry)
+    }
 
-    /** [to]'s routing tag for the current epoch. */
-    fun tag(to: NodeId): ByteArray = derivations.unsecuredTag(to.toByteArray(), epoch())
+    override fun destination(draft: Draft): ByteArray = derivations.unsecuredTag(draft.destination, epoch())
 
-    /** [draft]'s frame for the current epoch with [hopLimit]. */
-    fun frame(
+    override fun origin(draft: Draft): ByteArray = tag()
+
+    override fun frame(
         draft: Draft,
         hopLimit: Int,
     ): ByteArray = codec.frame(draft, epoch(), hopLimit)
@@ -50,7 +44,7 @@ internal class UnsecuredEnd(
     override fun owns(
         tag: ByteArray,
         nowSeconds: Long,
-    ): Boolean = !secured && codec.owns(tag, nowSeconds)
+    ): Boolean = codec.owns(tag, nowSeconds)
 
     /** Opens a `MESSAGE` [frame] for this node; returns whether [inbox] took it. */
     override fun deliver(
@@ -63,10 +57,10 @@ internal class UnsecuredEnd(
         return inbox.offer(ReceivedMessage(sender, delivery.payload, broadcast = false))
     }
 
-    /** This node's routing tag for the current epoch; `null` in a secured mesh. */
-    override fun carries(kind: Int): Boolean = kind in if (secured) SECURED_KINDS else UNSECURED_KINDS
+    override fun carries(kind: Int): Boolean = kind == Container.UNSECURED
 
-    override fun tag(): ByteArray? = if (secured) null else derivations.unsecuredTag(nodeId, epoch())
+    /** This node's routing tag for the current epoch. */
+    override fun tag(): ByteArray = derivations.unsecuredTag(nodeId, epoch())
 
     override fun found(tag: ByteArray) {
         found.invoke(tag)
@@ -79,5 +73,18 @@ internal class UnsecuredEnd(
     }
 }
 
-private val SECURED_KINDS = setOf(Container.IK_INITIATOR, Container.TRANSPORT)
-private val UNSECURED_KINDS = setOf(Container.UNSECURED)
+/** The routing tags of other nodes for [RoutedPeers] in an `unsecured` mesh: derived from their NodeIds. */
+internal class UnsecuredPeerTags(
+    crypto: CryptoProvider,
+) : PeerTags {
+    private val derivations = Derivations(crypto)
+
+    override val secured: Boolean = false
+
+    override fun key(id: NodeId): PeerKey = PeerKey(id.toByteArray(), Long.MAX_VALUE)
+
+    override fun tag(
+        key: ByteArray,
+        epoch: UInt,
+    ): ByteArray = derivations.unsecuredTag(key, epoch)
+}

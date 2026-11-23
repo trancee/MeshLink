@@ -40,7 +40,7 @@ class RouterTest {
         val secured =
             Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, lanes) {
                 DensityClass.MEDIUM
-            }.also { it.begin() }
+            }.also { it.begin {} }
         lookups = secured
         return Router(clock, lanes, Routes(), { ByteArray(it) }, endpoint, Handoff(floods, secured))
     }
@@ -81,7 +81,7 @@ class RouterTest {
         tag: ByteArray,
         density: DensityClass,
         search: Boolean = false,
-    ) = originate(tag, density, search) { Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {} }
+    ) = originate(tag, OWN, density, search) { Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {} }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
 

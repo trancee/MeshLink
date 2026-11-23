@@ -37,11 +37,15 @@ internal class FakePeer(
 ) {
     private val identity = SodiumCryptoProvider.ed25519KeyPair()
     private val static = SodiumCryptoProvider.x25519KeyPair()
-    private val xWingKey =
-        if (wire == WireProfile.POST_QUANTUM) SodiumCryptoProvider.xWingKeyPair().publicKey else null
+    private val xWing = if (wire == WireProfile.POST_QUANTUM) SodiumCryptoProvider.xWingKeyPair() else null
+    private val xWingKey = xWing?.publicKey
+    private val issued = issue(clock, static, VALIDITY, xWingKey)
+    private val firstMessages by lazy {
+        FirstMessages(SodiumCryptoProvider, clock, SecuredKeys(nodeId, static, xWing, issued))
+    }
 
     val nodeId: ByteArray = Derivations(SodiumCryptoProvider).nodeId(identity.publicKey)
-    val certificate: ByteArray = issue(clock, static, VALIDITY, xWingKey).encode()
+    val certificate: ByteArray = issued.encode()
 
     /** The payload of this peer's message 2 or 3. */
     var payload: ByteArray = HandshakePayload.of(certificate).encode()
@@ -51,6 +55,12 @@ internal class FakePeer(
 
     /** How many chunks the node had written when [initiate] granted it the credit window. */
     var grantedAtChunk: Int = 0
+
+    /** The first message [frame] opened with this peer's keys at [nowSeconds], or null if it fails. */
+    fun opened(
+        frame: ByteArray,
+        nowSeconds: Long,
+    ): FirstDelivery? = firstMessages.accept(frame, nowSeconds)
 
     fun noise(role: NoiseRole): NoiseHandshake {
         val psk = meshKey?.let { Derivations(SodiumCryptoProvider).meshPsk(it, digest) }
@@ -197,6 +207,20 @@ internal fun sealedFrames(
     end: VirtualLinkEnd,
     transport: NoiseTransport,
 ): List<ByteArray> = written(end, 1).second.map { open(transport, it) }.withoutUpkeep()
+
+/** These link frames in order, each stream of `FRAGMENT`s joined into the frame it carries. */
+internal fun List<ByteArray>.reassembled(): List<ByteArray> {
+    val streams = mutableMapOf<Int, ByteArray>()
+    return mapNotNull { body ->
+        val fragment = (LinkFrame.decode(body) as? Decoded.Valid)?.value as? LinkFrame.Fragment
+        val data = fragment?.let { streams.getOrElse(it.streamId) { ByteArray(0) } + it.data }
+        when {
+            fragment == null -> body
+            fragment.last -> data.also { streams -= fragment.streamId }
+            else -> null.also { streams[fragment.streamId] = data!! }
+        }
+    }
+}
 
 internal fun seal(
     transport: NoiseTransport,

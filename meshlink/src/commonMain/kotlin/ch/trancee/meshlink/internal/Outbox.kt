@@ -134,14 +134,23 @@ internal class Outbox(
         capacity.release(entry.size)
     }
 
-    /** One message to [to] whose [size] payload bytes are reserved, ending at [deadlineMillis] wall-clock time. */
+    /**
+     * One message of [payload] to [to], whose bytes are reserved, expiring at Unix second [expiry] and
+     * ending at [deadlineMillis] wall-clock time.
+     */
     class Entry(
         val to: NodeId,
-        val draft: Draft,
-        val size: Int,
+        val payload: ByteArray,
+        val expiry: Long,
         val status: MutableStateFlow<DeliveryStatus>,
         val deadlineMillis: Long,
     ) {
+        /** The reserved bytes. */
+        val size: Int get() = payload.size
+
+        /** The message drafted for its first send, which every retry sends again; `null` before. */
+        var draft: Draft? = null
+
         var done = false
 
         /** Whether this message was sent once more by a new search (spec "Origin behavior"). */

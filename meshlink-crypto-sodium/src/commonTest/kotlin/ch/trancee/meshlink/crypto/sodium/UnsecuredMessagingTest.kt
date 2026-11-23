@@ -30,10 +30,10 @@ class UnsecuredMessagingTest {
     @Test
     fun theDestinationAcceptsADraftedFrameWithTheSenderAndPayload() {
         // Arrange
-        val draft = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
+        val draft = sender.draft(bob, PAYLOAD, EXPIRY)
 
         // Act
-        val delivery = receiver.accept(sender.frame(draft, epoch), NOW)
+        val delivery = receiver.accept(sender.frame(draft, epoch, hopLimit = 1), NOW)
 
         // Assert
         assertNotNull(delivery)
@@ -44,10 +44,10 @@ class UnsecuredMessagingTest {
     @Test
     fun aFrameCarriesTheEpochsUnsecuredTagsTheCommitmentToKAndTheDraftsHeaderFields() {
         // Arrange
-        val draft = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
+        val draft = sender.draft(bob, PAYLOAD, EXPIRY)
 
         // Act
-        val frame = (MessageFrame.decode(sender.frame(draft, epoch)) as Decoded.Valid).value
+        val frame = (MessageFrame.decode(sender.frame(draft, epoch, hopLimit = 1)) as Decoded.Valid).value
 
         // Assert
         assertEquals(1, frame.header.hopLimit)
@@ -66,8 +66,8 @@ class UnsecuredMessagingTest {
 
     @Test
     fun eachDraftHasAFreshMessageIdAndSecret() {
-        val first = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
-        val second = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
+        val first = sender.draft(bob, PAYLOAD, EXPIRY)
+        val second = sender.draft(bob, PAYLOAD, EXPIRY)
 
         assertFalse(first.messageId.contentEquals(second.messageId))
         assertFalse(first.commitment.contentEquals(second.commitment))
@@ -75,30 +75,30 @@ class UnsecuredMessagingTest {
 
     @Test
     fun theLargestPayloadMakesASmallFrameAndALargerOneIsRefused() {
-        val draft = sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX), EXPIRY, hopLimit = 1)
+        val draft = sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX), EXPIRY)
 
-        val size = sender.frame(draft, epoch).size
+        val size = sender.frame(draft, epoch, hopLimit = 1).size
         assertTrue(size > LinkRecord.BODY_MAX && size <= Reassembly.FRAME_SMALL_MAX, "$size")
         assertFailsWith<IllegalArgumentException> {
-            sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX + 1), EXPIRY, hopLimit = 1)
+            sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX + 1), EXPIRY)
         }
     }
 
     @Test
     fun theDestinationAcceptsTagsOfTheAdjacentEpochsOnly() {
-        val draft = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
+        val draft = sender.draft(bob, PAYLOAD, EXPIRY)
 
         listOf(epoch - 1u, epoch, epoch + 1u).forEach {
-            assertNotNull(receiver.accept(sender.frame(draft, it), NOW), "epoch $it")
+            assertNotNull(receiver.accept(sender.frame(draft, it, hopLimit = 1), NOW), "epoch $it")
         }
         listOf(epoch - 2u, epoch + 2u).forEach {
-            assertNull(receiver.accept(sender.frame(draft, it), NOW), "epoch $it")
+            assertNull(receiver.accept(sender.frame(draft, it, hopLimit = 1), NOW), "epoch $it")
         }
     }
 
     @Test
     fun aFrameTakesTheHopLimitOfItsWrite() {
-        val draft = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
+        val draft = sender.draft(bob, PAYLOAD, EXPIRY)
 
         val frame = (MessageFrame.decode(sender.frame(draft, epoch, hopLimit = 3)) as Decoded.Valid).value
 
@@ -118,9 +118,9 @@ class UnsecuredMessagingTest {
 
     @Test
     fun anotherNodesFrameIsDropped() {
-        val draft = sender.draft(alice, PAYLOAD, EXPIRY, hopLimit = 1)
+        val draft = sender.draft(alice, PAYLOAD, EXPIRY)
 
-        assertNull(receiver.accept(sender.frame(draft, epoch), NOW))
+        assertNull(receiver.accept(sender.frame(draft, epoch, hopLimit = 1), NOW))
     }
 
     @Test
@@ -153,8 +153,8 @@ class UnsecuredMessagingTest {
     fun anExpiredOrFarFutureFrameIsDroppedAllowingClockSkew() {
         val skew = UnsecuredMessaging.CLOCK_SKEW_SECONDS
         val latest = UnsecuredMessaging.LIFETIME_MAX_SECONDS + skew
-        val draft = sender.draft(bob, PAYLOAD, EXPIRY, hopLimit = 1)
-        val acceptAt = { now: Long -> receiver.accept(sender.frame(draft, Derivations.epoch(now)), now) }
+        val draft = sender.draft(bob, PAYLOAD, EXPIRY)
+        val acceptAt = { now: Long -> receiver.accept(sender.frame(draft, Derivations.epoch(now), hopLimit = 1), now) }
 
         assertNotNull(acceptAt(EXPIRY.toLong() + skew))
         assertNull(acceptAt(EXPIRY.toLong() + skew + 1))

@@ -339,8 +339,8 @@ class FragmentLinkTest {
     ): ByteArray {
         val sender = UnsecuredMessaging(SodiumCryptoProvider, FAKE_ID)
         val expiry = (now().epochSeconds + LIFETIME_SECONDS).toUInt()
-        val draft = sender.draft(to, payload.encodeToByteArray(), expiry, hopLimit = 1)
-        return sender.frame(draft, Derivations.epoch(now().epochSeconds))
+        val draft = sender.draft(to, payload.encodeToByteArray(), expiry)
+        return sender.frame(draft, Derivations.epoch(now().epochSeconds), hopLimit = 1)
     }
 
     /** The payload of `MESSAGE` [frame] as the fake receives it. */

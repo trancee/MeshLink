@@ -37,6 +37,24 @@ internal interface Mail {
     )
 }
 
+/** What [Post] needs to send its own messages: the [Endpoint] of the mesh's profile. */
+internal interface Origin : Endpoint {
+    /** [entry]'s message drafted for its first send, or `null` while it can't be yet. */
+    fun draft(entry: Outbox.Entry): Draft?
+
+    /** [draft]'s destination tag for the current epoch. */
+    fun destination(draft: Draft): ByteArray
+
+    /** The tag [draft]'s route requests come from for the current epoch, which their replies go to. */
+    fun origin(draft: Draft): ByteArray
+
+    /** [draft]'s frame for the current epoch with [hopLimit]. */
+    fun frame(
+        draft: Draft,
+        hopLimit: Int,
+    ): ByteArray
+}
+
 /** A frame ready to write: its routed [frame], and [settle] to report how the write ended. */
 internal class Letter(
     val frame: ByteArray,
@@ -61,10 +79,10 @@ internal enum class Settled {
  * forwarding"), and floods [broadcasts] (spec "Flood forwarding"). [density] is the node's current
  * density class.
  *
- * A secured [profile]'s mesh may not carry the unsecured container (spec "End-to-end"), and its own unicast
- * containers come later: it keeps its messages `Queued` without writing them and processes no unicast
- * frame for itself, but relays the secured containers of other nodes. Its broadcasts are signed, and
- * its [lookups] find the certificates of nodes it is not linked to (spec "Certificate lookup").
+ * A secured [profile]'s mesh may not carry the unsecured container (spec "End-to-end"): it sends each
+ * message as a first message sealed to its destination's certificate (spec "First messages"), which
+ * its [lookups] find for nodes it is not linked to (spec "Certificate lookup"); a message waits
+ * `Queued` until the certificate arrives. Its broadcasts are signed.
  *
  * [send] and [awaitCapacity] are thread-safe; everything else runs on [scope]'s serial dispatcher.
  */
@@ -90,19 +108,19 @@ internal class Post(
     /** The peers this node lists. */
     val roster = Roster()
 
-    private val routed = RoutedPeers(crypto, clock, scope, routes, roster)
-
-    // A found route takes the messages waiting for its destination at once, unless the low class floods them.
-    private val end: UnsecuredEnd =
-        UnsecuredEnd(crypto, clock, inbox, secured, routed::heard) { tag ->
-            routed.update()
-            if (density() != DensityClass.LOW) outbox.found(FLUSH_GAP_MILLIS) { end.tag(it.to).contentEquals(tag) }
-        }
-    private val codec = BroadcastCodec(crypto, secured)
-    private val floods = Floods(lanes, codec, Plumtree(lanes, clock, scope, density)) { inbox.offer(it) }
+    private val certificates = Lookups(crypto, clock, scope, profile, lanes, density)
 
     /** A secured node's certificate lookups; an `unsecured` node has none. */
-    val lookups = if (secured) Lookups(crypto, clock, scope, profile, lanes, density) else null
+    val lookups = certificates.takeIf { secured }
+
+    private val tags = if (secured) SecuredPeerTags(crypto, certificates) else UnsecuredPeerTags(crypto)
+    private val routed = RoutedPeers(clock, scope, routes, roster, tags)
+    private val releases = Releases(outbox, routed, density) { end.destination(it) }
+    private val unsecuredEnd = UnsecuredEnd(crypto, clock, inbox, routed::heard, releases::found)
+    private val securedEnd = SecuredEnd(crypto, clock, inbox, certificates, routed::heard, releases::found)
+    private val end: Origin = if (secured) securedEnd else unsecuredEnd
+    private val codec = BroadcastCodec(crypto, secured)
+    private val floods = Floods(lanes, codec, Plumtree(lanes, clock, scope, density)) { inbox.offer(it) }
     private val router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
 
     /** This node's broadcasts. */
@@ -110,12 +128,17 @@ internal class Post(
 
     /** Starts a run of the node with [identity]. */
     fun begin(identity: InstallationIdentity) {
-        end.begin(identity.nodeId)
+        unsecuredEnd.begin(identity.nodeId)
         codec.begin(identity)
         self.value = NodeId(identity.nodeId)
         outbox.begin()
         broadcasts.begin()
-        lookups?.begin()
+        lookups?.begin(releases::arrived)
+    }
+
+    /** A secured node's [keys] for a new session, which its first messages are sealed with and to. */
+    fun certify(keys: SecuredKeys) {
+        securedEnd.certify(keys)
     }
 
     /** Ends the run: unfinished messages and broadcasts fail with `Stopped`, and no routed peer is listed. */
@@ -124,11 +147,6 @@ internal class Post(
         broadcasts.end()
         routed.end()
         lookups?.end()
-    }
-
-    /** Ends [inbox] for good. */
-    fun close() {
-        inbox.close()
     }
 
     /** Accepts or rejects a message of [payload] to [to] from a node in [state]. */
@@ -152,8 +170,8 @@ internal class Post(
         // A node that closes before the message reaches the outbox cancels this before it runs.
         val deadline = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS) * MILLIS_PER_SECOND
         val add = {
-            if (!secured) routed.sending(to)
-            outbox.add(Outbox.Entry(to, end.draft(to, bytes, expiry), bytes.size, status, deadline))
+            routed.sending(to)
+            outbox.add(Outbox.Entry(to, bytes, expiry, status, deadline))
         }
         scope.launch { add() }.invokeOnCompletion {
             if (it != null) status.value = DeliveryStatus.Failed(FailureReason.Stopped)
@@ -177,7 +195,7 @@ internal class Post(
         floods.unlinked(peer)
         router.unlinked(peer)
         routed.update()
-        if (lanes.peers.isEmpty() && !secured) outbox.unreachable()
+        if (lanes.peers.isEmpty()) outbox.unreachable()
     }
 
     override suspend fun next(peer: NodeId): Letter {
@@ -200,21 +218,22 @@ internal class Post(
         router.received(peer, frame)
     }
 
-    // Each attempt tags the frame for the epoch it is written in (spec "Origin behavior"). After its
-    // first send on a route, a message is sent once more by a new [search] if it is still unfinished
-    // `resend-base` + `resend-per-hop` × the route's hop count later.
+    // Each attempt tags the same draft for the epoch it is written in (spec "Origin behavior"). After
+    // its first send on a route, a message is sent once more by a new [search] if it is still
+    // unfinished `resend-base` + `resend-per-hop` × the route's hop count later.
     private fun transmit(
         entry: Outbox.Entry,
         search: Boolean = false,
     ) {
-        if (secured) return
+        val draft = entry.draft ?: end.draft(entry)?.also { entry.draft = it }
         if (lanes.peers.isEmpty()) return entry.hold()
+        if (draft == null) return
         val parcel = { hopLimit: Int ->
-            Parcel(entry.draft.messageId, relayed = false, { end.frame(entry.draft, hopLimit) }) {
+            Parcel(draft.messageId, relayed = false, { end.frame(draft, hopLimit) }) {
                 if (it == Settled.SENT) entry.sent()
             }
         }
-        val hops = router.originate(end.tag(entry.to), density(), search, parcel)
+        val hops = router.originate(end.destination(draft), end.origin(draft), density(), search, parcel)
         entry.sentMillis = clock.monotonicMillis()
         if (hops != null && !entry.resent) {
             entry.resent = true
@@ -225,15 +244,43 @@ internal class Post(
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L
 
-        // resend-base and resend-per-hop.
+        // resend-base.
         const val RESEND_BASE_MILLIS = 1_000L
-        const val RESEND_PER_HOP_MILLIS = 200L
+    }
+}
 
+/**
+ * Releases the messages waiting in [outbox] as soon as what they wait for arrives: a route to their
+ * [destination], or their destination's certificate. Either also updates the [routed] peers.
+ */
+private class Releases(
+    private val outbox: Outbox,
+    private val routed: RoutedPeers,
+    private val density: () -> DensityClass,
+    private val destination: (Draft) -> ByteArray,
+) {
+    // A found route takes the messages waiting for its destination at once, unless the low class floods them.
+    fun found(tag: ByteArray) {
+        routed.update()
+        if (density() == DensityClass.LOW) return
+        outbox.found(FLUSH_GAP_MILLIS) { entry -> entry.draft?.let { destination(it).contentEquals(tag) } == true }
+    }
+
+    // A certificate of [peer] arrived: the messages waiting for it are sealed and sent at once.
+    fun arrived(peer: NodeId) {
+        routed.update()
+        outbox.found(0) { it.to == peer }
+    }
+
+    private companion object {
         // A message sent on a route just found waits until relays forget its earlier copies: the
         // unicast seen window, and one hop's allowance for their later forwarding.
         const val FLUSH_GAP_MILLIS = Router.SEEN_WINDOW_MILLIS + RESEND_PER_HOP_MILLIS
     }
 }
+
+// resend-per-hop.
+private const val RESEND_PER_HOP_MILLIS = 200L
 
 // A node blocked on its identity has no run: start couldn't begin one.
 internal fun accepting(state: MeshState): Boolean =
