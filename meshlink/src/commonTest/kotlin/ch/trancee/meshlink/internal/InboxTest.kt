@@ -82,6 +82,25 @@ class InboxTest {
             assertTrue(again)
         }
 
+    @Test
+    fun aMessageIsTakenWhenItsCollectorReceivesItAndARefusedOneNever() =
+        runTest {
+            // Arrange
+            val inbox = Inbox()
+            val taken = mutableListOf<Int>()
+            inbox.offer(message(senderId = 0, size = Inbox.SENDER_BYTES.toInt())) { taken += 0 }
+            inbox.offer(message(senderId = 0, size = 1)) { taken += 1 }
+            inbox.offer(message(senderId = 1, size = 1)) { taken += 2 }
+
+            // Act
+            val before = taken.toList()
+            inbox.messages.first()
+
+            // Assert
+            assertEquals(emptyList(), before)
+            assertEquals(listOf(0), taken)
+        }
+
     private fun message(
         senderId: Int,
         size: Int,

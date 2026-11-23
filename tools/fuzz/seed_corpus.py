@@ -35,6 +35,7 @@ TARGETS = {
     "UnicastFrame": lambda: encoded("routed-frames.json"),
     "RouteRequest": lambda: encoded("routed-frames.json"),
     "RouteReply": lambda: encoded("routed-frames.json"),
+    "DeliveryReceipt": lambda: encoded("routed-frames.json"),
     "LookupRequest": lambda: encoded("routed-frames.json"),
     "LookupReply": lambda: encoded("routed-frames.json"),
     "BroadcastFrame": lambda: encoded("routed-frames.json"),

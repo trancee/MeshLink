@@ -81,7 +81,10 @@ internal class SecuredEnd(
         return inbox.offer(ReceivedMessage(sender, delivery.payload, broadcast = false))
     }
 
-    override fun carries(kind: Int): Boolean = kind in SECURED_KINDS
+    // Secured delivery receipts come with secured sessions.
+    override val acknowledger: Acknowledger = Unacknowledged
+
+    override fun carries(kind: Int): Boolean = kind != Container.UNSECURED
 
     override fun tag(): ByteArray? = null
 
@@ -163,4 +166,15 @@ internal class SecuredPeerTags(
     }
 }
 
-private val SECURED_KINDS = setOf(Container.IK_INITIATOR, Container.TRANSPORT)
+/** The receipt end of a node without secured sessions: it takes no repeat and no receipt. */
+internal object Unacknowledged : Acknowledger {
+    override fun repeated(
+        frame: ByteArray,
+        nowSeconds: Long,
+    ) = Unit
+
+    override fun acknowledged(
+        frame: ByteArray,
+        nowSeconds: Long,
+    ) = Unit
+}

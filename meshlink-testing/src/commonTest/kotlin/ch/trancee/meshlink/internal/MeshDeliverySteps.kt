@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.OutgoingMessage
 import ch.trancee.meshlink.SendResult
 import io.github.menjoo.cucumberkmp.core.runner.StepsBuilder
 import io.github.menjoo.cucumberkmp.core.runner.given
@@ -22,12 +24,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
-/** A message a test sent from node [from] to node [to] at virtual time [atMillis]. */
+/** A [message] a test sent from node [from] to node [to] at virtual time [atMillis]. */
 private class Sent(
     val from: Int,
     val to: Int,
     val payload: ByteArray,
     val atMillis: Long,
+    val message: OutgoingMessage,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -78,8 +81,8 @@ internal fun StepsBuilder.meshDeliverySteps() {
             scope.testScheduler.advanceTimeBy(start + offset - scope.testScheduler.currentTime)
             val payload = random.nextBytes(PAYLOAD_BYTES)
             val id = checkNotNull(mesh.idOf(to)) { "no running node knows node $to" }
-            assertIs<SendResult.Accepted>(mesh.nodes[from].send(id, payload))
-            sent += Sent(from, to, payload, scope.testScheduler.currentTime)
+            val result = assertIs<SendResult.Accepted>(mesh.nodes[from].send(id, payload))
+            sent += Sent(from, to, payload, scope.testScheduler.currentTime, result.message)
         }
         assertTrue(sent.isNotEmpty())
     }
@@ -111,6 +114,11 @@ internal fun StepsBuilder.meshDeliverySteps() {
             assertContentEquals(nodeId(mesh.platforms[message.from]), arrival.message.sender.toByteArray())
             assertEquals(false, arrival.message.broadcast)
         }
+    }
+
+    then("every sender sees its messages delivered") {
+        val undelivered = sent.filter { it.message.status.value != DeliveryStatus.Delivered }
+        assertEquals(emptyList(), undelivered.map { "${it.from} -> ${it.to}: ${it.message.status.value}" })
     }
 }
 

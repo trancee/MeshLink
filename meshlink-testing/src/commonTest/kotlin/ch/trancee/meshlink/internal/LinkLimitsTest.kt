@@ -409,7 +409,7 @@ class LinkLimitsTest {
 
             // Assert
             // A low-class origin floods every message on each link, so the stalled link holds only its own.
-            assertTrue(toFast.all { it.value == DeliveryStatus.Sent })
+            assertTrue(toFast.all { it.value == DeliveryStatus.Delivered })
             assertEquals(MESSAGES, fastReceived)
             assertTrue(outstanding in 1..CREDIT_WINDOW, "outstanding $outstanding")
         }

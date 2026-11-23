@@ -153,6 +153,24 @@ class RoutedPeersTest {
         }
 
     @Test
+    fun theSoonestRouteToExpireListsAnewWhicheverNodeWasHeardFirst() =
+        runTest {
+            // Arrange
+            val peers = routed()
+            found(nodeId(1), lifeMillis = 20_000)
+            found(nodeId(2), lifeMillis = 10_000)
+            peers.heard(nodeId(1))
+            peers.heard(nodeId(2))
+
+            // Act
+            advanceTimeBy(10_000)
+            runCurrent()
+
+            // Assert
+            assertEquals(listOf(nodeId(1) to Reachability.Routed(3)), listed())
+        }
+
+    @Test
     fun aPeerIsListedAnewOnceWhenTheFirstRouteExpiresHoweverOftenTheListChanged() =
         runTest {
             val peers = routed()

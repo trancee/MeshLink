@@ -5,6 +5,7 @@ import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.NodeId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -17,9 +18,10 @@ import kotlinx.coroutines.launch
 /**
  * The messages this node accepted and has not finished (ADR 0013 decisions 5, 6, 8 and 9; spec
  * "Origin behavior"). Each one is sent with [transmit] at once, then again after doubling intervals
- * for the node's [density] class until its deadline; in the low and medium classes also on each new
- * link, at most once per [LINK_RETRY_GAP_MILLIS] per destination. A message holds its bytes in
- * [capacity] until it finishes.
+ * for the node's [density] class until it expires; in the low and medium classes also on each new
+ * link, at most once per [LINK_RETRY_GAP_MILLIS] per destination. A direct-only message is sent on
+ * each new link to its destination, in every class. A message is `Delivered` when its receipt
+ * arrives, until its deadline, and holds its bytes in [capacity] until it finishes.
  *
  * Runs on [scope]'s serial dispatcher.
  */
@@ -49,15 +51,20 @@ internal class Outbox(
         if (!run.isActive) return finish(entry, DeliveryStatus.Failed(FailureReason.Stopped))
         entries += entry
         // Started at once so it is inside live's try before a stop can cancel it.
-        run.launch(start = CoroutineStart.UNDISPATCHED) { live(entry) }
+        entry.life = run.launch(start = CoroutineStart.UNDISPATCHED) { live(entry) }
     }
 
-    /** A link completed its hello: low and medium classes send each destination's messages again. */
-    fun linked() {
+    /**
+     * A link to [peer] completed its hello: its direct-only messages are sent at once, and low and
+     * medium classes send each destination's other messages again.
+     */
+    fun linked(peer: NodeId) {
+        val sending = entries.filter { !it.quiet }
+        sending.filter { it.directOnly && it.to == peer }.forEach(transmit)
         if (density() == DensityClass.HIGH) return
         val now = clock.monotonicMillis()
-        linkRetries.keys.retainAll(entries.map { it.to }.toSet())
-        entries.groupBy { it.to }.forEach { (to, waiting) ->
+        linkRetries.keys.retainAll(sending.map { it.to }.toSet())
+        sending.filter { !it.directOnly }.groupBy { it.to }.forEach { (to, waiting) ->
             val last = linkRetries[to]
             if (last == null || now - last >= LINK_RETRY_GAP_MILLIS) {
                 linkRetries[to] = now
@@ -92,8 +99,19 @@ internal class Outbox(
     ) {
         run.launch {
             delay(delayMillis)
-            if (!entry.done) action()
+            if (!entry.quiet) action()
         }
+    }
+
+    /** [from]'s delivery receipt arrived for [messageIds]: those of its messages are `Delivered`. */
+    fun delivered(
+        from: NodeId,
+        messageIds: List<ByteArray>,
+    ) {
+        val listed = { entry: Entry ->
+            entry.draft?.let { draft -> messageIds.any { it.contentEquals(draft.messageId) } } == true
+        }
+        entries.filter { it.to == from && listed(it) }.forEach { finish(it, DeliveryStatus.Delivered) }
     }
 
     /** The node has no link left: messages not yet sent are `Held`. */
@@ -105,9 +123,12 @@ internal class Outbox(
         try {
             coroutineScope {
                 val retries = launch(start = CoroutineStart.UNDISPATCHED) { retry(entry) }
-                delay(entry.deadlineMillis - clock.wallClockMillis())
+                delay(entry.expiry * MILLIS_PER_SECOND - clock.wallClockMillis())
                 retries.cancel()
             }
+            // Past its expiry nothing sends it again, but a late receipt still delivers it.
+            entry.quiet = true
+            delay(entry.deadlineMillis - clock.wallClockMillis())
             finish(entry, DeliveryStatus.Expired)
         } finally {
             finish(entry, DeliveryStatus.Failed(FailureReason.Stopped))
@@ -129,14 +150,16 @@ internal class Outbox(
     ) {
         if (entry.done) return
         entry.done = true
-        entry.status.value = status
+        entry.quiet = true
+        entry.status.value = entry.status.value.then(status)
         entries -= entry
         capacity.release(entry.size)
+        entry.life?.cancel()
     }
 
     /**
      * One message of [payload] to [to], whose bytes are reserved, expiring at Unix second [expiry] and
-     * ending at [deadlineMillis] wall-clock time.
+     * ending at [deadlineMillis] wall-clock time; only a link to [to] carries it if [directOnly].
      */
     class Entry(
         val to: NodeId,
@@ -144,6 +167,7 @@ internal class Outbox(
         val expiry: Long,
         val status: MutableStateFlow<DeliveryStatus>,
         val deadlineMillis: Long,
+        val directOnly: Boolean,
     ) {
         /** The reserved bytes. */
         val size: Int get() = payload.size
@@ -152,6 +176,12 @@ internal class Outbox(
         var draft: Draft? = null
 
         var done = false
+
+        /** The message's retries and deadline; `null` if it never went live. */
+        var life: Job? = null
+
+        /** Whether nothing sends this message again: it expired or finished. */
+        var quiet = false
 
         /** Whether this message was sent once more by a new search (spec "Origin behavior"). */
         var resent = false
@@ -164,18 +194,20 @@ internal class Outbox(
 
         /** A write of this message succeeded. */
         fun sent() {
-            if (!done) status.value = DeliveryStatus.Sent
+            status.value = status.value.then(DeliveryStatus.Sent)
         }
 
         /** No link can take this message now. */
         fun hold() {
-            if (status.value == DeliveryStatus.Queued) status.value = DeliveryStatus.Held
+            if (status.value == DeliveryStatus.Queued) status.value = status.value.then(DeliveryStatus.Held)
         }
     }
 
     companion object {
         /** `link-retry-gap`: the least time between two new-link retries to one destination. */
         const val LINK_RETRY_GAP_MILLIS: Long = 5_000
+
+        private const val MILLIS_PER_SECOND = 1_000L
 
         // retry-min-low to retry-max-low (low and medium) and retry-min-high to retry-max-high.
         private val LOW = 2_000L to 30_000L

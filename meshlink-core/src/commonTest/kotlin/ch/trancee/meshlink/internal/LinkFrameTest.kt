@@ -124,7 +124,7 @@ class LinkFrameTest {
         val offered = List(LinkFrame.CatchUp.OFFERED_MAX + 2) { id(it, MESSAGE_ID) }
         val held = List(LinkFrame.CatchUp.HELD_MAX + 2) { LinkFrame.CatchUp.Held(id(it, MESSAGE_ID), id(it, ID)) }
         val tombstones =
-            List(LinkFrame.CatchUp.TOMBSTONES_MAX + 2) { LinkFrame.CatchUp.Tombstone(id(it, MESSAGE_ID), id(it, K)) }
+            List(LinkFrame.CatchUp.TOMBSTONES_MAX + 2) { Tombstone(id(it, MESSAGE_ID), id(it, K)) }
 
         val frame = LinkFrame.CatchUp.newest(offered, held, tombstones)
 
@@ -156,13 +156,13 @@ class LinkFrameTest {
             )
         }
         assertFailsWith<IllegalArgumentException> {
-            val tombstone = LinkFrame.CatchUp.Tombstone(id(0, MESSAGE_ID), id(0, K))
+            val tombstone = Tombstone(id(0, MESSAGE_ID), id(0, K))
             LinkFrame.CatchUp(emptyList(), emptyList(), List(LinkFrame.CatchUp.TOMBSTONES_MAX + 1) { tombstone })
         }
         assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Held(id(0, ID), id(0, ID)) }
         assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Held(id(0, MESSAGE_ID), id(0, MESSAGE_ID)) }
-        assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Tombstone(id(0, ID), id(0, K)) }
-        assertFailsWith<IllegalArgumentException> { LinkFrame.CatchUp.Tombstone(id(0, MESSAGE_ID), id(0, ID)) }
+        assertFailsWith<IllegalArgumentException> { Tombstone(id(0, ID), id(0, K)) }
+        assertFailsWith<IllegalArgumentException> { Tombstone(id(0, MESSAGE_ID), id(0, ID)) }
     }
 
     // [size] bytes of [value].

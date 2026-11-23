@@ -16,14 +16,32 @@ internal interface Endpoint {
         nowSeconds: Long,
     ): Boolean
 
+    /** This node's end of delivery receipts. */
+    val acknowledger: Acknowledger
+
     /** This node's current routing tag to answer route requests from a route it knows; `null` if it has none. */
     fun tag(): ByteArray?
 
     /** A route discovery found a route to [tag]. */
     fun found(tag: ByteArray)
 
-    /** Whether the mesh's profile carries `MESSAGE` container [kind]; relays drop the others. */
+    /** Whether the mesh's profile carries end-to-end container [kind]; relays drop the others. */
     fun carries(kind: Int): Boolean
+}
+
+/** This node's end of delivery receipts (spec "Delivery receipts"); called on the node's dispatcher. */
+internal interface Acknowledger {
+    /** Takes a later copy of a `MESSAGE` [frame] this node accepted: its receipt goes again. */
+    fun repeated(
+        frame: ByteArray,
+        nowSeconds: Long,
+    )
+
+    /** Takes a `DELIVERY_RECEIPT` [frame] for this node. */
+    fun acknowledged(
+        frame: ByteArray,
+        nowSeconds: Long,
+    )
 }
 
 /**
@@ -208,8 +226,8 @@ internal class Router(
         }
     }
 
-    // A MESSAGE must decode and carry a container kind the profile allows, a ROUTE_REPLY must decode,
-    // and so must a secured node's LOOKUP_REPLY; other unicast types pass by header.
+    // A MESSAGE or DELIVERY_RECEIPT must decode and carry a container kind the profile allows, a
+    // ROUTE_REPLY must decode, and so must a secured node's LOOKUP_REPLY; other unicast types pass by header.
     private fun carried(
         type: Int,
         bytes: ByteArray,
@@ -218,6 +236,11 @@ internal class Router(
             MessageFrame.TYPE -> {
                 val message = MessageFrame.decode(bytes)
                 message is Decoded.Valid && endpoint.carries(message.value.container.kind)
+            }
+
+            DeliveryReceipt.TYPE -> {
+                val receipt = DeliveryReceipt.decode(bytes)
+                receipt is Decoded.Valid && endpoint.carries(receipt.value.container.kind)
             }
 
             RouteReply.TYPE -> {
@@ -233,8 +256,9 @@ internal class Router(
             }
         }
 
-    // A destination processes each MESSAGE once while it is timely, and learns the route
-    // each ROUTE_REPLY found; other types come later.
+    // A destination learns the reverse route to each frame's source, which its receipts go back on;
+    // takes each MESSAGE once while it is timely and every later copy as a repeat; takes its
+    // DELIVERY_RECEIPTs; and learns the route each ROUTE_REPLY found. Other types come later.
     private fun accept(
         peer: NodeId,
         frame: UnicastFrame,
@@ -242,10 +266,23 @@ internal class Router(
         nowSeconds: Long,
     ) {
         if (frame.type == RouteReply.TYPE) return discovery.replied(peer, reply(bytes))
+        routes.learn(frame.header.sourceTag, peer, clock.monotonicMillis())
+        when (frame.type) {
+            MessageFrame.TYPE -> message(frame, bytes, nowSeconds)
+            DeliveryReceipt.TYPE -> endpoint.acknowledger.acknowledged(bytes, nowSeconds)
+        }
+    }
+
+    private fun message(
+        frame: UnicastFrame,
+        bytes: ByteArray,
+        nowSeconds: Long,
+    ) {
         val id = frame.header.messageId
-        val now = nowSeconds * MILLIS_PER_SECOND
-        if (frame.type != MessageFrame.TYPE || delivered.has(id, now) || !endpoint.deliver(bytes, nowSeconds)) return
-        delivered.put(id, remembered(frame.header.expiry.toLong()))
+        when {
+            delivered.has(id, nowSeconds * MILLIS_PER_SECOND) -> endpoint.acknowledger.repeated(bytes, nowSeconds)
+            endpoint.deliver(bytes, nowSeconds) -> delivered.put(id, remembered(frame.header.expiry.toLong()))
+        }
     }
 
     // The frame one hop on; a ROUTE_REPLY also teaches its route and counts the hop, or is dropped

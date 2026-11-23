@@ -25,6 +25,19 @@ public sealed interface Container {
         override fun encode(): ByteArray = byteArrayOf(kind.toByte()) + u32(noiseMessage.size.toUInt()) + noiseMessage
     }
 
+    /** Kind `0x02`: `IK` message 2, the responder's reply that completes a secured session. */
+    public class IkResponder(
+        public val noiseMessage: ByteArray,
+    ) : Container {
+        init {
+            require(noiseMessage.isNotEmpty()) { "noise_message must not be empty" }
+        }
+
+        override val kind: Int get() = IK_RESPONDER
+
+        override fun encode(): ByteArray = byteArrayOf(kind.toByte()) + u32(noiseMessage.size.toUInt()) + noiseMessage
+    }
+
     /** Kind `0x03`: a secured session's [ciphertext] under the explicit Noise transport [nonce]. */
     public class Transport(
         public val nonce: ULong,
@@ -86,6 +99,9 @@ public sealed interface Container {
         /** Kind `0x01`, [IkInitiator]. */
         public const val IK_INITIATOR: Int = 0x01
 
+        /** Kind `0x02`, [IkResponder]. */
+        public const val IK_RESPONDER: Int = 0x02
+
         /** Kind `0x03`, [Transport]. */
         public const val TRANSPORT: Int = 0x03
 
@@ -107,6 +123,7 @@ public sealed interface Container {
         private val LAYOUTS: Map<Int, Layout> =
             mapOf(
                 IK_INITIATOR to Layout(KIND + LENGTH, 1, ::ikInitiator),
+                IK_RESPONDER to Layout(KIND + LENGTH, 1, ::ikResponder),
                 TRANSPORT to Layout(KIND + NONCE + LENGTH, TRANSPORT_MINIMUM, ::transport),
                 UNSECURED to Layout(KIND + NODE_ID + LENGTH, 0, ::unsecured),
                 SIGNED_BROADCAST to
@@ -122,7 +139,7 @@ public sealed interface Container {
 
         /**
          * Decodes the container that starts at [offset] and runs to the end of [bytes]. [allowed]
-         * lists the kinds the frame allows, each one of [IK_INITIATOR], [TRANSPORT], [UNSECURED] or
+         * lists the kinds the frame allows, each one of [IK_INITIATOR], [IK_RESPONDER], [TRANSPORT], [UNSECURED] or
          * [SIGNED_BROADCAST].
          */
         internal fun decode(
@@ -158,6 +175,11 @@ public sealed interface Container {
             bytes: ByteArray,
             body: Int,
         ): Container = IkInitiator(bytes.copyOfRange(body, bytes.size))
+
+        private fun ikResponder(
+            bytes: ByteArray,
+            body: Int,
+        ): Container = IkResponder(bytes.copyOfRange(body, bytes.size))
 
         private fun transport(
             bytes: ByteArray,

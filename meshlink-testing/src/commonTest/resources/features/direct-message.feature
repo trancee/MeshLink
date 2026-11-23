@@ -88,7 +88,7 @@ Feature: Direct messaging
     And Alice has sent "hello, Bob" while disconnected
     When Bob returns to direct contact with Alice
     Then Bob receives "hello, Bob" from Alice
-    And Alice's message is sent
+    And Alice's message is delivered
 
   Scenario: An expired message is not delivered when the link returns
     Given Alice and Bob are running in the same mesh

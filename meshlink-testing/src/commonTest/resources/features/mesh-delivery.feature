@@ -1,12 +1,14 @@
 Feature: Delivery across a mesh
 
   A direct message to a node its sender can reach through nodes in range of each other arrives
-  once, intact and within its lifetime, whatever the shape of the mesh.
+  once, intact and within its lifetime, whatever the shape of the mesh, and its sender sees it
+  delivered.
 
   Scenario Outline: Every message arrives once and intact in a <layout> layout
     Given <nodes> nodes are running in a <layout> layout with seed <seed>
     When each node sends a 256-byte message to <contacts> other nodes it can reach
     Then every message arrives once and intact within its lifetime
+    And every sender sees its messages delivered
 
     Examples:
       | layout | nodes | contacts | seed |
@@ -19,3 +21,4 @@ Feature: Delivery across a mesh
     And each link drops on average every 45 seconds and its nodes reconnect
     When each node sends a 256-byte message to 3 other nodes it can reach over 5 minutes
     Then every message arrives once and intact within its lifetime
+    And every sender sees its messages delivered

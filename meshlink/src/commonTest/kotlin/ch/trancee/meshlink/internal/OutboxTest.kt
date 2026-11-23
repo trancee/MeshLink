@@ -3,6 +3,7 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
@@ -20,6 +21,7 @@ class OutboxTest {
     private val capacity = Capacity()
     private var density = DensityClass.LOW
     private val attempts = mutableListOf<Pair<Long, NodeId>>()
+    private val messaging = UnsecuredMessaging(SodiumCryptoProvider, SENDER)
 
     private fun TestScope.outbox(): Outbox {
         val outbox =
@@ -35,10 +37,16 @@ class OutboxTest {
         to: NodeId = PEER,
         size: Int = 1,
         lifetimeMillis: Long = 600_000,
+        skewMillis: Long = 0,
+        directOnly: Boolean = false,
     ): Outbox.Entry {
-        val deadline = SchedulerClock(testScheduler).wallClockMillis() + lifetimeMillis
-        return Outbox.Entry(to, ByteArray(size), deadline / 1_000, MutableStateFlow(DeliveryStatus.Queued), deadline)
+        val expiry = (SchedulerClock(testScheduler).wallClockMillis() + lifetimeMillis) / 1_000
+        val status = MutableStateFlow<DeliveryStatus>(DeliveryStatus.Queued)
+        return Outbox.Entry(to, ByteArray(size), expiry, status, expiry * 1_000 + skewMillis, directOnly)
     }
+
+    private fun drafted(entry: Outbox.Entry): Outbox.Entry =
+        entry.also { it.draft = messaging.draft(ByteArray(32), it.payload, it.expiry.toUInt()) }
 
     private fun TestScope.times(untilMillis: Long): List<Long> {
         advanceTimeBy(untilMillis - testScheduler.currentTime)
@@ -109,12 +117,12 @@ class OutboxTest {
             attempts.clear()
 
             // Act
-            outbox.linked()
+            outbox.linked(PEER)
             advanceTimeBy(Outbox.LINK_RETRY_GAP_MILLIS - 1)
             density = DensityClass.MEDIUM
-            outbox.linked()
+            outbox.linked(PEER)
             advanceTimeBy(1)
-            outbox.linked()
+            outbox.linked(PEER)
 
             // Assert
             assertEquals(listOf(PEER, PEER, OTHER), attempts.filter { it.first == 0L }.map { it.second })
@@ -128,15 +136,15 @@ class OutboxTest {
             // Arrange
             val outbox = outbox()
             outbox.add(entry(lifetimeMillis = 1_000))
-            outbox.linked()
+            outbox.linked(PEER)
             advanceTimeBy(2_000)
-            outbox.linked()
+            outbox.linked(PEER)
             outbox.add(entry())
             attempts.clear()
 
             // Act
             advanceTimeBy(1_000)
-            outbox.linked()
+            outbox.linked(PEER)
 
             // Assert
             assertEquals(listOf(3_000L to PEER), attempts)
@@ -152,7 +160,7 @@ class OutboxTest {
             attempts.clear()
 
             // Act
-            outbox.linked()
+            outbox.linked(PEER)
 
             // Assert
             assertEquals(emptyList(), attempts)
@@ -249,6 +257,80 @@ class OutboxTest {
 
             // Assert
             assertEquals(listOf(0L), times(BEFORE_RETRY_MILLIS))
+        }
+
+    @Test
+    fun aReceiptFromTheDestinationDeliversItsListedMessagesStopsTheirRetriesAndFreesTheirBytes() =
+        runTest {
+            // Arrange
+            val outbox = outbox()
+            capacity.reserve(Capacity.LIMIT.toInt())
+            val (listed, unlisted, other) = listOf(drafted(entry()), drafted(entry()), drafted(entry(to = OTHER)))
+            val undrafted = entry()
+            listOf(listed, unlisted, other, undrafted).forEach(outbox::add)
+
+            // Act
+            outbox.delivered(PEER, listOf(listed.draft!!.messageId, other.draft!!.messageId, ByteArray(12)))
+
+            // Assert
+            assertEquals(DeliveryStatus.Delivered, listed.status.value)
+            val statuses = listOf(unlisted, other, undrafted).map { it.status.value }.distinct()
+            assertEquals(listOf(DeliveryStatus.Queued), statuses)
+            assertTrue(capacity.reserve(0))
+            attempts.clear()
+            times(2_000)
+            assertEquals(3, attempts.size)
+        }
+
+    @Test
+    fun retriesStopAtTheExpiryAndAReceiptStillDeliversUntilTheDeadline() =
+        runTest {
+            // Arrange
+            val outbox = outbox()
+            val (late, lost) =
+                drafted(entry(lifetimeMillis = 10_000, skewMillis = 30_000)) to
+                    entry(lifetimeMillis = 10_000, skewMillis = 30_000)
+            outbox.add(late)
+            outbox.add(lost)
+            advanceTimeBy(10_000)
+            runCurrent()
+            attempts.clear()
+
+            // Act
+            outbox.linked(PEER)
+            outbox.found(0) { true }
+            advanceTimeBy(29_999)
+            outbox.delivered(PEER, listOf(late.draft!!.messageId))
+            advanceTimeBy(1)
+            runCurrent()
+
+            // Assert
+            assertEquals(emptyList(), attempts)
+            assertEquals(DeliveryStatus.Delivered, late.status.value)
+            assertEquals(DeliveryStatus.Expired, lost.status.value)
+        }
+
+    @Test
+    fun aLinkToTheDestinationSendsItsDirectOnlyMessagesAtOnceInEveryClassAndNoOtherLinkDoes() =
+        runTest {
+            // Arrange
+            density = DensityClass.HIGH
+            val outbox = outbox()
+            outbox.add(entry(directOnly = true))
+            outbox.add(entry(to = OTHER, directOnly = true))
+            outbox.add(entry())
+            attempts.clear()
+
+            // Act
+            outbox.linked(PEER)
+            outbox.linked(PEER)
+
+            // Assert
+            assertEquals(listOf(0L to PEER, 0L to PEER), attempts)
+            density = DensityClass.LOW
+            attempts.clear()
+            outbox.linked(PEER)
+            assertEquals(listOf(0L to PEER, 0L to PEER), attempts)
         }
 
     private companion object {

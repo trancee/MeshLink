@@ -31,7 +31,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class DirectMessageTest {
     @Test
-    fun directMessageReachesThePeersCollectorWithTheSenderNodeIdAndTheSenderSeesQueuedThenSent() =
+    fun directMessageReachesThePeersCollectorWithTheSenderNodeIdAndTheSenderSeesQueuedSentThenDelivered() =
         runTest {
             // Arrange
             val air = air()
@@ -62,7 +62,7 @@ class DirectMessageTest {
             val message = received.single()
             assertContentEquals(nodeId(alice), message.sender.toByteArray())
             assertContentEquals(payload, message.payload)
-            assertEquals(listOf(DeliveryStatus.Queued, DeliveryStatus.Sent), statuses)
+            assertEquals(listOf(DeliveryStatus.Queued, DeliveryStatus.Sent, DeliveryStatus.Delivered), statuses)
         }
 
     @Test
@@ -219,7 +219,7 @@ class DirectMessageTest {
         }
 
     @Test
-    fun messageToAStoppedPeerIsHeldThenSentWhenThePeerReturns() =
+    fun messageToAStoppedPeerIsHeldThenDeliveredWhenThePeerReturns() =
         runTest {
             // Arrange
             val (nodes) = linkedPair()
@@ -242,7 +242,7 @@ class DirectMessageTest {
 
             // Assert
             assertEquals(DeliveryStatus.Held, held)
-            assertEquals(DeliveryStatus.Sent, status.value)
+            assertEquals(DeliveryStatus.Delivered, status.value)
             assertContentEquals(PAYLOAD, received.single().payload)
         }
 

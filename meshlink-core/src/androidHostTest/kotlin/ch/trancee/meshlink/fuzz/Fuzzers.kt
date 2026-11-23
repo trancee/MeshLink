@@ -4,6 +4,7 @@ import ch.trancee.meshlink.internal.Advertisement
 import ch.trancee.meshlink.internal.BroadcastFrame
 import ch.trancee.meshlink.internal.CapabilityRecord
 import ch.trancee.meshlink.internal.Decoded
+import ch.trancee.meshlink.internal.DeliveryReceipt
 import ch.trancee.meshlink.internal.FloodFrame
 import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
@@ -97,6 +98,11 @@ object FloodFrameFuzzer {
 object RouteReplyFuzzer {
     @JvmStatic
     fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, RouteReply.decode(data)) { it.encode() }
+}
+
+object DeliveryReceiptFuzzer {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, DeliveryReceipt.decode(data)) { it.encode() }
 }
 
 object LookupRequestFuzzer {

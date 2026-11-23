@@ -192,6 +192,12 @@ sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/Del
         final fun toString(): kotlin/String // ch.trancee.meshlink/DeliveryStatus.Failed.toString|toString(){}[0]
     }
 
+    final object Delivered : ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus.Delivered|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/DeliveryStatus.Delivered.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/DeliveryStatus.Delivered.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/DeliveryStatus.Delivered.toString|toString(){}[0]
+    }
+
     final object Expired : ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus.Expired|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/DeliveryStatus.Expired.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/DeliveryStatus.Expired.hashCode|hashCode(){}[0]
@@ -396,7 +402,7 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
     final fun broadcast(kotlin/ByteArray, kotlin/Int = ...): ch.trancee.meshlink/SendResult // ch.trancee.meshlink/MeshLink.broadcast|broadcast(kotlin.ByteArray;kotlin.Int){}[0]
     final fun close() // ch.trancee.meshlink/MeshLink.close|close(){}[0]
     final fun linkCandidates(): kotlin.collections/Set<ch.trancee.meshlink.internal/PeerHandle> // ch.trancee.meshlink/MeshLink.linkCandidates|linkCandidates(){}[0]
-    final fun send(ch.trancee.meshlink/NodeId, kotlin/ByteArray): ch.trancee.meshlink/SendResult // ch.trancee.meshlink/MeshLink.send|send(ch.trancee.meshlink.NodeId;kotlin.ByteArray){}[0]
+    final fun send(ch.trancee.meshlink/NodeId, kotlin/ByteArray, ch.trancee.meshlink/SendOptions = ...): ch.trancee.meshlink/SendResult // ch.trancee.meshlink/MeshLink.send|send(ch.trancee.meshlink.NodeId;kotlin.ByteArray;ch.trancee.meshlink.SendOptions){}[0]
     final suspend fun awaitSendCapacity() // ch.trancee.meshlink/MeshLink.awaitSendCapacity|awaitSendCapacity(){}[0]
     final suspend fun resetIdentity(): kotlin/Boolean // ch.trancee.meshlink/MeshLink.resetIdentity|resetIdentity(){}[0]
     final suspend fun start() // ch.trancee.meshlink/MeshLink.start|start(){}[0]
@@ -483,6 +489,13 @@ final class ch.trancee.meshlink/ReceivedMessage { // ch.trancee.meshlink/Receive
         final fun <get-payload>(): kotlin/ByteArray // ch.trancee.meshlink/ReceivedMessage.payload.<get-payload>|<get-payload>(){}[0]
     final val sender // ch.trancee.meshlink/ReceivedMessage.sender|{}sender[0]
         final fun <get-sender>(): ch.trancee.meshlink/NodeId // ch.trancee.meshlink/ReceivedMessage.sender.<get-sender>|<get-sender>(){}[0]
+}
+
+final class ch.trancee.meshlink/SendOptions { // ch.trancee.meshlink/SendOptions|null[0]
+    constructor <init>(kotlin/Boolean = ...) // ch.trancee.meshlink/SendOptions.<init>|<init>(kotlin.Boolean){}[0]
+
+    final val directOnly // ch.trancee.meshlink/SendOptions.directOnly|{}directOnly[0]
+        final fun <get-directOnly>(): kotlin/Boolean // ch.trancee.meshlink/SendOptions.directOnly.<get-directOnly>|<get-directOnly>(){}[0]
 }
 
 sealed class ch.trancee.meshlink/MeshLinkException : kotlin/Exception { // ch.trancee.meshlink/MeshLinkException|null[0]

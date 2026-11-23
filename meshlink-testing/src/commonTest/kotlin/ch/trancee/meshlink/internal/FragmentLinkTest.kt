@@ -47,7 +47,7 @@ class FragmentLinkTest {
 
             // Assert
             assertEquals(payloads.map { it.toList() }, received.map { it.payload.toList() })
-            assertEquals(List(SIZES.size) { DeliveryStatus.Sent }, statuses.map { it.value })
+            assertEquals(List(SIZES.size) { DeliveryStatus.Delivered }, statuses.map { it.value })
         }
 
     @Test
@@ -378,7 +378,7 @@ class FragmentLinkTest {
     /** The link-local frames [end] wrote, fragments aside. */
     private fun frames(end: VirtualLinkEnd): List<LinkFrame> =
         bodies(end)
-            .filter { it[0] != MESSAGE_TYPE }
+            .filter { it[0] != MESSAGE_TYPE && it[0] != DeliveryReceipt.TYPE.toByte() }
             .map { assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value }
             .filter { it !is LinkFrame.Fragment }
 

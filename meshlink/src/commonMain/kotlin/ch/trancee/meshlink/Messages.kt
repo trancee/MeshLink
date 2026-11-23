@@ -2,6 +2,17 @@ package ch.trancee.meshlink
 
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * How [MeshLink.send] sends one message (ADR 0007 decision 7).
+ *
+ * @property directOnly whether only a link to the destination may carry the message, with `hop_limit` 1, so
+ *   no other node relays or holds it (ADR 0013 decision 8). Until such a link forms the message waits as
+ *   [DeliveryStatus.Held], and it expires if none forms. Its statuses and receipt are those of any message.
+ */
+public class SendOptions(
+    public val directOnly: Boolean = false,
+)
+
 /** What [MeshLink.send] did with a message (ADR 0007 decision 7). It never throws for these. */
 public sealed interface SendResult {
     /** The node took the message; [message] reports its [DeliveryStatus]. */
@@ -32,7 +43,7 @@ public enum class RejectionReason {
     TooLarge,
 
     /**
-     * Unfinished messages hold the send queue's byte limit until they expire or fail; await
+     * Unfinished messages hold the send queue's byte limit until they are delivered, expire or fail; await
      * [MeshLink.awaitSendCapacity], then send again.
      */
     QueueFull,
@@ -49,7 +60,11 @@ public class OutgoingMessage internal constructor(
     public val status: StateFlow<DeliveryStatus>,
 )
 
-/** Where an [OutgoingMessage] is (ADR 0013 decision 5). */
+/**
+ * Where an [OutgoingMessage] is (ADR 0013 decisions 5 and 6). A message starts `Queued` and only
+ * moves forward: `Queued` is never re-entered, `Sent` and `Held` may alternate, and `Delivered`,
+ * `Expired` and `Failed` are final.
+ */
 public sealed interface DeliveryStatus {
     /**
      * Accepted; nothing is on air yet. In `Classical` and `PostQuantum` a message also waits here
@@ -58,11 +73,22 @@ public sealed interface DeliveryStatus {
      */
     public data object Queued : DeliveryStatus
 
-    /** Waiting because this node has no link at all. */
+    /**
+     * Waiting because this node has no link at all, or, for a direct-only send
+     * ([SendOptions.directOnly]), no link to the destination.
+     */
     public data object Held : DeliveryStatus
 
     /** A copy of the message left this node. This does not mean the destination received it. */
     public data object Sent : DeliveryStatus
+
+    /**
+     * Final: the destination's delivery receipt arrived; its app took the message. A receipt that
+     * arrives after the origin stopped retrying still counts, until the message would turn
+     * [Expired]. Only the `unsecured` profile returns receipts so far; in `classical` and
+     * `post-quantum` a unicast message still ends [Expired].
+     */
+    public data object Delivered : DeliveryStatus
 
     /** Final: no receipt arrived by the message's expiry plus 30 s of clock skew. */
     public data object Expired : DeliveryStatus

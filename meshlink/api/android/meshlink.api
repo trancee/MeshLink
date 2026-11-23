@@ -1,6 +1,13 @@
 public abstract interface class ch/trancee/meshlink/DeliveryStatus {
 }
 
+public final class ch/trancee/meshlink/DeliveryStatus$Delivered : ch/trancee/meshlink/DeliveryStatus {
+	public static final field INSTANCE Lch/trancee/meshlink/DeliveryStatus$Delivered;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class ch/trancee/meshlink/DeliveryStatus$Expired : ch/trancee/meshlink/DeliveryStatus {
 	public static final field INSTANCE Lch/trancee/meshlink/DeliveryStatus$Expired;
 	public fun equals (Ljava/lang/Object;)Z
@@ -68,7 +75,8 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun linkCandidates ()Ljava/util/Set;
 	public final fun resetIdentity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun send (Lch/trancee/meshlink/NodeId;[B)Lch/trancee/meshlink/SendResult;
+	public final fun send (Lch/trancee/meshlink/NodeId;[BLch/trancee/meshlink/SendOptions;)Lch/trancee/meshlink/SendResult;
+	public static synthetic fun send$default (Lch/trancee/meshlink/MeshLink;Lch/trancee/meshlink/NodeId;[BLch/trancee/meshlink/SendOptions;ILjava/lang/Object;)Lch/trancee/meshlink/SendResult;
 	public final fun setCoc (Z)V
 	public final fun setRestrictedLinkRole (Lch/trancee/meshlink/internal/LinkRole;)V
 	public final fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -366,6 +374,13 @@ public final class ch/trancee/meshlink/SecurityProfile$Unsecured : ch/trancee/me
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/SendOptions {
+	public fun <init> ()V
+	public fun <init> (Z)V
+	public synthetic fun <init> (ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getDirectOnly ()Z
 }
 
 public abstract interface class ch/trancee/meshlink/SendResult {
