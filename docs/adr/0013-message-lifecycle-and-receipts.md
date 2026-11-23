@@ -1,6 +1,6 @@
 # 0013: Message lifecycle and receipts
 
-Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 6 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata; 2026-11-23, delivery receipts built).
+Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 7 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata; 2026-11-23, delivery receipts built and read receipts built).
 
 ## Context
 

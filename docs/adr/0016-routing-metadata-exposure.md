@@ -1,6 +1,6 @@
 # 0016: Routing metadata exposure
 
-Status: accepted (2026-11-08; ticket "What do members learn about neighbors and routes?"). Version: 3 (amended 2026-11-08, ADR 0018 and the stage F simulation).
+Status: accepted (2026-11-08; ticket "What do members learn about neighbors and routes?"). Version: 4 (amended 2026-11-08, ADR 0018 and the stage F simulation; 2026-11-23, read receipts built).
 
 ## Context
 
