@@ -12,7 +12,7 @@
 | **[DOC]** | Primary vendor or specification source: Apple developer documentation, Android reference or source.android.com pages, Bluetooth Core spec. |
 | **[AOSP]** | Read directly from AOSP source at the tag named in the citation. This is implementation, not API contract. OEM builds and flags may differ. |
 | **[CODE]** | Read directly from a third-party open-source repository at the commit named. |
-| **[LAB]** | MeshLink's own device evidence (evidence README, raw logs), re-analysed for this note. |
+| **[LAB]** | MeshLink's own device evidence (evidence README, raw logs), re-analyzed for this note. |
 | **[CALC]** | Computed here, by a script that was run. The script is reproduced in §4.2.4. |
 | **[INFERRED]** | Fits all available data, but no source states it and only a few data points support it. A device test that would settle it is listed in §8. |
 | **[SEC]** | Secondary or third-party report (blog, paper). Not independently verified unless noted. |
@@ -32,15 +32,15 @@ How does Apple's CoreBluetooth "overflow area" for background advertising work? 
 ## 2. Summary / answer
 
 1. **Apple documents only the behavior, not the format [DOC].** In the background, "all service UUIDs are in the overflow area", and they are "discoverable only by an iOS device explicitly scanning for them". The receive-side key is "best effort".
-2. **Format [CODE][LAB]:** one AD structure `14 ff 4c 00 01 <16-byte bitmap>`. That is manufacturer-specific data, company `0x004C`, Apple TLV type `0x01` with **no TLV length byte**, then a 128-bit bitmap with one bit per advertised service UUID.
-3. **The hash, derived and validated here (new; not found published) [CALC][LAB]:**
+2. **Format [CODE, LAB]:** one AD structure `14 ff 4c 00 01 <16-byte bitmap>`. That is manufacturer-specific data, company `0x004C`, Apple TLV type `0x01` with **no TLV length byte**, then a 128-bit bitmap with one bit per advertised service UUID.
+3. **The hash, derived and validated here (new; not found published) [CALC, LAB]:**
    - `bit = CRC-8(poly 0x09, init 0x00, no reflection, xorout 0x00)` over the 16 UUID bytes in big-endian (textual) order, then `& 0x7F`.
    - The bit sits on air at byte `bit >> 3`, mask `1 << (bit & 7)`, so bits are LSB-first within each byte.
    - It reproduces all 128 entries of David G. Young's empirical table, the Apple Watch UUID he observed, linky's iOS 27 bit, and MeshLink's own rotating UUIDs on iOS 15.8–27.
 4. **Bit `0x08` of the last byte is bit 123, and it is MESH [LAB].** An iOS scanner filtering on MESH matched it (T3).
    - Under the CRC, 123 is produced by **zero-padding** the 4-byte UUID to 16 bytes (`4D455348-0000-0000-0000-000000000000`). Expanding to the Bluetooth Base UUID gives bit 65 instead **[CALC]**.
    - Settled on device (§4.2.7) **[LAB]**: 32-bit UUIDs are zero-padded on the right; 16-bit UUIDs are expanded with the Bluetooth Base UUID.
-5. **Collisions [CALC][SEC]:** all apps on a phone share one 128-bit bitmap, so a random UUID collides with any one other UUID with probability 1/128.
+5. **Collisions [CALC, SEC]:** all apps on a phone share one 128-bit bitmap, so a random UUID collides with any one other UUID with probability 1/128.
    - The `0x08` seen "before our app started" is best explained by iOS's **stale scan response** [LAB]. A collision with another app's UUID is possible but not shown.
 6. **Android [AOSP]:** `ScanRecord.parseFromBytes` treats duplicate company IDs differently by release.
    - Android ≤ 14: `SparseArray.put`, so the **last entry wins**.
@@ -66,11 +66,13 @@ How does Apple's CoreBluetooth "overflow area" for background advertising work? 
 ## 3. Sources
 
 Apple [DOC]:
+
 - `startAdvertising(_:)`: <https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/startadvertising(_:)> (fetched via the JSON at `https://developer.apple.com/tutorials/data/documentation/corebluetooth/cbperipheralmanager/startadvertising(_:).json`).
 - `CBAdvertisementDataOverflowServiceUUIDsKey`: <https://developer.apple.com/documentation/corebluetooth/cbadvertisementdataoverflowserviceuuidskey>.
 - `scanForPeripherals(withServices:options:)`: <https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/scanforperipherals(withservices:options:)>.
 
 Android [DOC]/[AOSP]:
+
 - Bluetooth HCI requirements (APCF): <https://source.android.com/docs/core/connect/bluetooth/hci_requirements>.
 - AOSP `platform/packages/modules/Bluetooth` at `android-13.0.0_r1`, `android-14.0.0_r1`, `android-15.0.0_r1` and `android-16.0.0_r1`.
   - Base: `https://android.googlesource.com/platform/packages/modules/Bluetooth/+/refs/tags/<tag>/`.
@@ -83,6 +85,7 @@ Android [DOC]/[AOSP]:
 - `android-8.0.0_r1` `frameworks/base/core/java/android/bluetooth/le/ScanRecord.java` (pre-mainline baseline).
 
 Prior work [CODE]/[SEC]:
+
 - D. G. Young, "The Secrets of iOS Bluetooth Advertising in the Background" (2020-05-07, updated 2020-11-13): <https://davidgyoungtech.com/2020/05/07/hacking-the-overflow-area>.
 - `davidgyoung/BackgroundAdvertiser` (Apache-2.0, commit `e20c3973`): `OverflowArea/OverflowAreaUtils.swift`. `davidgyoung/OverflowAreaBeaconRef` (commit `d7639823`, 2023-02-10) contains an identical copy of that file.
 - `AltBeacon/android-beacon-library` (Apache-2.0, master `6fbc0c94`): `OverflowAreaBeaconTest.java`, `BeaconParser.java`, `ScanFilterUtils.java`.
@@ -101,7 +104,7 @@ Prior work [CODE]/[SEC]:
 `CBPeripheralManager.startAdvertising(_:)`, quoted exactly:
 
 > "Any service UUIDs contained in the value of the CBAdvertisementDataServiceUUIDsKey key that don't fit in the allotted space go to a special "overflow" area. These services are discoverable only by an iOS device explicitly scanning for them."
-
+>
 > "While your app is in the background, the local name isn't advertised and all service UUIDs are in the overflow area."
 
 The same page also gives the foreground budget: 28 bytes, plus 10 bytes of scan response for the local name. The discovery note §3.1 covers that.
@@ -109,7 +112,7 @@ The same page also gives the foreground budget: 28 bytes, plus 10 bytes of scan 
 `CBAdvertisementDataOverflowServiceUUIDsKey`:
 
 > "An array of UUIDs found in the overflow area of the advertisement data."
-
+>
 > "...UUIDs listed here are "best effort" and may not always be accurate."
 
 "Best effort" is consistent with a lossy hash. The receiver reports any of *its own* filter UUIDs whose bit is set (§4.3).
@@ -194,7 +197,7 @@ assert overflow_bit("180D") == 61 and overflow_bit("180F") == 115 and overflow_b
 | linky `BeaconCodec.java` L50–52: UUID `…0017` → byte 5, mask `0x80`, "seen on an iOS 27 iPhone" | ✓ [CODE] |
 | LAB t1, iPhone 15 iOS 17.6.1: background UUID `69567322-…-5BD9` → 119 | Observed bitmap `…00008008` = bits {119, 123} exactly ✓ |
 | LAB e-uuid3 UUID `6E4B00FF-…-9F10` → 34 | Observed bitmap `0000000004…` (byte 4, `0x04`) ✓ |
-| Aggregate over all raw logs: does a rotating UUID's predicted bit appear within 120 s of its `adv_start`? | 48 of 78 adverts, against about 1 % for random bits; hits on iOS 15.8.8, 16.7.16, 17.6.1, 18.7.8 and 27.0.1 [CALC][LAB] |
+| Aggregate over all raw logs: does a rotating UUID's predicted bit appear within 120 s of its `adv_start`? | 48 of 78 adverts, against about 1 % for random bits; hits on iOS 15.8.8, 16.7.16, 17.6.1, 18.7.8 and 27.0.1 [CALC, LAB] |
 | Distinct bits ever observed (19) | 18 explained by MeshLink UUIDs/MESH; **bit 52** (byte 6, `0x10`; seen in `d2-and`, `d3b`, `t1`) unexplained, probably another app on a test phone [UNVERIFIED] |
 
 Misses in the aggregate are expected. iOS publishes the overflow only while the app is in the background, and stale scan responses lag (§4.3).
@@ -227,7 +230,7 @@ iPhone 15 (iOS 17.6.1) in the background, lab app launched with `svc=<uuid>+…`
   - A scanner for UUID *U* matches any phone where *any* UUID with the same bit is advertised.
   - With *k* other UUIDs present, P(false bit) ≈ 1 − (127/128)^k.
 - **Known occupants:**
-  - Apple Watch setup UUID: bit 66 [SEC][CALC].
+  - Apple Watch setup UUID: bit 66 [SEC, CALC].
   - Herald `428132AF-4746-42D3-801E-4572D65BFD9B`: bit 85 (byte 10, `0x20`) [CALC].
   - OpenTrace `A6BA4286-C550-4794-A888-9467EF0B31A8`: bit 38 (byte 4, `0x40`) [CALC].
   - MESH: bit 123.
@@ -251,7 +254,7 @@ iPhone 15 (iOS 17.6.1) in the background, lab app launched with `svc=<uuid>+…`
 | `android-15.0.0_r1` L646–659 | `if (Flags.scanRecordManufacturerDataMerge())` → concatenate existing + new; else `put` | Merge if flag on, else last wins |
 | `android-16.0.0_r1` L636–653 | Unconditional concatenation | **First + later, concatenated** |
 
-- The flag is `scan_record_manufacturer_data_merge` in `flags/gap.aconfig` L154–161: "If a scan record has multiple datas under same manufacturer id, merge the values", bug 331723396, `PURPOSE_BUGFIX`.
+- The flag is `scan_record_manufacturer_data_merge` in `flags/gap.aconfig` L154–161. Its description says that a scan record with several data entries under one manufacturer ID has their values merged; bug 331723396, `PURPOSE_BUGFIX`.
 - The Bluetooth stack is a mainline module, so a module update can change this on Android 13/14 devices too [UNVERIFIED].
 - `getAdvertisingDataMap()` (API 33+) is a `HashMap` filled with `put(fieldType, …)` (android-16 L552). It is last-wins per AD type, so for 0xFF it holds the last manufacturer AD, i.e. the overflow when that is in the SCAN_RSP. Its value starts with `4c 00`.
 - `getBytes()` still returns the raw merged bytes, in which each AD stays separate.
@@ -259,6 +262,7 @@ iPhone 15 (iOS 17.6.1) in the background, lab app launched with `svc=<uuid>+…`
 #### 4.4.2 ADV + SCAN_RSP merging [AOSP]
 
 `system/gd/hci/le_scanning_reassembler.cc` (android-16 L35–98):
+
 - A legacy scannable ADV is cached, and the report is withheld until the matching SCAN_RSP arrives.
 - The SCAN_RSP bytes are appended **after** the ADV bytes.
 - `TrimAdvertisingData` (L120–140) strips zero padding.
@@ -268,12 +272,13 @@ So for a background iPhone, the record is `Flags, TX, ff 4c 00 10 05 …, ff 4c 
 #### 4.4.3 `ScanFilter.matches` [AOSP]
 
 `ScanFilter.java` android-16:
+
 - `matches` (L439–510): the manufacturer check (L492–499) runs only when `mManufacturerData != null`. It fetches `getManufacturerSpecificData(id)` and calls `matchesPartialData` (L577–596).
 - `matchesPartialData` compares `data[i] & mask[i]` against `parsed[i] & mask[i]` **from offset 0** of the stored value.
 - An empty `byte[0]` data therefore matches any record with *some* 0x004C entry.
 - An AD-type filter (`setAdvertisingDataTypeWithData`, public API 33, L1077) is checked at L502–509 against `getAdvertisingDataMap()`.
 
-#### 4.4.4 Hardware offload and the software re-check [AOSP][DOC]
+#### 4.4.4 Hardware offload and the software re-check [AOSP, DOC]
 
 - **Controller filters:**
   - `ScanFilterQueue.java` L235–244 sends a manufacturer filter to the controller as APCF Manufacturer Data (sub-op 0x06); empty data is allowed.
@@ -287,6 +292,7 @@ So for a background iPhone, the record is `Flags, TX, ff 4c 00 10 05 …, ff 4c 
 #### 4.4.5 Explaining the lab observation
 
 On the Pixel 7 Pro (Android 16):
+
 1. The controller APCF (or the all-pass fallback) let both PDUs through. HCI shows them delivered [LAB].
 2. The reassembler produced one record: ADV followed by SCAN_RSP.
 3. `parseFromBytes` concatenated both 0x004C values, giving `10 05 <5 B> 01 <16 B>`.
@@ -340,6 +346,7 @@ Conclusion: iOS↔iOS works for presence but not identity, and only opportunisti
 | HCI delivered both packets during a filtered scan | APCF or all-pass passed them; the framework's software filter dropped them | §4.4.4 [AOSP] |
 
 **Note on the scanner state.**
+
 - The task description says `BleScanner.kt` uses `setManufacturerData(0x004C, [0x01], mask [0xFF])`.
 - MeshLink HEAD (`c67b605`) already uses `ScanFilter.Builder().setManufacturerData(APPLE, ByteArray(0))` (`BleScanner.kt` L173), with the raw-byte check `carriesOverflowMeshBit` (L142–170) and constants at L132–134.
 - This change was made on 2026-11-18 (ADR 0010 L146; lessons.md L80).

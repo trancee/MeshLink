@@ -1,6 +1,6 @@
 # Find a background iPhone's MESH bit wherever iOS packs its overflow area
 
-Status: ready-for-agent
+Status: claimed
 Type: AFK
 
 ## Behavior
@@ -41,7 +41,7 @@ The owner's session did the research, the device tests and the implementation. W
    - **Apple filter (decisions 5 and 6):** the scanner walks every Apple sub-field of each `0x004C` AD structure for type `0x01`, and tests the MESH bit computed with the hash above; cite the research note.
    - **Risk "Android 17 scan limits":** the measurement in [Power evidence](#power-evidence) for Android 16, leaving Android 15 and 17 open.
 4. Fill PR #138's body: link this ticket under "Ticket", list the ADR amendment under "Docs".
-5. Push, wait for every CI job, and hand the PR to the owner to merge (rebase merge, ADR 0021). Then set `Status: done`.
+5. Push, wait for every CI job, and hand the PR to the owner to merge (squash merge, ADR 0021 decision 4). Then set `Status: done`.
 
 ## Acceptance criteria
 
