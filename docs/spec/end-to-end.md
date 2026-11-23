@@ -24,7 +24,7 @@ The end-to-end layer protects unicast messages and receipts between origin and d
 
 - Message 1 carries the first message (0-RTT, no forward secrecy). Message 2 completes the session. Later frames are Noise transport messages with forward secrecy.
 
-Vectors: `derivations.json`, derivation `e2e-prologue`; tier 2 `first-message.json` for message 1. Message 2 and transport vectors are pending.
+Vectors: `derivations.json`, derivation `e2e-prologue`; tier 2 `first-message.json` for message 1 and `e2e-sessions.json` for message 2 and transport frames.
 
 ## Containers
 
@@ -166,7 +166,7 @@ Vectors: `derivations.json`, derivation `hpke-info`; tier 2 `hpke-seal.json` and
 - **Opening.** An initiator has at most one first message outstanding per peer. Further messages to that peer wait until the session opens or the first message expires; then the next waiting message becomes a first message. Retries of a first message resend the same container bytes, re-tagged for the current epoch ([routing.md](routing.md#origin-behavior)).
 - **Answering.** The responder processes each message 1 once (by `message_id`). It sends `IK` message 2 in the `DELIVERY_RECEIPT` for that message, container kind `0x02`; the plaintext is the receipt. It keeps that container and resends it unchanged in the receipt for every later copy. After message 2, the responder sends with the session.
 - **Adopting.** The initiator matches a message 2 to its first message by the receipt's tombstone `message_id`. It processes the first such message 2 and ignores later copies.
-- **Transport.** Each side keeps a `u64` send counter per session, starting at 0, and sends each frame as kind `0x03` with that counter as the Noise nonce (`SetNonce`). Associated data is empty. The receiver accepts each nonce once, within a window of the highest nonce seen.
+- **Transport.** Each side keeps a `u64` send counter per session, starting at 0, and sends each frame as kind `0x03` with that counter as the Noise nonce (`SetNonce`). Associated data is empty. The receiver accepts each nonce once, within a window of the highest nonce it has accepted: before opening a frame, it refuses a nonce with nonce + `e2e-replay-window` ≤ that highest (`nonce-below-window`), then a nonce it accepted before (`replayed-nonce`), and drops a frame that fails to open (`open-failed`). A refused or failed frame changes no session state.
 - **Crossed sessions.** If two sessions with one peer open (both sides sent a first message), both sides send with the session whose initiator has the lower NodeId (bytewise), and drop the other once its outstanding frames are answered.
 - **Ending.** A session ends after `e2e-session-max-age` or after `e2e-session-max-messages` frames in either direction, or when evicted from the local session cache. The next message is a first message.
 - **Failure.** If a frame sent with a session gets no receipt by its second retry, the sender ends the session and resends the message as a first message with a new `message_id`. The responder may have lost its session state.
@@ -180,6 +180,8 @@ Vectors: `derivations.json`, derivation `hpke-info`; tier 2 `hpke-seal.json` and
 | e2e-replay-window | 1,024 | nonces | D-33 |
 
 The session cache size is per preset and local (ADR 0002 decision; ADR 0007).
+
+Vectors: tier 2 `e2e-sessions.json`.
 
 ## Conversation tags
 

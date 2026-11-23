@@ -561,6 +561,87 @@ def tier2_link(g, t, where):
         )
 
 
+# Each session test's flags: the error of its first rejected step.
+SESSION_CAUSES = {(): None, ("TamperedMessage2",): "handshake-failed", ("OtherFirstMessage",): "handshake-failed",
+                  ("ReplayedNonce",): "replayed-nonce", ("BelowWindow",): "nonce-below-window",
+                  ("TamperedFrame",): "open-failed"}
+
+
+def container_kind(name):
+    return int(next(e["code"] for e in entries("codes.json")
+                    if e["registry"] == "container-kind" and e["name"] == name), 16)
+
+
+def tier2_e2e_session(g, t, where):
+    pattern = next((v for k, v in FIRST_PATTERNS.items() if constant(k) == g["protocol"]), None)
+    if pattern is None or pattern[0] != g["profile"]:
+        return fail("%s: protocol %s for profile %s" % (where, g["protocol"], g["profile"]))
+    profile, kem = pattern
+    i, r = g["initiator"], g["responder"]
+    if ("kem_keygen_seed" in i, "kem_encaps_seed" in r) != (kem, kem):
+        fail("%s: KEM inputs belong to IKhfs only" % where)
+    if {i["prologue"], r["prologue"]} != {m.e2e_prologue(1, profile).hex()}:
+        fail("%s: both prologues must be the e2e prologue for profile 0x%02x" % (where, profile))
+    payload, first_id = b(g["payload_1"]), g["first_message_id"]
+    size = X25519 + ((KEM_PUBLIC + TAG) if kem else 0) + (X25519 + TAG) + len(payload) + TAG
+    if len(b(g["message_1"])) != size:
+        fail("%s: message_1 is %d B, expected %d" % (where, len(b(g["message_1"])), size))
+    if not kem and m.decode_inner(payload, "message", True)["message_id"] != first_id:
+        fail("%s: the IK payload is the first message's plaintext" % where)
+    try:
+        receipt = b(g["receipt_plaintext"])
+        tlvs = {x["type"]: x["value"] for x in m.decode_inner(receipt, "receipt", True)["extensions"]}
+    except m.DecodeError as e:
+        return fail("%s: receipt_plaintext %s" % (where, e.code))
+    if tlvs != {"0x83": first_id}:
+        fail("%s: the receipt's only extension is MESSAGE_IDS listing first_message_id" % where)
+    container = b(t["container_2"])
+    size = X25519 + ((KEM_CIPHERTEXT + TAG) if kem else 0) + len(receipt) + TAG
+    if container[0] != container_kind("IK_RESPONDER") or int.from_bytes(container[1:5], "big") != len(container) - 5 \
+            or len(container) - 5 != size:
+        fail("%s: container_2 is not kind IK_RESPONDER with a %d B message 2" % (where, size))
+    causes = tuple(t["flags"])
+    expected = SESSION_CAUSES.get(causes, "?")
+    if expected == "?":
+        return fail("%s: flags %s" % (where, causes))
+    if (expected == "handshake-failed") == bool(t["frames"]):
+        fail("%s: frames follow exactly the opened sessions" % where)
+    accepted, errors, window = {"initiator": set(), "responder": set()}, [], m.L("e2e-replay-window")
+    for n, f in enumerate(t["frames"], 1):
+        nonce, plaintext, container = f["nonce"], b(f["plaintext"]), b(f["container"])
+        if container[:13] != bytes([container_kind("TRANSPORT")]) + nonce.to_bytes(8, "big") \
+                + (len(plaintext) + TAG).to_bytes(4, "big") or len(container) != 13 + len(plaintext) + TAG:
+            fail("%s: frame %d is not kind TRANSPORT at its nonce with plaintext + tag" % (where, n))
+        try:
+            m.decode_inner(plaintext, "message", True)
+        except m.DecodeError as e:
+            fail("%s: frame %d plaintext %s" % (where, n, e.code))
+        seen = accepted[f["from"]]
+        if seen and nonce + window <= max(seen):
+            error = "nonce-below-window"
+        elif nonce in seen:
+            error = "replayed-nonce"
+        else:
+            error = f.get("error") if f.get("error") == "open-failed" else None
+        if f.get("error") != error:
+            fail("%s: frame %d error %s, expected %s" % (where, n, f.get("error"), error))
+        if error is None:
+            seen.add(nonce)
+        else:
+            errors.append(error)
+    if (errors[:1] or [None])[0] != (None if expected == "handshake-failed" else expected):
+        fail("%s: the first frame error must be %s" % (where, expected))
+    if errors.count("open-failed") != (expected == "open-failed"):
+        fail("%s: only a TamperedFrame test has one frame that fails to open" % where)
+    for n, f in enumerate(t["frames"], 1):
+        if f.get("error") == "open-failed" and not any(
+                (later["from"], later["nonce"]) == (f["from"], f["nonce"]) and "error" not in later
+                and later["container"] != f["container"] for later in t["frames"][n:]):
+            fail("%s: frame %d fails to open, so the frame as written still opens after it" % (where, n))
+    if t.get("error") != expected or t["result"] != ("invalid" if expected else "valid"):
+        fail("%s: expected %s, file says %s" % (where, expected, t.get("error")))
+
+
 # Curve25519 points of low order that the lookup vectors use: zero and a point of order 8.
 LOW_ORDER = ("00" * 32, "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800")
 
@@ -595,7 +676,7 @@ def tier2_lookup(g, t, where):
 
 
 TIER2 = {"BroadcastVerify": tier2_broadcast, "CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal,
-         "FirstMessage": tier2_first_message,
+         "FirstMessage": tier2_first_message, "E2ESession": tier2_e2e_session,
          "LinkTransport": tier2_link, "LookupReplySeal": tier2_lookup}
 
 

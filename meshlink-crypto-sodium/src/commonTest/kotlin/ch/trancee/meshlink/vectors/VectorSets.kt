@@ -114,6 +114,7 @@ internal val vectorSets: List<VectorSet> =
         VectorSet("vectors/handshake-hfs.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
         VectorSet("vectors/handshake-payload.json", mapOf("handshake-payload" to handshakePayload), key = layoutKey),
         VectorSet("vectors/handshake-xx.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
+        VectorSet("vectors/e2e-sessions.json", mapOf("E2ESession" to e2eSession), key = groupType),
         VectorSet("vectors/first-message.json", mapOf("FirstMessage" to firstMessage), key = groupType),
         VectorSet("vectors/hpke-seal.json", mapOf("HpkeSeal" to hpkeSeal), key = groupType),
         VectorSet(

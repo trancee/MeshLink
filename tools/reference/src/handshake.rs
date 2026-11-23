@@ -1,5 +1,6 @@
 //! Noise `XX`, `XXpsk3`, `XXhfs` and `XXhfs+psk3` link handshakes (`docs/spec/link.md`, "Handshake"),
-//! and `IK` and `IKhfs` first messages (`docs/spec/end-to-end.md`, "First messages").
+//! and `IK` and `IKhfs` first messages and sessions (`docs/spec/end-to-end.md`, "First messages" and
+//! "Sessions").
 //!
 //! snow's own ML-KEM-768 draws from the system random generator, so its transcripts can't be
 //! reproduced. [`FixedKem`] runs the same FIPS 203 algorithms from fixed inputs instead: key
@@ -10,7 +11,7 @@ use ml_kem::{B32, Ciphertext, DecapsulationKey, EncapsulationKey, Key, MlKem768,
 use snow::params::{CipherChoice, DHChoice, HashChoice, KemChoice};
 use snow::resolvers::{CryptoResolver, DefaultResolver};
 use snow::types::{Cipher, Dh, Hash, Kem, Random};
-use snow::{Builder, Error, HandshakeState, TransportState};
+use snow::{Builder, Error, HandshakeState, StatelessTransportState, TransportState};
 
 const PUBLIC_KEY_LENGTH: usize = 1_184;
 const CIPHERTEXT_LENGTH: usize = 1_088;
@@ -315,6 +316,76 @@ pub fn first_message(
         .ok()
         .map(|n| read[..n].to_vec());
     (message, payload)
+}
+
+/// An open `IK` or `IKhfs` session: both messages and each side's transport with explicit nonces.
+pub struct Session {
+    pub message_1: Vec<u8>,
+    pub message_2: Vec<u8>,
+    pub handshake_hash: Vec<u8>,
+    pub initiator: StatelessTransportState,
+    pub responder: StatelessTransportState,
+}
+
+/// Opens a session: the initiator, holding `responder_key`, writes `payload_1` as message 1; the
+/// responder reads it and writes `payload_2` as message 2, which the initiator reads.
+#[must_use]
+pub fn session(
+    protocol: &str,
+    initiator: &Side,
+    responder_key: &[u8; 32],
+    responder: &Side,
+    payload_1: &[u8],
+    payload_2: &[u8],
+) -> Session {
+    let mut i = initiator.build_knowing(protocol, true, Some(responder_key));
+    let mut r = responder.build(protocol, false);
+    let (mut buffer, mut read) = (vec![0; MAX_MESSAGE], vec![0; MAX_MESSAGE]);
+    let length = i.write_message(payload_1, &mut buffer).expect("message 1");
+    let message_1 = buffer[..length].to_vec();
+    let n = r.read_message(&message_1, &mut read).expect("read message 1");
+    assert_eq!(&read[..n], payload_1, "message 1 payload");
+    let length = r.write_message(payload_2, &mut buffer).expect("message 2");
+    let message_2 = buffer[..length].to_vec();
+    let n = i.read_message(&message_2, &mut read).expect("read message 2");
+    assert_eq!(&read[..n], payload_2, "message 2 payload");
+    assert_eq!(
+        i.get_handshake_hash(),
+        r.get_handshake_hash(),
+        "handshake hashes differ"
+    );
+    Session {
+        message_1,
+        message_2,
+        handshake_hash: i.get_handshake_hash().to_vec(),
+        initiator: i.into_stateless_transport_mode().expect("initiator transport"),
+        responder: r.into_stateless_transport_mode().expect("responder transport"),
+    }
+}
+
+/// The payload of `message_2` read by an initiator that wrote `payload_1` as message 1 to
+/// `responder_key`, or `None` if the read fails.
+#[must_use]
+pub fn read_message_2(
+    protocol: &str,
+    initiator: &Side,
+    responder_key: &[u8; 32],
+    payload_1: &[u8],
+    message_2: &[u8],
+) -> Option<Vec<u8>> {
+    let mut i = initiator.build_knowing(protocol, true, Some(responder_key));
+    let (mut buffer, mut read) = (vec![0; MAX_MESSAGE], vec![0; MAX_MESSAGE]);
+    i.write_message(payload_1, &mut buffer).expect("message 1");
+    i.read_message(message_2, &mut read).ok().map(|n| read[..n].to_vec())
+}
+
+/// Message 1 that `initiator`, holding `responder_key`, writes for `payload_1`.
+#[must_use]
+pub fn message_1(protocol: &str, initiator: &Side, responder_key: &[u8; 32], payload_1: &[u8]) -> Vec<u8> {
+    let mut i = initiator.build_knowing(protocol, true, Some(responder_key));
+    let mut buffer = vec![0; MAX_MESSAGE];
+    let length = i.write_message(payload_1, &mut buffer).expect("message 1");
+    buffer[..length].to_vec()
 }
 
 #[cfg(test)]

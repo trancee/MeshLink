@@ -15,7 +15,7 @@ This is the normative specification of the MeshLink wire protocol, version 1. It
 | [end-to-end.md](end-to-end.md) | `IK` and `IKhfs` sessions, HPKE X-Wing seal, plaintext and padding, conversation tags, receipts, tombstones |
 | [decisions.md](decisions.md) | Decision log: every value or layout no ADR fixed, and every ADR conflict resolved |
 | [data/](data/) | Authoritative JSON data: limits, codes, frame types, TLV types, domain strings, constants |
-| [vectors/README.md](vectors/README.md) | Test vectors: tier 1 (published) and tier 2 (pending) |
+| [vectors/README.md](vectors/README.md) | Test vectors: tier 1 and tier 2, all published |
 
 ## Status and change control
 

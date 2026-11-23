@@ -13,6 +13,7 @@ import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.CryptoResult
 import ch.trancee.meshlink.internal.Decoded
 import ch.trancee.meshlink.internal.Derivations
+import ch.trancee.meshlink.internal.EndToEndSession
 import ch.trancee.meshlink.internal.EndToEndTags
 import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.Hpke
@@ -29,6 +30,7 @@ import ch.trancee.meshlink.internal.NoiseRole
 import ch.trancee.meshlink.internal.RecordReader
 import ch.trancee.meshlink.internal.StaticKeys
 import ch.trancee.meshlink.internal.WireProfile
+import ch.trancee.meshlink.internal.session
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -514,6 +516,10 @@ private fun openFirstMessage(
 
 private const val ML_KEM_PUBLIC_KEY = 1184
 
+/** A container's kind and length; a transport container's kind, nonce and length. */
+private const val KIND_LENGTH = 5
+private const val KIND_NONCE_LENGTH = 13
+
 private const val SIGNATURE_LENGTH = 64
 private const val HEX = 16
 
@@ -665,10 +671,89 @@ internal val linkTransport: Handler =
         assertEquals(if (case.result == "valid") null else "decrypt-failed", case.test.optional("error"))
     }
 
-/** The initiator and responder of [pattern], from the keys in [sides]' `initiator` and `responder`. */
+/**
+ * `e2e-sessions.json` (tier 2): the initiator writes `message_1` from `payload_1`; the responder
+ * reads it and answers with `receipt_plaintext`, which must give `container_2` unless the test alters
+ * it in transit. A failed read of `container_2` by the initiator is `handshake-failed`. Otherwise both
+ * sessions reach the handshake hash and the frames are replayed by [e2eFrames].
+ */
+internal val e2eSession: Handler =
+    Handler("container_2") { case ->
+        val pattern = NoisePattern.entries.single { it.protocolName == case.group["protocol"].string }
+        val (initiator, responder) = handshakeSides(pattern, case.group, case.group["responder_key"].string.hex())
+        val message1 = initiator.writeMessage(case.group["payload_1"].string.hex()).value()
+        assertEquals(case.group["message_1"].string, message1.hex(), "message_1")
+        assertEquals(case.group["payload_1"].string, responder.readMessage(message1).value().hex(), "payload_1")
+        val answer = responder.writeMessage(case.group["receipt_plaintext"].string.hex()).value()
+        val altered = case.test["flags"].list.any { it.string in setOf("TamperedMessage2", "OtherFirstMessage") }
+        val written = Container.IkResponder(answer).encode().hex()
+        assertEquals(altered, written != case.test["container_2"].string, "container_2")
+        val delivered = case.hex("container_2")
+        val message2 = Container.IkResponder(delivered.copyOfRange(KIND_LENGTH, delivered.size))
+        assertEquals(case.test["container_2"].string, message2.encode().hex(), "container_2 layout")
+        val frames = case.test["frames"].list
+        val error =
+            if (initiator.readMessage(message2.noiseMessage) is NoiseResult.Failed) {
+                assertTrue(frames.isEmpty(), "frames")
+                "handshake-failed"
+            } else {
+                val handshakes = mapOf("initiator" to initiator, "responder" to responder)
+                val sessions = handshakes.mapValues { it.value.session().value() }
+                sessions.values.forEach { assertEquals(case.group["handshake_hash"].string, it.handshakeHash.hex()) }
+                e2eFrames(frames, sessions)
+            }
+        assertEquals(case.test.optional("error"), error)
+    }
+
+/**
+ * Replays [frames] between [sessions]. Each sender seals its counter up to its highest frame nonce,
+ * each frame's plaintext at its nonce, and must give the frame's container unless the frame fails to
+ * open. Its receiver opens each frame in order, to its plaintext or its error; the first error.
+ */
+private fun e2eFrames(
+    frames: List<Json>,
+    sessions: Map<String, EndToEndSession>,
+): String? {
+    val sealed =
+        sessions.mapValues { (name, session) ->
+            val sent = frames.filter { it["from"].string == name }.associateBy { it["nonce"].long.toULong() }
+            val highest = sent.keys.maxOrNull()
+            if (highest == null) {
+                emptyMap()
+            } else {
+                (0uL..highest).associateWith { nonce ->
+                    val plaintext = sent[nonce]?.get("plaintext")?.string?.hex() ?: ByteArray(1)
+                    assertNotNull(session.seal(plaintext)).encode().hex()
+                }
+            }
+        }
+    return frames.firstNotNullOfOrNull { frame ->
+        val (from, nonce, error) = Triple(frame["from"].string, frame["nonce"].long.toULong(), frame.optional("error"))
+        val genuine = sealed.getValue(from).getValue(nonce) == frame["container"].string
+        assertEquals(error != "open-failed", genuine, "container $from $nonce")
+        val receiver = sessions.getValue(if (from == "initiator") "responder" else "initiator")
+        val bytes = frame["container"].string.hex()
+        val delivered = Container.Transport(nonce, bytes.copyOfRange(KIND_NONCE_LENGTH, bytes.size))
+        assertEquals(frame["container"].string, delivered.encode().hex(), "container layout $from $nonce")
+        val opened = receiver.open(delivered)
+        if (error == null) {
+            assertEquals(frame["plaintext"].string, assertIs<EndToEndSession.Opened.Frame>(opened).plaintext.hex())
+        } else {
+            val refusal = assertIs<EndToEndSession.Opened.Refused>(opened).refusal
+            assertEquals(error, refusal.name.lowercase().replace('_', '-'), "frame $from $nonce")
+        }
+        error
+    }
+}
+
+/**
+ * The initiator and responder of [pattern], from the keys in [sides]' `initiator` and `responder`;
+ * the initiator holds [responderKey] if given.
+ */
 private fun handshakeSides(
     pattern: NoisePattern,
     sides: Json,
+    responderKey: ByteArray? = null,
 ): List<NoiseHandshake> =
     listOf(NoiseRole.INITIATOR to "initiator", NoiseRole.RESPONDER to "responder").map { (role, name) ->
         val side = sides[name]
@@ -680,6 +765,7 @@ private fun handshakeSides(
                 crypto.x25519KeyPair(side["ephemeral_private"].string.hex()),
                 optional("kem_keygen_seed")?.let(crypto::mlKem768KeyPair),
                 optional("kem_encaps_seed"),
+                responderKey.takeIf { role == NoiseRole.INITIATOR },
             )
         NoiseHandshake(crypto, pattern, role, side["prologue"].string.hex(), keys)
     }

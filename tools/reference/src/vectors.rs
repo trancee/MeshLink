@@ -25,6 +25,7 @@ const RESOLVING_KEY: u8 = 0x02;
 const CERTIFICATE: u8 = 0x81;
 const SENDER_CERTIFICATE: u8 = 0x01;
 const CONVERSATION_SEED: u8 = 0x82;
+const MESSAGE_IDS: u8 = 0x83;
 const PADDING_BLOCK: usize = 32;
 
 /// One generated file: its name and the vector and schema documents.
@@ -49,6 +50,7 @@ pub fn all() -> Vec<Document> {
         handshake_xx(),
         handshake_hfs(),
         first_message(),
+        e2e_sessions(),
         hpke_seal(),
         link_transport(),
         lookup_reply(),
@@ -1167,6 +1169,303 @@ fn first_message() -> Document {
                 "profile",
                 object(vec![("enum", Value::List(vec![int(CLASSICAL), int(POST_QUANTUM)]))]),
             ),
+        ],
+    )
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end sessions (ticket 46a)
+// ---------------------------------------------------------------------------
+
+const REPLAY_WINDOW: u64 = 1_024;
+const IK_RESPONDER: u8 = 0x02;
+const TRANSPORT: u8 = 0x03;
+
+/// `content` as a padded secured plaintext: `u32` length, content, zeros to a 32 B multiple.
+fn padded(content: &[u8]) -> Vec<u8> {
+    let mut out = u32::try_from(content.len()).expect("content").to_be_bytes().to_vec();
+    out.extend_from_slice(content);
+    out.resize(out.len().next_multiple_of(PADDING_BLOCK), 0);
+    out
+}
+
+/// The padded `DELIVERY_RECEIPT` plaintext bob sends in message 2: its own message ID, the first
+/// message's expiry and `MESSAGE_IDS` listing the first message.
+fn receipt_plaintext(first_message_id: &[u8]) -> Vec<u8> {
+    let extensions = tlv(MESSAGE_IDS, first_message_id);
+    let mut content = seed("receipt message id")[..12].to_vec();
+    content.extend_from_slice(&(NOW + 3_600).to_be_bytes());
+    content.extend_from_slice(&u16::try_from(extensions.len()).expect("extensions").to_be_bytes());
+    content.extend(extensions);
+    padded(&content)
+}
+
+/// The padded `MESSAGE` plaintext a side sends at `nonce`: no extensions, a short payload.
+fn session_plaintext(from_initiator: bool, nonce: u64) -> Vec<u8> {
+    let who = if from_initiator { "initiator" } else { "responder" };
+    let mut content = seed(&format!("{who} session message {nonce} id"))[..12].to_vec();
+    content.extend_from_slice(&(NOW + 3_600).to_be_bytes());
+    content.extend_from_slice(&seed(&format!("{who} session message {nonce} k"))[..16]);
+    content.extend_from_slice(&0u16.to_be_bytes());
+    content.extend_from_slice(format!("{who} frame {nonce}").as_bytes());
+    padded(&content)
+}
+
+/// A kind `0x02` container: `u8 kind ‖ u32 length ‖ message 2`.
+fn responder_container(message: &[u8]) -> Vec<u8> {
+    let mut out = vec![IK_RESPONDER];
+    out.extend_from_slice(&u32::try_from(message.len()).expect("message").to_be_bytes());
+    out.extend_from_slice(message);
+    out
+}
+
+/// One side's replay window: the nonces it has accepted.
+#[derive(Default)]
+struct Window {
+    accepted: std::collections::BTreeSet<u64>,
+}
+
+impl Window {
+    /// Why `nonce` is refused, if it is: not above `highest - REPLAY_WINDOW`, else accepted before.
+    fn refuse(&self, nonce: u64) -> Option<&'static str> {
+        let highest = self.accepted.last().copied();
+        if highest.is_some_and(|highest| nonce + REPLAY_WINDOW <= highest) {
+            Some("nonce-below-window")
+        } else if self.accepted.contains(&nonce) {
+            Some("replayed-nonce")
+        } else {
+            None
+        }
+    }
+}
+
+/// How one delivered transport frame departs from what its sender wrote.
+#[derive(Clone, Copy, PartialEq)]
+enum Delivery {
+    AsWritten,
+    /// The last tag bit flipped in transit.
+    Tampered,
+}
+
+/// One delivered frame: its sender, nonce and delivery.
+type Step = (bool, u64, Delivery);
+
+fn e2e_session_group(profile: u8) -> Group {
+    let (alice, bob) = (Identity::new("alice"), Identity::new("bob"));
+    let post_quantum = profile == POST_QUANTUM;
+    let protocol = if post_quantum { IKHFS } else { IK };
+    let prologue = e2e_prologue(1, profile);
+    let initiator_with = |ephemeral: &str| Side {
+        static_private: alice.x25519_private,
+        ephemeral_private: seed(ephemeral),
+        kem: post_quantum.then_some(KemInput::Seed(seed64("alice first message kem"))),
+        prologue: prologue.clone(),
+        psk: None,
+    };
+    let initiator = initiator_with("alice first message ephemeral");
+    let responder = Side {
+        static_private: bob.x25519_private,
+        ephemeral_private: seed("bob first message ephemeral"),
+        kem: post_quantum.then_some(KemInput::Message(seed("bob first message kem"))),
+        prologue: prologue.clone(),
+        psk: None,
+    };
+    let plaintext = first_plaintext(&alice, profile);
+    let first_message_id = plaintext[4..16].to_vec();
+    let payload_1 = if post_quantum {
+        let info = hpke_info(&alice.x25519_key(), &bob.node_id());
+        seal::seal(&bob.xwing_key(), &info, &plaintext, &seed64("alice first message seal"))
+    } else {
+        plaintext
+    };
+    let receipt = receipt_plaintext(&first_message_id);
+    let responder_key = bob.x25519_key();
+    let open = || handshake::session(protocol, &initiator, &responder_key, &responder, &payload_1, &receipt);
+    let reference = open();
+    // bob's message 2 for a message 1 alice wrote with another ephemeral.
+    let other = handshake::session(
+        protocol,
+        &initiator_with("alice other first message ephemeral"),
+        &responder_key,
+        &responder,
+        &payload_1,
+        &receipt,
+    )
+    .message_2;
+    let handshake_test = |comment: &str, flag: &'static str, message_2: Vec<u8>| {
+        let read = handshake::read_message_2(protocol, &initiator, &responder_key, &payload_1, &message_2);
+        assert!(read.is_none(), "{comment}");
+        test(
+            comment,
+            &[flag],
+            vec![
+                ("container_2", hex(&responder_container(&message_2))),
+                ("frames", Value::List(Vec::new())),
+            ],
+            Some("handshake-failed"),
+        )
+    };
+    let frames_test = |comment: &str, flags: &[&'static str], steps: &[Step]| {
+        let session = open();
+        let mut windows = [Window::default(), Window::default()];
+        let mut first_error = None;
+        let frames = steps
+            .iter()
+            .map(|&(from_initiator, nonce, delivery)| {
+                let (writer, reader) = if from_initiator {
+                    (&session.initiator, &session.responder)
+                } else {
+                    (&session.responder, &session.initiator)
+                };
+                let plaintext = session_plaintext(from_initiator, nonce);
+                let mut ciphertext = vec![0; plaintext.len() + 16];
+                let length = writer.write_message(nonce, &plaintext, &mut ciphertext).expect("seal");
+                ciphertext.truncate(length);
+                if delivery == Delivery::Tampered {
+                    ciphertext = flip(&ciphertext, length - 1);
+                }
+                let mut container = vec![TRANSPORT];
+                container.extend_from_slice(&nonce.to_be_bytes());
+                container.extend_from_slice(&u32::try_from(length).expect("length").to_be_bytes());
+                container.extend_from_slice(&ciphertext);
+                let window = &mut windows[usize::from(!from_initiator)];
+                let error = window.refuse(nonce).or_else(|| {
+                    let mut opened = vec![0; length];
+                    match reader.read_message(nonce, &ciphertext, &mut opened) {
+                        Ok(n) => {
+                            assert_eq!(&opened[..n], plaintext.as_slice(), "{comment}");
+                            window.accepted.insert(nonce);
+                            None
+                        }
+                        Err(_) => Some("open-failed"),
+                    }
+                });
+                first_error = first_error.or(error);
+                let mut pairs = vec![
+                    ("from", text(if from_initiator { "initiator" } else { "responder" })),
+                    ("nonce", int(i64::try_from(nonce).expect("nonce"))),
+                    ("plaintext", hex(&plaintext)),
+                    ("container", hex(&container)),
+                ];
+                if let Some(error) = error {
+                    pairs.push(("error", text(error)));
+                }
+                object(pairs)
+            })
+            .collect();
+        assert_eq!(first_error.is_some(), !flags.is_empty(), "{comment}");
+        test(
+            comment,
+            flags,
+            vec![
+                ("container_2", hex(&responder_container(&session.message_2))),
+                ("frames", Value::List(frames)),
+            ],
+            first_error,
+        )
+    };
+    let i = |nonce| (true, nonce, Delivery::AsWritten);
+    let r = |nonce| (false, nonce, Delivery::AsWritten);
+    let last = reference.message_2.len() - 1;
+    let tests = vec![
+        frames_test(
+            "frames each way, out of order, the last at the window edge",
+            &[],
+            &[i(0), r(0), i(2), i(1), r(1), i(1_026), i(3)],
+        ),
+        handshake_test(
+            "message 2 with a flipped tag bit",
+            "TamperedMessage2",
+            flip(&reference.message_2, last),
+        ),
+        handshake_test("message 2 answering another first message", "OtherFirstMessage", other),
+        frames_test("a replayed nonce", &["ReplayedNonce"], &[i(0), i(1), i(0), i(2)]),
+        frames_test(
+            "a nonce just below the window",
+            &["BelowWindow"],
+            &[i(0), i(1_026), i(2), i(3)],
+        ),
+        frames_test(
+            "a frame with a flipped tag bit, then the frame as written",
+            &["TamperedFrame"],
+            &[i(0), (true, 1, Delivery::Tampered), i(1)],
+        ),
+    ];
+    let initiator_json = side_json(&initiator, "kem_keygen_seed", None);
+    let responder_json = side_json(&responder, "kem_encaps_seed", None);
+    Group {
+        attributes: vec![
+            ("type", text("E2ESession")),
+            ("protocol", text(protocol)),
+            ("profile", int(profile)),
+            ("initiator", initiator_json),
+            ("responder", responder_json),
+            ("responder_key", hex(&responder_key)),
+            ("first_message_id", hex(&first_message_id)),
+            ("payload_1", hex(&payload_1)),
+            ("message_1", hex(&reference.message_1)),
+            ("receipt_plaintext", hex(&receipt)),
+            ("handshake_hash", hex(&reference.handshake_hash)),
+        ],
+        tests,
+    }
+}
+
+fn e2e_sessions() -> Document {
+    let frame = s_object(
+        &["from", "nonce", "plaintext", "container"],
+        vec![
+            ("from", s_enum(&["initiator", "responder"])),
+            ("nonce", s_integer(0)),
+            ("plaintext", s_hex()),
+            ("container", s_hex()),
+            (
+                "error",
+                s_enum(&["replayed-nonce", "nonce-below-window", "open-failed"]),
+            ),
+        ],
+    );
+    document(
+        "e2e-sessions.json",
+        "MeshLink/1 end-to-end sessions (Noise IK and IKhfs message 2 and transport)",
+        &[
+            (
+                "ReferenceKeys",
+                "The inputs are those of the valid tests in first-message.json, plus the responder's ephemeral and, for IKhfs, its encapsulation message: fixed labels in tools/reference.",
+            ),
+            (
+                "Replay",
+                "The initiator writes message_1 from its inputs, responder_key and payload_1. The responder reads it, then writes message 2 with receipt_plaintext as its payload; container_2 is kind 02, a u32 length and message 2. The initiator reads message 2 with the state that wrote message_1: handshake-failed if the read fails. Otherwise both sides split, and the receipt's MESSAGE_IDS is first_message_id. Each frame is delivered in order: its sender seals plaintext at nonce with empty associated data, giving container (kind 03, u64 nonce, u32 length, ciphertext). Its receiver refuses a nonce with nonce + 1024 <= the highest nonce it accepted (nonce-below-window), then one it accepted before (replayed-nonce), then opens the ciphertext (open-failed). A refused or failed frame changes no state; a frame without error opens to plaintext. The test's error is its first frame error.",
+            ),
+            ("TamperedMessage2", "One tag bit of message 2 flipped in transit."),
+            (
+                "OtherFirstMessage",
+                "Message 2 was written by the responder for a message 1 from another initiator ephemeral.",
+            ),
+            ("ReplayedNonce", "A frame delivered again at an accepted nonce."),
+            (
+                "BelowWindow",
+                "A frame whose nonce plus 1024 equals the highest accepted nonce.",
+            ),
+            ("TamperedFrame", "One tag bit of a transport frame flipped in transit."),
+        ],
+        vec![e2e_session_group(CLASSICAL), e2e_session_group(POST_QUANTUM)],
+        vec![("container_2", s_hex()), ("frames", s_list(frame, 0))],
+        vec![
+            ("type", s_const(text("E2ESession"))),
+            ("protocol", s_enum(&[IK, IKHFS])),
+            (
+                "profile",
+                object(vec![("enum", Value::List(vec![int(CLASSICAL), int(POST_QUANTUM)]))]),
+            ),
+            ("initiator", link_side(("kem_keygen_seed", 64))),
+            ("responder", link_side(("kem_encaps_seed", 32))),
+            ("responder_key", s_hex_of(32)),
+            ("first_message_id", s_hex_of(12)),
+            ("payload_1", s_hex()),
+            ("message_1", s_hex()),
+            ("receipt_plaintext", s_hex()),
+            ("handshake_hash", s_hex_of(32)),
         ],
     )
 }
