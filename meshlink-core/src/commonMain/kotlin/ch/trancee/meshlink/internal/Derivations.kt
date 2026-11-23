@@ -75,6 +75,12 @@ public class Derivations(
         epoch: UInt,
     ): ByteArray = hash(Domain.UNSECURED_TAG, nodeId + u32(epoch)).copyOf(ROUTING_TAG_LENGTH)
 
+    /** A certificate lookup's tag for [nodeId]: `trunc_8(H("lookup-tag", salt ‖ NodeId))` (ADR 0018). */
+    public fun lookupTag(
+        salt: ByteArray,
+        nodeId: ByteArray,
+    ): ByteArray = hash(Domain.LOOKUP_TAG, salt + nodeId).copyOf(ROUTING_TAG_LENGTH)
+
     /** `commitment = trunc_16(H("tombstone", k))` for a message's tombstone secret [k]. */
     public fun tombstoneCommitment(k: ByteArray): ByteArray = hash(Domain.TOMBSTONE, k).copyOf(COMMITMENT_LENGTH)
 
@@ -139,6 +145,8 @@ public enum class Domain(
     TOMBSTONE("tombstone"),
     CERTIFICATE("certificate"),
     BROADCAST("broadcast"),
+    LOOKUP_TAG("lookup-tag"),
+    LOOKUP_REPLY("lookup-reply"),
     ;
 
     /** `DS(purpose) = u8(len(s)) ‖ s`, where `s = "MeshLink/1 " ‖ purpose`. */

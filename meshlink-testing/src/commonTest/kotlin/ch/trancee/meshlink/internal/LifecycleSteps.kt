@@ -34,6 +34,7 @@ internal val acceptanceSteps =
         discoverySteps()
         linkSteps()
         meshDeliverySteps()
+        certificateLookupSteps()
     }
 
 /** The nodes of one lifecycle scenario, on one scheduler; each [create]d node gets its own radio. */

@@ -1,0 +1,158 @@
+{
+  "$schema": "./lookup-reply.schema.json",
+  "tier": 2,
+  "algorithm": "MeshLink/1 certificate lookup reply seal (X25519, HKDF-SHA256, ChaCha20Poly1305)",
+  "schema": "lookup-reply.schema.json",
+  "generatorVersion": "1",
+  "numberOfTests": 7,
+  "notes": {
+    "ReferenceKeys": "Keys come from fixed labels in tools/reference. Each side's ephemeral is the X25519 public key of its _private field; a field is absent when that side's key is the low-order key shown.",
+    "Replay": "The responder computes shared_secret from responder_private and requester_ephemeral, then key = KDF(shared_secret, salt \u2016 lookup_tag, \"lookup-reply\", requester_ephemeral \u2016 responder_ephemeral, 32), and seals certificate with ChaCha20-Poly1305, nonce 12 zero bytes, empty associated data: valid tests MUST produce sealed. The requester computes the same key from requester_private and responder_ephemeral and MUST open sealed to certificate, which validates for target_node_id at now; invalid tests MUST NOT yield a certificate.",
+    "Tampered": "The sealed bytes changed after sealing.",
+    "WrongBinding": "The certificate was sealed under the key of another salt.",
+    "LowOrder": "One ephemeral has low order, so the shared secret is all zero. The other side MUST refuse before the AEAD: the responder seals nothing, and the requester never opens the forged sealed, which an attacker can produce under the zero secret."
+  },
+  "testGroups": [
+    {
+      "type": "LookupReplySeal",
+      "tests": [
+        {
+          "tcId": 1,
+          "comment": "classical certificate",
+          "flags": [],
+          "result": "valid",
+          "target_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "now": 1798765200,
+          "certificate": "01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a",
+          "salt": "784c4c8e89e0d1ba",
+          "lookup_tag": "622c4f9c0f83e58f",
+          "requester_ephemeral": "b6b152a832728f90452175086b0b6bf09fe797bd79ac8715fbe8663c2926644a",
+          "responder_ephemeral": "f89630138b86723245c024de3dd1d39ba052abef027c7cfa94d647547c9d6d09",
+          "requester_private": "17b95656bf59c98b3b846ebf9edb1a787f01560dd4c8ba153a01950a219b201a",
+          "responder_private": "a8ad6c9b6919f1b79586e090da4df5400ba7750a70fdc5567bb7fe7a06fe3fc8",
+          "shared_secret": "5063e2a4a1e634094e2cd6cebb6cc0c6e334bcceada06c0f4e5c890b1d5f943a",
+          "key": "6bdf6183b020dd4a805f2daa2a315c85252c2c7a4b2730fe2a25b8ba67c8763e",
+          "sealed": "5ef63122f9665560577dd7e26576eab4b4e1dee4c31fc067728e5a7c70309194872d67c50afefef17f1ad4aa8b5f7829438a080cd0a6588c3f52a835318f6a23e5230ac1719959be8c592aba59875bccd89c5578a3cbd22bae93b4d0e8791aacc57c12fba70bab5a0b98a12dbfd9d1a24fa94ac5b043ef09ab4118215b4bd38367e8d09ced419c93bcb44f6a821553f468bc51eb44c35aebc857"
+        },
+        {
+          "tcId": 2,
+          "comment": "post-quantum certificate",
+          "flags": [],
+          "result": "valid",
+          "target_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "now": 1798765200,
+          "certificate": "01029a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850131c1a5d097902fecb09adc67ee87caf24021f94036baa648bbf2a8563c907b912ab2a9ab861db001d55a296d5304be236f212b81e3a2c14e97897751beeeaa90e7bb6bf3c5d94c65237d12bfc424e321595e9a32460c009c2c2b32681c651b272b7995bd1313784998757c3cbfca97d70075f03d087602ab3b585bb5363411e40ca47e98e91d31430b8553b9cb491382940982a0b10764510b78959589064757dabae00eb6f63410f386c8cc03a2249c1ca4f81b549aabd349897f372641907bc09181d9b16b84f14511aeb7c26c244812c1bbd8129e584aaa9e83a5292b350ebccb5e3382493485f6540240330f2a4bca21a49f071c18b038061eb780e38cf7483485a296b2fdc8a34118116783c26a3b123f851e4d8c2f3941a1ce3b2084c26fe258708a78da9dc9393db0cd853bb4cc6b5772c69fda5119cc24035168e62698a9ca18bd4f635668c36f2066c2f41bfa023b9c03c674f5a4903e01d38f36c87285340710b5ab81e24ec98492252344b6e0cd31e18a54994c674530022e7f3182284c47b4313c49372bb733a64634b31510df1f5a9482399860aafa7441da14692321b689d9b095de2444e0b79cbd80108b6ba5c2c79328a604bd59334b04cef8aaf8e4b976a020a43941c51a62b703b777940553396747f745ed3a11a03fa42c5856ef9c90353469f795904ba09cdb2b53b80098d9f237bd607334c269c94f86361f11f2faa84c981bcfd65595a4c263164aff8a2c04c8a1bbfa59af0f870ce40b86ce3ca5420611a82b71f59107394baade19e728b5ed9a1c398f392e0c098e6570219d100b0f72df6486418f5119d28accc360452a531cb396047e93f0cc639bd483949a983df856133f10a24daba2416c1ae050fd43c30c258b3eeb30e73321949134d69861c7c8a73fd847911100665fc96ccca0794d12512099a8344a746c8a24934c7e8518a18208d53512d73d16b687537a2e5b40c3c8bbdf380c96b84bc91cd16dcb966315e49b598498aa37a79502c3c59b6f55504062e2086aab9fb443da67afb917b68fb101ac152588a6816e47fd70c8d6d8753c55077d4e850d4e17611d7380d920db617b625b72cbe71875185ac06b8a572c87130b2161531ce01e08f9eec686a1c51f4c35768db937ccb45941606715a0a1b4a10d8fbc5e9e21c25744630152863e945bb0a2b8ba4933d533f60eb69a3e2316023818284ce82643632d06a8d345a20d892c4052b6db0bf44478767430ee618233e462d7f745dec080562e7199e52bac8514004073358b2cf84b02bfbbc5d14e38fc480688c03702d7024278438e23093571000cd98051b01461a542f3c21992dc85d224a0d88ab2053c2229e8619508bc4be3771b306262cbb3cf24a5d64716dd2878bbb81911979c7b8974200e19cb34c5a459c3b46c70fb0f1404ec16547f4ce1a955defa57bae96b45546c0b9d87fd3674e2bea105c255bcfeb894dbc55e0253bed6183269b5dbe7740bf98a5f6ca24aae555d862be3960482848c925ac696af1bf1ff089b0e99005d5c292fccc781c8c71135774445c12a3a328d22752b8a7f9b695de9631e61b7724eb212a2387474c36d12a742dabc710f1b6b7b894b067c8ebe809552966d29a77bc8dfde6b5f2277288d33b1ae1fcfd256c96b14530de4e6345c745ba58adfa94eb561c709046fdee1214df803b457693dfe1fdc6bd1ca5d5440b6b36ec806b383e00ac3581438c0b6e1b663cd4c5ca13713c9e8599e77c560ff5de40a0ad908f35789f325a2be123e3c99acbab6f8ffb42a7cf25915e0cd41879d26eed29e3347102",
+          "salt": "784c4c8e89e0d1ba",
+          "lookup_tag": "622c4f9c0f83e58f",
+          "requester_ephemeral": "b6b152a832728f90452175086b0b6bf09fe797bd79ac8715fbe8663c2926644a",
+          "responder_ephemeral": "f89630138b86723245c024de3dd1d39ba052abef027c7cfa94d647547c9d6d09",
+          "requester_private": "17b95656bf59c98b3b846ebf9edb1a787f01560dd4c8ba153a01950a219b201a",
+          "responder_private": "a8ad6c9b6919f1b79586e090da4df5400ba7750a70fdc5567bb7fe7a06fe3fc8",
+          "shared_secret": "5063e2a4a1e634094e2cd6cebb6cc0c6e334bcceada06c0f4e5c890b1d5f943a",
+          "key": "6bdf6183b020dd4a805f2daa2a315c85252c2c7a4b2730fe2a25b8ba67c8763e",
+          "sealed": "5ef53122f9665560577dd7e26576eab4b4e1dee4c31fc067728e5a7c70309194872d67c50afefef17f1ad4aa8b5f7829438a080cd0a6588c3f52a835318f6a23e5237dedc0104b844c92092e4f70310d42b7b402ef713b5f5d05c4d54e37bcaa6c3343b6ebfa43583ecb7e825d1992763132a92ca126659cd642dccaf25489ac788d445836fc444788ec39f7ed8a9497790a2dbfdf7744fd2f7946e58ead193b0867550d20c3ec72c583acd32a9fc98ae3e3fa2190a558a82798b59bc0a7b9a02c52b634d5f4686b54628845376cb95bd4207e7cb29fefc584a006aa89890fb486ccb8898f7fe27a36a3b0ac0dd87a78fae39dd92329d5ce251f615ccfa612ce89395f9de9fc75c2bfac6355e29e66745a0b68c3b1d1129881aac1c89cd267cdadbf6f7bbcdc582ed41e2817baf21761bb91a98c526d69704a7da2bc5bc30284e2012809f344022ec76d815e09fb4d76a86ab6a467c995f50e0239eba4b515c4c055cac96f1f423b7fac3d7aa6c7cdca597a0d122be3292ff9e9b9c857810d6ca30c434a8104a77a797c13c73781c431df7386b81b87375a4455f6f4d855c91b3c5ced0bb3c4b3e27439bca4ccca79242965bc68fe187f03cc9436a0c04d29340dc887649a240574be41fd0cae9391184ab19a167f97b0973dde99c468e63570cbfccb31e59c43fb5db917bbee3aea9fc9edf1fe24d8eab91cf623328381a423f819a0f6c0c9a36376b35e10045848ba95a5cb42d56221b933473847a5078f509bbd6ad0f36423918a5a165bdac84c8caf478cece1ad4fb398cabe752bc6709cc301d929d8f0034a704e96eb2e69f7abad46e9e7c8d5023e71b364c4d573ebc17ba450a057cf932975d0f5ad1bef3aac12574d6b131b590e41a5d5c3fb29c2bf76ff8ecfd83bd257ff64f731c3a28344bdf632cd067fb57a4715921a8e13087c407e55243473f6793a60603e1ce307863236dedebdedf8e40f08d66aca09f6a548fbecdb2823c2f1c751d1c61615f41662aa384c4e4e5cbf6908ea811411a96a7b65450d8cbd0a6191f22272c23c6d595516fc15ea5f91bf63e4c90b7d879e5bafea0ed2d1706d7c08c81a1e431af1642f8061d31d43b756dd71fad2f6d1d21afbde4c066995badaa2dabb40afedecd27e1bd2e8ffcc2ec0e9a7c0a6e434ac2d7e19b9d054f6d6dd15f22cd262dbddee1cac4dddc1f6fc311e0d43f82d677d40c64e557f50ab0d1fed8d7c01871950de75976c4bc1511b36f6dd1dcda1b7fd812133566dcf947479134ea1e1afd08056a1851f5c407ee0debb3835633a44da7bc08cc19e2fed05dfdebd9d62d5710ecf1b86c6b340587c695ede8d23186bb3c2ec5a8de9a34e1ce9104f0b29ac3ff4e93745a77b5023f4ea49d6c19d533302a5d2e76c32c5b4e7ac5ee84369dac412b3f27621c5f3e043e4d047b12aa4f59e56f1f99a354c0156f760292b9c0431562bbc189545d63c57d0ad156215f9bfcf453e6bc372ba686f13ef2c814aa130df8a1c348d8248881ba14359bde02a81627e49961ccb175bed547e939842513fb00b1562e157306ad45e5ccaa911739e346838b1e58222f3fe39e9c81c8a7a9f669367077ffb3aa62325ed45220c4846fc2ca5a166d5456dc5c73db5beff7c9d21c0ef6428dd4b8e53d85d3983e85a440639227005ef1e5ee2a1ee1fe51c0f71c8aa0b702784fdf5dfa2f3c0ae04a31b82a22ef737e283b4001ce5826ec82950e8e5f46e236649448390720c5aa61d6b6407cb30569884faa5a4848b8507471c21e7538fa2afb88741845fb2adac57a2b742735f1c213c3f18db33faf849af708cfe4812b2e44f7160fba9f95c1d61bcbe59d8d8651eed58735575633206706cf328f95398c3fd6dd1b7984f0eec72d2c9cc0ae414d3e51c228f960bf2be5d1a542721d43f9bb6b8e2e3cd53"
+        },
+        {
+          "tcId": 3,
+          "comment": "flipped ciphertext bit",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "target_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "now": 1798765200,
+          "certificate": "01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a",
+          "salt": "784c4c8e89e0d1ba",
+          "lookup_tag": "622c4f9c0f83e58f",
+          "requester_ephemeral": "b6b152a832728f90452175086b0b6bf09fe797bd79ac8715fbe8663c2926644a",
+          "responder_ephemeral": "f89630138b86723245c024de3dd1d39ba052abef027c7cfa94d647547c9d6d09",
+          "requester_private": "17b95656bf59c98b3b846ebf9edb1a787f01560dd4c8ba153a01950a219b201a",
+          "responder_private": "a8ad6c9b6919f1b79586e090da4df5400ba7750a70fdc5567bb7fe7a06fe3fc8",
+          "shared_secret": "5063e2a4a1e634094e2cd6cebb6cc0c6e334bcceada06c0f4e5c890b1d5f943a",
+          "key": "6bdf6183b020dd4a805f2daa2a315c85252c2c7a4b2730fe2a25b8ba67c8763e",
+          "sealed": "5ff63122f9665560577dd7e26576eab4b4e1dee4c31fc067728e5a7c70309194872d67c50afefef17f1ad4aa8b5f7829438a080cd0a6588c3f52a835318f6a23e5230ac1719959be8c592aba59875bccd89c5578a3cbd22bae93b4d0e8791aacc57c12fba70bab5a0b98a12dbfd9d1a24fa94ac5b043ef09ab4118215b4bd38367e8d09ced419c93bcb44f6a821553f468bc51eb44c35aebc857",
+          "error": "open-failed"
+        },
+        {
+          "tcId": 4,
+          "comment": "flipped tag bit",
+          "flags": [
+            "Tampered"
+          ],
+          "result": "invalid",
+          "target_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "now": 1798765200,
+          "certificate": "01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a",
+          "salt": "784c4c8e89e0d1ba",
+          "lookup_tag": "622c4f9c0f83e58f",
+          "requester_ephemeral": "b6b152a832728f90452175086b0b6bf09fe797bd79ac8715fbe8663c2926644a",
+          "responder_ephemeral": "f89630138b86723245c024de3dd1d39ba052abef027c7cfa94d647547c9d6d09",
+          "requester_private": "17b95656bf59c98b3b846ebf9edb1a787f01560dd4c8ba153a01950a219b201a",
+          "responder_private": "a8ad6c9b6919f1b79586e090da4df5400ba7750a70fdc5567bb7fe7a06fe3fc8",
+          "shared_secret": "5063e2a4a1e634094e2cd6cebb6cc0c6e334bcceada06c0f4e5c890b1d5f943a",
+          "key": "6bdf6183b020dd4a805f2daa2a315c85252c2c7a4b2730fe2a25b8ba67c8763e",
+          "sealed": "5ef63122f9665560577dd7e26576eab4b4e1dee4c31fc067728e5a7c70309194872d67c50afefef17f1ad4aa8b5f7829438a080cd0a6588c3f52a835318f6a23e5230ac1719959be8c592aba59875bccd89c5578a3cbd22bae93b4d0e8791aacc57c12fba70bab5a0b98a12dbfd9d1a24fa94ac5b043ef09ab4118215b4bd38367e8d09ced419c93bcb44f6a821553f468bc51eb44c35aebc856",
+          "error": "open-failed"
+        },
+        {
+          "tcId": 5,
+          "comment": "sealed for another salt",
+          "flags": [
+            "WrongBinding"
+          ],
+          "result": "invalid",
+          "target_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "now": 1798765200,
+          "certificate": "01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a",
+          "salt": "784c4c8e89e0d1ba",
+          "lookup_tag": "622c4f9c0f83e58f",
+          "requester_ephemeral": "b6b152a832728f90452175086b0b6bf09fe797bd79ac8715fbe8663c2926644a",
+          "responder_ephemeral": "f89630138b86723245c024de3dd1d39ba052abef027c7cfa94d647547c9d6d09",
+          "requester_private": "17b95656bf59c98b3b846ebf9edb1a787f01560dd4c8ba153a01950a219b201a",
+          "responder_private": "a8ad6c9b6919f1b79586e090da4df5400ba7750a70fdc5567bb7fe7a06fe3fc8",
+          "shared_secret": "5063e2a4a1e634094e2cd6cebb6cc0c6e334bcceada06c0f4e5c890b1d5f943a",
+          "key": "6bdf6183b020dd4a805f2daa2a315c85252c2c7a4b2730fe2a25b8ba67c8763e",
+          "sealed": "9f4110270f275212482d2d8c41ce43d33087667df03962039322e9015760b50e858b0338a3a16fb2452e3129f2ec925b46e6c77a4538d83271837e7a0790db6a7a44bcdebaff6764176bc5131c002a88b2ed425f4e6132e6a930ceb3ab140cdbca537b2541870ef0790979ab00ba83f37b6f9d2bc8e34241c46f3509b69f921e2090e1b5dd6996b76a4c193fcb3221b689afbaf5181e49225f06",
+          "error": "open-failed"
+        },
+        {
+          "tcId": 6,
+          "comment": "requester ephemeral is zero",
+          "flags": [
+            "LowOrder"
+          ],
+          "result": "invalid",
+          "target_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "now": 1798765200,
+          "certificate": "01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a",
+          "salt": "784c4c8e89e0d1ba",
+          "lookup_tag": "622c4f9c0f83e58f",
+          "requester_ephemeral": "0000000000000000000000000000000000000000000000000000000000000000",
+          "responder_ephemeral": "f89630138b86723245c024de3dd1d39ba052abef027c7cfa94d647547c9d6d09",
+          "responder_private": "a8ad6c9b6919f1b79586e090da4df5400ba7750a70fdc5567bb7fe7a06fe3fc8",
+          "error": "low-order-key"
+        },
+        {
+          "tcId": 7,
+          "comment": "responder ephemeral of order 8, sealed under the zero secret",
+          "flags": [
+            "LowOrder"
+          ],
+          "result": "invalid",
+          "target_node_id": "76a0d63e02c48a88e5698f857dd9c149df14fd2921727ef923c9892a26f45171",
+          "now": 1798765200,
+          "certificate": "01019a871650b3809f038813b6a79bc3ab86ed9064acf53c1667a4b03ff6556b6f34589ce6776f6b577176a0e3f9fe2a793ffd8ce3f4e17e8492038163543da850136b36ec806b383e002a39d08982bd350fe365d8b982de971dcf2f232d6f01105dfa67d64989d9354e8a0d7415739f9cad11fba97bb0b969eabc7cdc04b4c5b66bef7264818540f20a",
+          "salt": "784c4c8e89e0d1ba",
+          "lookup_tag": "622c4f9c0f83e58f",
+          "requester_ephemeral": "b6b152a832728f90452175086b0b6bf09fe797bd79ac8715fbe8663c2926644a",
+          "responder_ephemeral": "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+          "requester_private": "17b95656bf59c98b3b846ebf9edb1a787f01560dd4c8ba153a01950a219b201a",
+          "shared_secret": "0000000000000000000000000000000000000000000000000000000000000000",
+          "key": "5e40c7a8314135ea3ef799475bb2237471d6e310380e5317301fb74c61c9f16a",
+          "sealed": "f5fd1bc944399b7a0646998a1a75354da6481ea0dfc1a61e3bb58e87084e87c9e88a8dc4d556aba2b59fb1d5820e488a245a6e4b42989a0cf506a3c3bb333c6e7676ae67a035ad2407adaae558dcec0469ba3f17582943dec8b6388ff5c6628c84d9732d565382cac21dead1c1a84afd87ee8c9bbf8b36113e905862e96a0b6c2047274795e61614c1bd1ac082feb550246d1e8d5883409abce5",
+          "error": "low-order-key"
+        }
+      ]
+    }
+  ]
+}

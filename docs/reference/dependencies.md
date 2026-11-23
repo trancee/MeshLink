@@ -115,4 +115,4 @@ Pinned by `rust-toolchain.toml` (Rust 1.100.0) and a committed `Cargo.lock`. Pur
 | sha2 | 0.11.1 | MIT OR Apache-2.0 | SHA-256 reference |
 | hkdf | 0.13.0 | MIT OR Apache-2.0 | HKDF reference |
 | blake2 | 0.11.0 | MIT OR Apache-2.0 | BLAKE2b-256 for `H` and `DS` derivations (tier 1 rule); the Python generator uses `hashlib` |
-| snow | git `dc18c06c28fbdeaa6ffae7347e650c805e9b932e` (snow#210) | Apache-2.0 OR MIT | Independent Noise `XXhfs` with ML-KEM-768. Moves to a crates.io release once #210 merges. It brings its own `chacha20poly1305` 0.10.1, `blake2` 0.10.6 and `curve25519-dalek` 4.1.3, so `Cargo.lock` holds two versions of each |
+| snow | git `dc18c06c28fbdeaa6ffae7347e650c805e9b932e` (snow#210) | Apache-2.0 OR MIT | Independent Noise `XXhfs` with ML-KEM-768, and the ChaCha20-Poly1305 that seals the reference lookup replies. Moves to a crates.io release once #210 merges. It brings its own `chacha20poly1305` 0.10.1, `blake2` 0.10.6 and `curve25519-dalek` 4.1.3, so `Cargo.lock` holds two versions of each |

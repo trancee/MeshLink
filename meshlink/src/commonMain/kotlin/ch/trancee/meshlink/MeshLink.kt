@@ -2,6 +2,7 @@
 
 package ch.trancee.meshlink
 
+import ch.trancee.meshlink.internal.CertificateLookups
 import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.Discovery
@@ -19,10 +20,8 @@ import ch.trancee.meshlink.internal.Post
 import ch.trancee.meshlink.internal.RadioFailure
 import ch.trancee.meshlink.internal.RadioRegistry
 import ch.trancee.meshlink.internal.Recognition
-import ch.trancee.meshlink.internal.ResolvingKeys
 import ch.trancee.meshlink.internal.Router
 import ch.trancee.meshlink.internal.Scanner
-import ch.trancee.meshlink.internal.WireProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -78,8 +77,7 @@ public class MeshLink private constructor(
     private val meshKey = config.meshKey
     private val scanner = Scanner(port.radio, port.clock, port.random, Discovery(crypto, meshId, profile, meshKey))
     private val links = MutableStateFlow<Links?>(null)
-    private val secured = profile != WireProfile.UNSECURED
-    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds, secured) { scanner.density }
+    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds, profile) { scanner.density }
     private val diagnostics = MutableSharedFlow<LinkDiagnostic>(extraBufferCapacity = DIAGNOSTICS_BUFFER)
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
@@ -290,6 +288,12 @@ public class MeshLink private constructor(
     @HiddenFromObjC
     public val linkDiagnostics: SharedFlow<LinkDiagnostic> = diagnostics.asSharedFlow()
 
+    /** A secured node's certificate lookups, or `null` in `Unsecured`; for `meshlink-testing`. */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public val certificateLookups: CertificateLookups? =
+        post.lookups?.let { CertificateLookups(scope, port.dispatcher, port.clock, config.messageLifetimeSeconds, it) }
+
     /** Why the radio last refused to advertise or scan, or `null`; for `meshlink-testing`. */
     @InternalMeshLinkApi
     @HiddenFromObjC
@@ -335,11 +339,13 @@ public class MeshLink private constructor(
     private suspend fun session() =
         coroutineScope {
             val digest = Derivations(crypto).meshIdDigest(meshId, profile)
+            // Only a secured node has lookups; they answer with this run's certificate.
+            val lookups = post.lookups
             val handshakes =
-                if (secured) {
+                if (lookups != null) {
                     val credentials = LinkCredentials.issue(crypto, port.clock, identity.keyPair, profile, digest)
-                    val keys = meshKey?.let { ResolvingKeys(crypto, port.clock.wallClockMillis()) }
-                    Handshakes(crypto, port.clock, credentials, meshKey, diagnostics, keys)
+                    lookups.certify(credentials.certificate)
+                    Handshakes(crypto, port.clock, credentials, meshKey, diagnostics, lookups::linked)
                 } else {
                     null
                 }

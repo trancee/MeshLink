@@ -77,6 +77,8 @@ internal val vectorSets: List<VectorSet> =
                 "unsecured-tag" to unsecuredTag,
                 "resolvable-tag" to resolvableTag,
                 "tombstone-commitment" to tombstoneCommitment,
+                "lookup-tag" to lookupTag,
+                "lookup-reply-key" to lookupReplyKey,
                 "certificate-signing-input" to certificateSigningInput,
                 "broadcast-signing-input" to broadcastSigningInput,
             ),
@@ -114,15 +116,18 @@ internal val vectorSets: List<VectorSet> =
             key = frameKey,
         ),
         VectorSet("vectors/link-transport.json", mapOf("LinkTransport" to linkTransport), key = groupType),
+        VectorSet("vectors/lookup-reply.json", mapOf("LookupReplySeal" to lookupReplySeal), key = groupType),
         VectorSet("vectors/records.json", mapOf("record" to record), key = layoutKey),
         VectorSet(
             "vectors/routed-frames.json",
             mapOf(
                 "0x40" to messageFrame,
                 "0x43" to routeReply,
+                "0x44" to lookupReply,
                 "0x7e" to unicastFrame,
                 "0x80" to broadcastFrame,
                 "0x81" to routeRequest,
+                "0x82" to lookupRequest,
                 "0xbf" to floodFrame,
             ),
             key = frameKey,
@@ -171,10 +176,8 @@ internal val vectorSkips: List<Skip> =
     pending("hpke-seal.json", "45", "HpkeSeal") +
         pending("derivations.json", "45", "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
         pending("derivations.json", "45", "hpke-info") +
-        pending("derivations.json", "44", "lookup-tag", "lookup-reply-key") +
         pending("routed-frames.json", "47", "0x41") +
         pending("routed-frames.json", "48", "0x42") +
-        pending("routed-frames.json", "44", "0x44", "0x82") +
         listOf("0x0010", "0x0011", "0x0020", "0x0021", "0x0040", "0x0041", "0x0042", "0x0050", "0x0051").map {
             Skip.NotApplicable(
                 "hpke-pq/test-vectors.json",

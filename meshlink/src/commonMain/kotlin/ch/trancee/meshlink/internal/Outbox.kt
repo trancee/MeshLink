@@ -118,8 +118,7 @@ internal class Outbox(
         var doublings = 0
         while (true) {
             transmit(entry)
-            val (min, max) = if (density() == DensityClass.HIGH) HIGH else LOW
-            delay(minOf(min shl doublings, max))
+            delay(retryMillis(density(), doublings))
             doublings = minOf(doublings + 1, DOUBLINGS_MAX)
         }
     }
@@ -173,7 +172,16 @@ internal class Outbox(
         private val LOW = 2_000L to 30_000L
         private val HIGH = 5_000L to 60_000L
 
-        // Enough doublings to reach either maximum.
-        private const val DOUBLINGS_MAX = 5
+        /** Enough doublings to reach either maximum. */
+        const val DOUBLINGS_MAX: Int = 5
+
+        /** The wait after a send that followed [doublings] doublings, in [density]'s class (spec "Origin behavior"). */
+        fun retryMillis(
+            density: DensityClass,
+            doublings: Int,
+        ): Long {
+            val (min, max) = if (density == DensityClass.HIGH) HIGH else LOW
+            return minOf(min shl doublings, max)
+        }
     }
 }

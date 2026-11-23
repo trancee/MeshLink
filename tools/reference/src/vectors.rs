@@ -4,6 +4,7 @@ use crate::broadcast::{self, Header};
 use crate::certificate::{self, CLASSICAL, CLOCK_SKEW, Identity, POST_QUANTUM, VALIDITY_MAX};
 use crate::handshake::{self, KemInput, Rejected, Side};
 use crate::json::{Value, hex, int, object, text, texts};
+use crate::lookup;
 use crate::seal;
 use crate::spec::{flip, hpke_info, link_prologue, mesh_id_digest, mesh_psk, seed, seed64, tlv};
 
@@ -44,6 +45,7 @@ pub fn all() -> Vec<Document> {
         handshake_hfs(),
         hpke_seal(),
         link_transport(),
+        lookup_reply(),
     ]
 }
 
@@ -1015,6 +1017,197 @@ fn hpke_seal() -> Document {
             ("kdf_id", s_const(int(1))),
             ("aead_id", s_const(int(3))),
         ],
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Certificate lookup reply seal (ticket 44)
+// ---------------------------------------------------------------------------
+
+/// A point of order 8 on Curve25519 (RFC 7748 section 6.1 requires rejecting its all-zero result).
+const ORDER_8: &str = "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800";
+
+struct Lookup {
+    requester: Option<[u8; 32]>,
+    requester_key: [u8; 32],
+    responder: Option<[u8; 32]>,
+    responder_key: [u8; 32],
+}
+
+impl Lookup {
+    fn new() -> Self {
+        let (requester, responder) = (seed("lookup requester ephemeral"), seed("lookup responder ephemeral"));
+        Lookup {
+            requester: Some(requester),
+            requester_key: crate::spec::x25519_public(&requester),
+            responder: Some(responder),
+            responder_key: crate::spec::x25519_public(&responder),
+        }
+    }
+}
+
+fn lookup_test(
+    comment: &str,
+    flags: &[&'static str],
+    profile: u8,
+    sides: &Lookup,
+    seal_salt: &[u8],
+    change: &dyn Fn(Vec<u8>) -> Vec<u8>,
+) -> Test {
+    let alice = Identity::new("alice");
+    let certificate = alice.certificate(profile, NOT_BEFORE, NOT_AFTER);
+    let salt = &seed("lookup salt")[..8];
+    let tag = lookup::tag(salt, &alice.node_id());
+    let mut fields = vec![
+        ("target_node_id", hex(&alice.node_id())),
+        ("now", int(i64::from(NOW))),
+        ("certificate", hex(&certificate)),
+        ("salt", hex(salt)),
+        ("lookup_tag", hex(&tag)),
+        ("requester_ephemeral", hex(&sides.requester_key)),
+        ("responder_ephemeral", hex(&sides.responder_key)),
+    ];
+    if let Some(private) = sides.requester {
+        fields.push(("requester_private", hex(&private)));
+    }
+    if let Some(private) = sides.responder {
+        fields.push(("responder_private", hex(&private)));
+    }
+    let Some(responder) = sides.responder else {
+        // A forged reply: the attacker's low-order key makes the shared secret zero, so it can seal.
+        let requester = sides.requester.expect("one honest side");
+        assert_eq!(lookup::shared(&requester, &sides.responder_key), None, "{comment}");
+        let key = lookup::key(&[0; 32], salt, &tag, &sides.requester_key, &sides.responder_key);
+        fields.push(("shared_secret", hex(&[0; 32])));
+        fields.push(("key", hex(&key)));
+        fields.push(("sealed", hex(&lookup::seal(&key, &certificate))));
+        return test(comment, flags, fields, Some("low-order-key"));
+    };
+    let Some(shared) = lookup::shared(&responder, &sides.requester_key) else {
+        return test(comment, flags, fields, Some("low-order-key"));
+    };
+    let requester = sides.requester.expect("an honest requester");
+    assert_eq!(
+        lookup::shared(&requester, &sides.responder_key),
+        Some(shared),
+        "{comment}"
+    );
+    let key = lookup::key(&shared, salt, &tag, &sides.requester_key, &sides.responder_key);
+    let sealing = lookup::key(&shared, seal_salt, &tag, &sides.requester_key, &sides.responder_key);
+    let sealed = change(lookup::seal(&sealing, &certificate));
+    let error = match lookup::open(&key, &sealed) {
+        Some(opened) => {
+            assert_eq!(opened, certificate, "{comment}");
+            None
+        }
+        None => Some("open-failed"),
+    };
+    fields.push(("shared_secret", hex(&shared)));
+    fields.push(("key", hex(&key)));
+    fields.push(("sealed", hex(&sealed)));
+    test(comment, flags, fields, error)
+}
+
+fn lookup_reply() -> Document {
+    let honest = Lookup::new();
+    let salt = &seed("lookup salt")[..8];
+    let other_salt = &seed("lookup salt 2")[..8];
+    let same = |p: Vec<u8>| p;
+    let order_8: [u8; 32] = (0..32)
+        .map(|i| u8::from_str_radix(&ORDER_8[2 * i..2 * i + 2], 16).expect("hex"))
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("32 B point");
+    let low_requester = Lookup {
+        requester: None,
+        requester_key: [0; 32],
+        ..Lookup::new()
+    };
+    let low_responder = Lookup {
+        responder: None,
+        responder_key: order_8,
+        ..Lookup::new()
+    };
+    let tests = vec![
+        lookup_test("classical certificate", &[], CLASSICAL, &honest, salt, &same),
+        lookup_test("post-quantum certificate", &[], POST_QUANTUM, &honest, salt, &same),
+        lookup_test(
+            "flipped ciphertext bit",
+            &["Tampered"],
+            CLASSICAL,
+            &honest,
+            salt,
+            &|p| flip(&p, 0),
+        ),
+        lookup_test("flipped tag bit", &["Tampered"], CLASSICAL, &honest, salt, &|p| {
+            flip(&p, p.len() - 1)
+        }),
+        lookup_test(
+            "sealed for another salt",
+            &["WrongBinding"],
+            CLASSICAL,
+            &honest,
+            other_salt,
+            &same,
+        ),
+        lookup_test(
+            "requester ephemeral is zero",
+            &["LowOrder"],
+            CLASSICAL,
+            &low_requester,
+            salt,
+            &same,
+        ),
+        lookup_test(
+            "responder ephemeral of order 8, sealed under the zero secret",
+            &["LowOrder"],
+            CLASSICAL,
+            &low_responder,
+            salt,
+            &same,
+        ),
+    ];
+    document(
+        "lookup-reply.json",
+        "MeshLink/1 certificate lookup reply seal (X25519, HKDF-SHA256, ChaCha20Poly1305)",
+        &[
+            (
+                "ReferenceKeys",
+                "Keys come from fixed labels in tools/reference. Each side's ephemeral is the X25519 public key of its _private field; a field is absent when that side's key is the low-order key shown.",
+            ),
+            (
+                "Replay",
+                "The responder computes shared_secret from responder_private and requester_ephemeral, then key = KDF(shared_secret, salt ‖ lookup_tag, \"lookup-reply\", requester_ephemeral ‖ responder_ephemeral, 32), and seals certificate with ChaCha20-Poly1305, nonce 12 zero bytes, empty associated data: valid tests MUST produce sealed. The requester computes the same key from requester_private and responder_ephemeral and MUST open sealed to certificate, which validates for target_node_id at now; invalid tests MUST NOT yield a certificate.",
+            ),
+            ("Tampered", "The sealed bytes changed after sealing."),
+            (
+                "WrongBinding",
+                "The certificate was sealed under the key of another salt.",
+            ),
+            (
+                "LowOrder",
+                "One ephemeral has low order, so the shared secret is all zero. The other side MUST refuse before the AEAD: the responder seals nothing, and the requester never opens the forged sealed, which an attacker can produce under the zero secret.",
+            ),
+        ],
+        vec![Group {
+            attributes: vec![("type", text("LookupReplySeal"))],
+            tests,
+        }],
+        vec![
+            ("target_node_id", s_hex_of(32)),
+            ("now", s_integer(0)),
+            ("certificate", s_hex()),
+            ("salt", s_hex_of(8)),
+            ("lookup_tag", s_hex_of(8)),
+            ("requester_ephemeral", s_hex_of(32)),
+            ("responder_ephemeral", s_hex_of(32)),
+            ("requester_private?", s_hex_of(32)),
+            ("responder_private?", s_hex_of(32)),
+            ("shared_secret?", s_hex_of(32)),
+            ("key?", s_hex_of(32)),
+            ("sealed?", s_hex()),
+        ],
+        vec![("type", s_const(text("LookupReplySeal")))],
     )
 }
 
