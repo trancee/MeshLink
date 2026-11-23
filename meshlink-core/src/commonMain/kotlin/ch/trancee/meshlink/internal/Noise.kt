@@ -180,10 +180,24 @@ public class CipherState(
     internal fun open(
         associatedData: ByteArray,
         ciphertext: ByteArray,
+    ): ByteArray? = openAt(nonce, associatedData, ciphertext)?.also { nonce++ }
+
+    /** The next nonce [encrypt] uses: the count of messages sealed so far, from the starting nonce. */
+    internal val next: ULong get() = nonce
+
+    /**
+     * `SetNonce(n)` then `DecryptWithAd`, without moving the implicit nonce: the plaintext of
+     * [ciphertext] at [n], or `null` if it doesn't open or [n] is the reserved `2^64 − 1`.
+     */
+    internal fun openAt(
+        n: ULong,
+        associatedData: ByteArray,
+        ciphertext: ByteArray,
     ): ByteArray? =
-        when (val result = crypto.chaCha20Poly1305Open(key, nonceBytes(nonce), ciphertext, associatedData)) {
-            is CryptoResult.Ok -> result.value.also { nonce++ }
-            is CryptoResult.Failed -> null
+        if (n == MAX_NONCE) {
+            null
+        } else {
+            (crypto.chaCha20Poly1305Open(key, nonceBytes(n), ciphertext, associatedData) as? CryptoResult.Ok)?.value
         }
 
     internal fun destroy() {
@@ -553,8 +567,8 @@ public class NoiseHandshake(
 public class NoiseTransport(
     public val handshakeHash: ByteArray,
     public val remoteStatic: ByteArray,
-    private val sending: CipherState,
-    private val receiving: CipherState,
+    internal val sending: CipherState,
+    internal val receiving: CipherState,
 ) {
     private var closed = false
 

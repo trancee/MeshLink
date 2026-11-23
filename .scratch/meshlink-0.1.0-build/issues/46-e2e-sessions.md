@@ -1,10 +1,12 @@
 # Keep end-to-end sessions with `IK` and `IKhfs`
 
-Status: ready-for-agent
+Status: split into [46a](46a-e2e-session-crypto.md), [46b](46b-secured-sessions.md) and [46c](46c-secured-link-proofs.md)
 Type: AFK
 Blocked by: 45, 47
 
 ## Behavior
+
+Split (owner decision, 2026-11-23): [46a](46a-e2e-session-crypto.md) adds the session cryptography and its vectors, [46b](46b-secured-sessions.md) the secured sessions in the mesh, and [46c](46c-secured-link-proofs.md) the link proofs moved here from tickets 30 and 31. This ticket closes when all three are done.
 
 Message 2 rides in `DELIVERY_RECEIPT`, which ticket 47 builds, so this ticket follows both 45 and 47.
 

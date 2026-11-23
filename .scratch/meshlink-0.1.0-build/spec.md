@@ -175,6 +175,9 @@ Exit: end-to-end sealed unicast with delivery and read receipts works in every p
 | 45a | [Add the end-to-end cryptography for first messages](issues/45a-e2e-crypto.md) | AFK | 20, 44 |
 | 45b | [Seal first messages with HPKE in secured sends](issues/45b-secured-first-messages.md) | AFK | 44, 45a |
 | 46 | [Keep end-to-end sessions with `IK` and `IKhfs`](issues/46-e2e-sessions.md) | AFK | 45, 47 |
+| 46a | [Add the end-to-end session cryptography](issues/46a-e2e-session-crypto.md) | AFK | 45a, 47 |
+| 46b | [Keep secured end-to-end sessions in the mesh](issues/46b-secured-sessions.md) | AFK | 45b, 46a, 47 |
+| 46c | [Prove secured links across `REKEY` and `BEARER_SWITCH`](issues/46c-secured-link-proofs.md) | AFK | 46b |
 | 47 | [Report delivery with delivery receipts](issues/47-delivery-receipts.md) | AFK | 45 |
 | 48 | [Report reading with read receipts](issues/48-read-receipts.md) | AFK | 46, 47 |
 
