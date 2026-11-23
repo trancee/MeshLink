@@ -1,6 +1,6 @@
 # Report reading with read receipts
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 46, 47
 
@@ -18,6 +18,15 @@ When both sides agree, the sender learns that the recipient's app marked a messa
 - **Status:** `Read` on arrival. A read receipt without its delivery receipt goes straight to `Read`. If it is lost, the status stays `Delivered`. At most 1,000 sent messages are tracked for `Read`; the oldest drops out with a diagnostic.
 - **Config wiring:** this ticket adds the two `readReceipts` values with internal defaults; ticket 53 sets them per preset.
 
+## Outcome
+
+- Shipped in [#136](https://github.com/trancee/MeshLink/pull/136) (`c2895c3`).
+- New public API: `ReadReceiptRequest`, `SendOptions.readReceipt`, `ReceivedMessage.readReceiptRequested` and `markRead()`, `DeliveryStatus.Read`. The config switches `readReceiptsRequestByDefault` and `readReceiptsSend` are off by default and `@InternalMeshLinkApi`.
+- `Reads` batches up to 64 IDs per sender for at most 2,000 ms; a read receipt is sent once. `ReadTracking` watches at most 1,000 delivered messages and reports `ML7002` when it forgets the oldest. A read receipt alone moves a message to `Read`.
+- Secured read receipts go in a session only once it is confirmed, otherwise as a first message to the sender's public tag; they never open a session (ADR 0013 and ADR 0016 amendments of 2026-11-23).
+- Gherkin: `read-receipts.feature` (10 scenarios). Hand counterexamples (ignoring `allowed`, dropping the confirmed-session rule, removing the batch-full flush, dropping the expiry window or its upper bound) all failed the tests.
+- `ReceiptPost` was extracted from `Post`, and `SecuredEnd`'s read receipt now goes through `hooks.send`.
+
 ## Spec and ADR references
 
 - [end-to-end.md, Read receipts](../../../docs/spec/end-to-end.md#read-receipts), [Plaintext extensions](../../../docs/spec/end-to-end.md#plaintext-extensions), [First messages](../../../docs/spec/end-to-end.md#first-messages) and [Containers](../../../docs/spec/end-to-end.md#containers).
@@ -26,15 +35,15 @@ When both sides agree, the sender learns that the recipient's app marked a messa
 
 ## Acceptance criteria
 
-- [ ] The `READ_RECEIPT` codec passes every matching `routed-frames.json` vector. Its decoder has a deterministic mutation test.
-- [ ] Seeded `VirtualAir` tests, 5-node line, in all three profiles: a requested message marked read reaches `Read`; an unrequested one, or one whose recipient disallows read receipts, stays `Delivered`.
-- [ ] A seeded test batches 64 reads into one receipt within 2,000 ms, and 65 into two.
-- [ ] A seeded secured test ends the session first; the read receipt goes as a first message to the sender's public tag and still arrives.
-- [ ] A seeded test calls `markRead()` after the message's lifetime and the receipt still goes out.
-- [ ] A seeded test drops the delivery receipt and shows the read receipt alone moving the status to `Read`.
-- [ ] A unit test tracks 1,001 messages and shows the oldest dropped with a diagnostic.
-- [ ] T10: a read receipt for an ID never requested, or listing IDs the sender never sent, changes no status. A tampered secured receipt is dropped.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] The `READ_RECEIPT` codec passes every matching `routed-frames.json` vector. Its decoder has a deterministic mutation test.
+- [x] Seeded `VirtualAir` tests, 5-node line, in all three profiles: a requested message marked read reaches `Read`; an unrequested one, or one whose recipient disallows read receipts, stays `Delivered`.
+- [x] A seeded test batches 64 reads into one receipt within 2,000 ms, and 65 into two.
+- [x] A seeded secured test ends the session first; the read receipt goes as a first message to the sender's public tag and still arrives.
+- [x] A seeded test calls `markRead()` after the message's lifetime and the receipt still goes out.
+- [x] A seeded test drops the delivery receipt and shows the read receipt alone moving the status to `Read`.
+- [x] A unit test tracks 1,001 messages and shows the oldest dropped with a diagnostic.
+- [x] T10: a read receipt for an ID never requested, or listing IDs the sender never sent, changes no status. A tampered secured receipt is dropped.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
