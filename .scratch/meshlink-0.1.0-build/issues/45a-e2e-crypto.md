@@ -1,6 +1,6 @@
 # Add the end-to-end cryptography for first messages
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 20, 44
 
@@ -20,14 +20,22 @@ Split from ticket 45 (owner decision). This ticket covers the cryptography and i
 - [D-32](../../../docs/spec/decisions.md#d-32-conversation-seed-and-tags), [D-35](../../../docs/spec/decisions.md#d-35-hpke-parameters), [C-06](../../../docs/spec/decisions.md#c-06).
 - [ADR 0002](../../../docs/adr/0002-noise-suites-and-handshake-patterns.md) decisions "End-to-end layer", "Post-quantum first and held messages" and "Conformance vectors"; [ADR 0004](../../../docs/adr/0004-crypto-provider-libsodium.md) (HPKE ours, X-Wing pin, hpke-pq gate).
 
+## Outcome
+
+- Shipped in [#123](https://github.com/trancee/MeshLink/pull/123) (`535793e`).
+- `first-message.json` has 8 tier 2 cases from the Rust reference. `IK` message 1 is 320 B and `IKhfs` message 1 is 3,872 B. A changed byte in transit or a wrong responder key fails the Noise read (`handshake-failed`). A changed `enc` or `ct` in the seal fails the HPKE open (`open-failed`).
+- `check_spec.py` recomputes all 343 vectors, including the new set.
+- The end-to-end tag derivations live in `EndToEndTags`, so `Derivations` stays within detekt's function limit without a suppression.
+- Hand mutants were all killed. The surviving `<=` mutant on the HPKE overhead check led to `HpkeTest.anEmptyPlaintextSealsToExactlyEncAndTagAndOpens`.
+
 ## Acceptance criteria
 
-- [ ] HPKE passes the `draft-ietf-hpke-pq-05` Appendix A.5 vectors for `0x647A`: key schedule, every encryption and every export.
-- [ ] HPKE passes the tier 2 set "HPKE X-Wing seal" (`hpke-seal.json`).
-- [ ] The `e2e-prologue`, `hpke-info`, `public-tag`, `conversation-secret` and `conversation-tag` derivations pass `derivations.json`.
-- [ ] `IK` passes cacophony.
-- [ ] The Rust reference generates the message 1 cases of "`IK` and `IKhfs` sessions". Kotlin writes each message 1 byte for byte, and the responder reads it back to the padded plaintext. Changed bytes are rejected at the right step: a tampered `enc` or `ct`, and a wrong responder key.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] HPKE passes the `draft-ietf-hpke-pq-05` Appendix A.5 vectors for `0x647A`: key schedule, every encryption and every export.
+- [x] HPKE passes the tier 2 set "HPKE X-Wing seal" (`hpke-seal.json`).
+- [x] The `e2e-prologue`, `hpke-info`, `public-tag`, `conversation-secret` and `conversation-tag` derivations pass `derivations.json`.
+- [x] `IK` passes cacophony.
+- [x] The Rust reference generates the message 1 cases of "`IK` and `IKhfs` sessions". Kotlin writes each message 1 byte for byte, and the responder reads it back to the padded plaintext. Changed bytes are rejected at the right step: a tampered `enc` or `ct`, and a wrong responder key.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
