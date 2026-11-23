@@ -429,9 +429,11 @@ class Energy(private val context: Context, argText: String) {
             return builder.build()
         }
 
+        // Default: MeshLink's production empty-data Apple filter. apple=ovf: the legacy [0x01] filter (runs before 2026-11-23).
         private val filters = listOf(
             ScanFilter.Builder().setServiceUuid(MESH32_UUID).build(),
-            ScanFilter.Builder().setManufacturerData(APPLE_COMPANY_ID, byteArrayOf(1), byteArrayOf(-1)).build(),
+            if (raw["apple"] == "ovf") ScanFilter.Builder().setManufacturerData(APPLE_COMPANY_ID, byteArrayOf(1), byteArrayOf(-1)).build()
+            else ScanFilter.Builder().setManufacturerData(APPLE_COMPANY_ID, ByteArray(0)).build(),
         )
 
         suspend fun run() {

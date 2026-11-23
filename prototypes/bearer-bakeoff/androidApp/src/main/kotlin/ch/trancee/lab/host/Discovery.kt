@@ -504,7 +504,11 @@ class Discovery(private val context: Context, argText: String) {
                 "service" -> listOf(ScanFilter.Builder().setServiceUuid(serviceUuid).build())
                 "mesh" -> listOf(ScanFilter.Builder().setServiceUuid(MESH32_UUID).build())
                 "ml" -> listOf(ScanFilter.Builder().setManufacturerData(TEST_COMPANY_ID, byteArrayOf('M'.code.toByte(), 'L'.code.toByte()), byteArrayOf(-1, -1)).build())
-                "apple" -> listOf(ScanFilter.Builder().setManufacturerData(APPLE_COMPANY_ID, byteArrayOf(1), byteArrayOf(-1)).build())
+                // apple: MeshLink's production filter (every Apple advertisement; the app parses the overflow bitmap).
+                // apple_ovf: the legacy [0x01] filter, which never matches a background iPhone once Android
+                // keeps Nearby Info (0x10) first (MeshLink docs/research/2026-11-23-ios-overflow-area-android.md).
+                "apple" -> listOf(ScanFilter.Builder().setManufacturerData(APPLE_COMPANY_ID, ByteArray(0)).build())
+                "apple_ovf" -> listOf(ScanFilter.Builder().setManufacturerData(APPLE_COMPANY_ID, byteArrayOf(1), byteArrayOf(-1)).build())
                 else -> {
                     // apple:<hex data>:<hex mask> — manufacturer 0x004C filter, e.g. on the overflow-area bitmap.
                     val parts = kind.split(':')

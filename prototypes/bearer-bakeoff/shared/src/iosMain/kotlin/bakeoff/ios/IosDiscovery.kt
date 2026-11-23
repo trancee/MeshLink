@@ -219,7 +219,13 @@ class IosDiscovery(private val raw: Map<String, String>, private val sink: FileL
             else -> base
         }
         if (cycle == 0 || kind != "same") meta = Random.nextBytes(8) + MESH_TAG + byteArrayOf((cycle and 0x0f).toByte()) + Random.nextBytes(3)
-        val uuids = if (layout == "E") mutableListOf(cbuuid(MESH32), CBUUID.UUIDWithData(meta.toNSData())) else mutableListOf(cbuuid(BakeoffUuids.SERVICE))
+        // svc=<uuid>+<uuid>... advertises exactly these UUIDs (overflow-bit mapping tests); overrides layout.
+        val svc = raw["svc"]?.split("+")?.filter { it.isNotEmpty() }
+        val uuids = when {
+            svc != null -> svc.map { cbuuid(it) }.toMutableList()
+            layout == "E" -> mutableListOf(cbuuid(MESH32), CBUUID.UUIDWithData(meta.toNSData()))
+            else -> mutableListOf(cbuuid(BakeoffUuids.SERVICE))
+        }
         if (raw["uuids"] == "2" || (kind == "uuids" && cycle % 2 == 1)) uuids += cbuuid("6e4b00ff-8f3c-4d2a-9b61-2c7a5d3e9f10")
         val data = mutableMapOf<Any?, Any?>(CBAdvertisementDataServiceUUIDsKey to uuids)
         if (name != null) data[CBAdvertisementDataLocalNameKey] = name
