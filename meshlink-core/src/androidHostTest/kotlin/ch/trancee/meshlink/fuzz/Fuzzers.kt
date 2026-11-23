@@ -14,6 +14,7 @@ import ch.trancee.meshlink.internal.LookupReply
 import ch.trancee.meshlink.internal.LookupRequest
 import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
+import ch.trancee.meshlink.internal.ReadReceipt
 import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.RecordReader
 import ch.trancee.meshlink.internal.ResolvingKey
@@ -103,6 +104,11 @@ object RouteReplyFuzzer {
 object DeliveryReceiptFuzzer {
     @JvmStatic
     fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, DeliveryReceipt.decode(data)) { it.encode() }
+}
+
+object ReadReceiptFuzzer {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, ReadReceipt.decode(data)) { it.encode() }
 }
 
 object LookupRequestFuzzer {

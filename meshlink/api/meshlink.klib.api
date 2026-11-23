@@ -83,6 +83,18 @@ final enum class ch.trancee.meshlink/ProximityBucket : kotlin/Enum<ch.trancee.me
     final fun values(): kotlin/Array<ch.trancee.meshlink/ProximityBucket> // ch.trancee.meshlink/ProximityBucket.values|values#static(){}[0]
 }
 
+final enum class ch.trancee.meshlink/ReadReceiptRequest : kotlin/Enum<ch.trancee.meshlink/ReadReceiptRequest> { // ch.trancee.meshlink/ReadReceiptRequest|null[0]
+    enum entry Default // ch.trancee.meshlink/ReadReceiptRequest.Default|null[0]
+    enum entry DoNotRequest // ch.trancee.meshlink/ReadReceiptRequest.DoNotRequest|null[0]
+    enum entry Request // ch.trancee.meshlink/ReadReceiptRequest.Request|null[0]
+
+    final val entries // ch.trancee.meshlink/ReadReceiptRequest.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/ReadReceiptRequest> // ch.trancee.meshlink/ReadReceiptRequest.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink/ReadReceiptRequest // ch.trancee.meshlink/ReadReceiptRequest.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink/ReadReceiptRequest> // ch.trancee.meshlink/ReadReceiptRequest.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink/RejectionReason : kotlin/Enum<ch.trancee.meshlink/RejectionReason> { // ch.trancee.meshlink/RejectionReason|null[0]
     enum entry InvalidHopLimit // ch.trancee.meshlink/RejectionReason.InvalidHopLimit|null[0]
     enum entry NotRunning // ch.trancee.meshlink/RejectionReason.NotRunning|null[0]
@@ -168,6 +180,15 @@ sealed interface ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.mes
             final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.LinkCapReached.code.<get-code>|<get-code>(){}[0]
     }
 
+    final class ReadTrackingEvicted : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.ReadTrackingEvicted|null[0]
+        constructor <init>(kotlin/ByteArray) // ch.trancee.meshlink.internal/LinkDiagnostic.ReadTrackingEvicted.<init>|<init>(kotlin.ByteArray){}[0]
+
+        final val code // ch.trancee.meshlink.internal/LinkDiagnostic.ReadTrackingEvicted.code|{}code[0]
+            final fun <get-code>(): kotlin/String // ch.trancee.meshlink.internal/LinkDiagnostic.ReadTrackingEvicted.code.<get-code>|<get-code>(){}[0]
+        final val messageId // ch.trancee.meshlink.internal/LinkDiagnostic.ReadTrackingEvicted.messageId|{}messageId[0]
+            final fun <get-messageId>(): kotlin/ByteArray // ch.trancee.meshlink.internal/LinkDiagnostic.ReadTrackingEvicted.messageId.<get-messageId>|<get-messageId>(){}[0]
+    }
+
     final class UnknownLinkFrameDropped : ch.trancee.meshlink.internal/LinkDiagnostic { // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped|null[0]
         constructor <init>(kotlin/Int) // ch.trancee.meshlink.internal/LinkDiagnostic.UnknownLinkFrameDropped.<init>|<init>(kotlin.Int){}[0]
 
@@ -214,6 +235,12 @@ sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/Del
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/DeliveryStatus.Queued.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/DeliveryStatus.Queued.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // ch.trancee.meshlink/DeliveryStatus.Queued.toString|toString(){}[0]
+    }
+
+    final object Read : ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus.Read|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/DeliveryStatus.Read.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/DeliveryStatus.Read.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/DeliveryStatus.Read.toString|toString(){}[0]
     }
 
     final object Sent : ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus.Sent|null[0]
@@ -422,6 +449,10 @@ final class ch.trancee.meshlink/MeshLinkConfig { // ch.trancee.meshlink/MeshLink
         final fun <get-messageLifetimeSeconds>(): kotlin/Int // ch.trancee.meshlink/MeshLinkConfig.messageLifetimeSeconds.<get-messageLifetimeSeconds>|<get-messageLifetimeSeconds>(){}[0]
     final val preset // ch.trancee.meshlink/MeshLinkConfig.preset|{}preset[0]
         final fun <get-preset>(): ch.trancee.meshlink/Preset // ch.trancee.meshlink/MeshLinkConfig.preset.<get-preset>|<get-preset>(){}[0]
+    final val readReceiptsRequestByDefault // ch.trancee.meshlink/MeshLinkConfig.readReceiptsRequestByDefault|{}readReceiptsRequestByDefault[0]
+        final fun <get-readReceiptsRequestByDefault>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.readReceiptsRequestByDefault.<get-readReceiptsRequestByDefault>|<get-readReceiptsRequestByDefault>(){}[0]
+    final val readReceiptsSend // ch.trancee.meshlink/MeshLinkConfig.readReceiptsSend|{}readReceiptsSend[0]
+        final fun <get-readReceiptsSend>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.readReceiptsSend.<get-readReceiptsSend>|<get-readReceiptsSend>(){}[0]
     final val securityProfile // ch.trancee.meshlink/MeshLinkConfig.securityProfile|{}securityProfile[0]
         final fun <get-securityProfile>(): ch.trancee.meshlink/SecurityProfile // ch.trancee.meshlink/MeshLinkConfig.securityProfile.<get-securityProfile>|<get-securityProfile>(){}[0]
 
@@ -435,6 +466,12 @@ final class ch.trancee.meshlink/MeshLinkConfigBuilder { // ch.trancee.meshlink/M
     final var meshKey // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey|{}meshKey[0]
         final fun <get-meshKey>(): kotlin/ByteArray? // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey.<get-meshKey>|<get-meshKey>(){}[0]
         final fun <set-meshKey>(kotlin/ByteArray?) // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey.<set-meshKey>|<set-meshKey>(kotlin.ByteArray?){}[0]
+    final var readReceiptsRequestByDefault // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsRequestByDefault|{}readReceiptsRequestByDefault[0]
+        final fun <get-readReceiptsRequestByDefault>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsRequestByDefault.<get-readReceiptsRequestByDefault>|<get-readReceiptsRequestByDefault>(){}[0]
+        final fun <set-readReceiptsRequestByDefault>(kotlin/Boolean) // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsRequestByDefault.<set-readReceiptsRequestByDefault>|<set-readReceiptsRequestByDefault>(kotlin.Boolean){}[0]
+    final var readReceiptsSend // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsSend|{}readReceiptsSend[0]
+        final fun <get-readReceiptsSend>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsSend.<get-readReceiptsSend>|<get-readReceiptsSend>(){}[0]
+        final fun <set-readReceiptsSend>(kotlin/Boolean) // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsSend.<set-readReceiptsSend>|<set-readReceiptsSend>(kotlin.Boolean){}[0]
 
     final fun build(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLinkConfigBuilder.build|build(){}[0]
 }
@@ -487,15 +524,21 @@ final class ch.trancee.meshlink/ReceivedMessage { // ch.trancee.meshlink/Receive
         final fun <get-broadcast>(): kotlin/Boolean // ch.trancee.meshlink/ReceivedMessage.broadcast.<get-broadcast>|<get-broadcast>(){}[0]
     final val payload // ch.trancee.meshlink/ReceivedMessage.payload|{}payload[0]
         final fun <get-payload>(): kotlin/ByteArray // ch.trancee.meshlink/ReceivedMessage.payload.<get-payload>|<get-payload>(){}[0]
+    final val readReceiptRequested // ch.trancee.meshlink/ReceivedMessage.readReceiptRequested|{}readReceiptRequested[0]
+        final fun <get-readReceiptRequested>(): kotlin/Boolean // ch.trancee.meshlink/ReceivedMessage.readReceiptRequested.<get-readReceiptRequested>|<get-readReceiptRequested>(){}[0]
     final val sender // ch.trancee.meshlink/ReceivedMessage.sender|{}sender[0]
         final fun <get-sender>(): ch.trancee.meshlink/NodeId // ch.trancee.meshlink/ReceivedMessage.sender.<get-sender>|<get-sender>(){}[0]
+
+    final fun markRead() // ch.trancee.meshlink/ReceivedMessage.markRead|markRead(){}[0]
 }
 
 final class ch.trancee.meshlink/SendOptions { // ch.trancee.meshlink/SendOptions|null[0]
-    constructor <init>(kotlin/Boolean = ...) // ch.trancee.meshlink/SendOptions.<init>|<init>(kotlin.Boolean){}[0]
+    constructor <init>(kotlin/Boolean = ..., ch.trancee.meshlink/ReadReceiptRequest = ...) // ch.trancee.meshlink/SendOptions.<init>|<init>(kotlin.Boolean;ch.trancee.meshlink.ReadReceiptRequest){}[0]
 
     final val directOnly // ch.trancee.meshlink/SendOptions.directOnly|{}directOnly[0]
         final fun <get-directOnly>(): kotlin/Boolean // ch.trancee.meshlink/SendOptions.directOnly.<get-directOnly>|<get-directOnly>(){}[0]
+    final val readReceipt // ch.trancee.meshlink/SendOptions.readReceipt|{}readReceipt[0]
+        final fun <get-readReceipt>(): ch.trancee.meshlink/ReadReceiptRequest // ch.trancee.meshlink/SendOptions.readReceipt.<get-readReceipt>|<get-readReceipt>(){}[0]
 }
 
 sealed class ch.trancee.meshlink/MeshLinkException : kotlin/Exception { // ch.trancee.meshlink/MeshLinkException|null[0]

@@ -134,7 +134,7 @@ Vectors: `inner-plaintext.json`.
 
 (ADR 0002 decision; ADR 0016 decision 2; ADR 0018 decision 8; [D-32], [D-35].)
 
-A first message opens a session. It is a `MESSAGE` (or a `READ_RECEIPT`, see [Read receipts](#read-receipts)) with container kind `0x01`:
+A first message is a `MESSAGE` with container kind `0x01`, which opens a session. A `READ_RECEIPT` may also be a first message ([Read receipts](#read-receipts)); nothing answers it, so it opens no session. A first message is built as follows:
 
 - Routing header: `destination_tag` is the responder's public tag for its newest valid certificate ([routing.md](routing.md#routing-tags)); `source_tag` is the new conversation's tag for direction `0x02`.
 - `classical`: the `IK` message 1 payload is the padded plaintext.
@@ -239,8 +239,9 @@ Vectors: `derivations.json`, derivations `conversation-secret` and `conversation
 
 - Sent only for messages that carried `READ_RECEIPT_REQUESTED`, and only if the recipient allows read receipts and its app marked the message read.
 - One read receipt lists up to `read-receipt-batch-max` IDs in `MESSAGE_IDS`. A recipient waits at most `read-receipt-batch-delay` to fill a batch.
-- Its expiry is the recipient's default message lifetime from now. Nothing acknowledges it.
-- If the session has ended, the read receipt is a first message (kind `0x01`) that opens a new session, addressed to the original sender's public tag.
+- Its expiry is the recipient's default message lifetime from now. Nothing acknowledges it, and it is sent once: a read receipt lost on the way leaves the message `Delivered`.
+- In a secured profile, it travels with the current session to the original sender only if that session is confirmed: this node initiated it, or has opened at least one of the peer's frames with it. Otherwise (no current session, or one whose message 2 the sender may never have received) it is a first message (kind `0x01`) addressed to the original sender's public tag for its newest valid certificate. Nothing answers it, so it opens no session.
+- A read receipt that arrives for a message whose delivery receipt never came still makes it `Read`.
 
 <!-- data: limits.json -->
 

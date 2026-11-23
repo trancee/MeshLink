@@ -1,14 +1,13 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.NodeId
-import ch.trancee.meshlink.ReceivedMessage
 
 /**
  * This node's end of `unsecured` messages: drafts its messages, tags and frames each attempt for the
  * epoch it is written in (spec "Origin behavior"), and hands messages for it to [inbox], telling
- * whom it [heard] from. Its [receipts] acknowledge each message the app takes; its [acknowledger]
- * acknowledges each later copy and takes the receipts for its own messages. Hears of each route a
- * route discovery [found].
+ * whom it [heard] from. Its [receipts] acknowledge each message the app takes and report each it marks
+ * read; its [acknowledger] acknowledges each later copy and takes the delivery and read receipts for its
+ * own messages. Hears of each route a route discovery [found].
  *
  * Runs on the node's serial dispatcher.
  */
@@ -32,7 +31,7 @@ internal class UnsecuredEnd(
 
     override fun draft(entry: Outbox.Entry): Draft {
         val expiry = entry.expiry.toUInt()
-        return codec.draft(entry.to.toByteArray(), entry.payload, expiry)
+        return codec.draft(entry.to.toByteArray(), entry.payload, expiry, entry.readReceipt)
     }
 
     override fun destination(draft: Draft): ByteArray = derivations.unsecuredTag(draft.destination, epoch())
@@ -57,7 +56,7 @@ internal class UnsecuredEnd(
         val delivery = codec.accept(frame, nowSeconds) ?: return false
         val sender = NodeId(delivery.sender)
         heard(sender)
-        val message = ReceivedMessage(sender, delivery.payload, broadcast = false)
+        val message = receipts.reads.message(sender, delivery)
         return inbox.offer(message) { receipts.taken(sender, delivery.tombstone, delivery.expiry) }
     }
 
@@ -74,7 +73,7 @@ internal class UnsecuredEnd(
 
     private fun epoch(): UInt = Derivations.epoch(clock.wallClockMillis() / MILLIS_PER_SECOND)
 
-    /** The delivery receipts of this node, sealed and opened with its messages' codec. */
+    /** The delivery and read receipts of this node, sealed and opened with its messages' codec. */
     inner class Receipting : Acknowledger {
         override fun repeated(
             frame: ByteArray,
@@ -89,6 +88,20 @@ internal class UnsecuredEnd(
         ) {
             codec.acknowledged(frame, nowSeconds)?.let { receipts.arrived(NodeId(it.sender), it.messageIds) }
         }
+
+        override fun read(
+            frame: ByteArray,
+            nowSeconds: Long,
+        ) {
+            codec.read(frame, nowSeconds)?.let { receipts.reads.arrived(NodeId(it.sender), it.messageIds) }
+        }
+
+        /** A read receipt from this node to [to] for [messageIds], expiring at Unix second [expiry]. */
+        fun readReceipt(
+            to: NodeId,
+            messageIds: List<ByteArray>,
+            expiry: UInt,
+        ): Outgoing = Outgoing(codec.readReceipt(to.toByteArray(), messageIds, expiry), ::epoch)
 
         /** A delivery receipt from this node to [to] for [tombstones], expiring at Unix second [expiry]. */
         fun receipt(

@@ -3,6 +3,8 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.ReadReceiptRequest
+import ch.trancee.meshlink.SendOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -21,7 +23,9 @@ import kotlinx.coroutines.launch
  * for the node's [density] class until it expires; in the low and medium classes also on each new
  * link, at most once per [LINK_RETRY_GAP_MILLIS] per destination. A direct-only message is sent on
  * each new link to its destination, in every class. A message is `Delivered` when its receipt
- * arrives, until its deadline, and holds its bytes in [capacity] until it finishes.
+ * arrives, until its deadline, and holds its bytes in [capacity] until it finishes. A message that asked
+ * for a read receipt is `Read` when it arrives, before or after its delivery receipt; once delivered,
+ * [reads] watches for it.
  *
  * Runs on [scope]'s serial dispatcher.
  */
@@ -30,6 +34,7 @@ internal class Outbox(
     private val scope: CoroutineScope,
     private val capacity: Capacity,
     private val density: () -> DensityClass,
+    private val reads: ReadTracking = ReadTracking {},
     private val transmit: (Entry) -> Unit,
 ) {
     private val entries = mutableListOf<Entry>()
@@ -103,15 +108,26 @@ internal class Outbox(
         }
     }
 
-    /** [from]'s delivery receipt arrived for [messageIds]: those of its messages are `Delivered`. */
+    /**
+     * [from]'s delivery receipt, or its read receipt if [read], arrived for [messageIds]: those of its
+     * messages are `Delivered`, or those that asked for a read receipt `Read`.
+     */
     fun delivered(
         from: NodeId,
         messageIds: List<ByteArray>,
+        read: Boolean = false,
     ) {
-        val listed = { entry: Entry ->
-            entry.draft?.let { draft -> messageIds.any { it.contentEquals(draft.messageId) } } == true
+        val listed =
+            entries.mapNotNull { entry ->
+                val draft = entry.draft ?: return@mapNotNull null
+                val id = draft.messageId.takeIf { id -> messageIds.any { it.contentEquals(id) } }
+                id?.takeIf { entry.to == from && (entry.readReceipt || !read) }?.let { entry to it }
+            }
+        listed.forEach { (entry, id) ->
+            finish(entry, if (read) DeliveryStatus.Read else DeliveryStatus.Delivered)
+            if (entry.readReceipt && !read) reads.track(from, id, entry.status)
         }
-        entries.filter { it.to == from && listed(it) }.forEach { finish(it, DeliveryStatus.Delivered) }
+        if (read) reads.read(from, messageIds)
     }
 
     /** The node has no link left: messages not yet sent are `Held`. */
@@ -160,7 +176,8 @@ internal class Outbox(
 
     /**
      * One message of [payload] to [to], whose bytes are reserved, expiring at Unix second [expiry] and
-     * ending at [deadlineMillis] wall-clock time; only a link to [to] carries it if [directOnly].
+     * ending at [deadlineMillis] wall-clock time, sent as [options] say, whose read receipt request the
+     * node resolved.
      */
     class Entry(
         val to: NodeId,
@@ -168,8 +185,14 @@ internal class Outbox(
         val expiry: Long,
         val status: MutableStateFlow<DeliveryStatus>,
         val deadlineMillis: Long,
-        val directOnly: Boolean,
+        options: SendOptions,
     ) {
+        /** Whether only a link to [to] carries this message. */
+        val directOnly: Boolean = options.directOnly
+
+        /** Whether this message asks for a read receipt. */
+        val readReceipt: Boolean = options.readReceipt == ReadReceiptRequest.Request
+
         /** The reserved bytes. */
         val size: Int get() = payload.size
 

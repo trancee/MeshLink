@@ -3,6 +3,8 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.ReadReceiptRequest
+import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,10 +41,13 @@ class OutboxTest {
         lifetimeMillis: Long = 600_000,
         skewMillis: Long = 0,
         directOnly: Boolean = false,
+        readReceipt: Boolean = false,
     ): Outbox.Entry {
         val expiry = (SchedulerClock(testScheduler).wallClockMillis() + lifetimeMillis) / 1_000
         val status = MutableStateFlow<DeliveryStatus>(DeliveryStatus.Queued)
-        return Outbox.Entry(to, ByteArray(size), expiry, status, expiry * 1_000 + skewMillis, directOnly)
+        val request = if (readReceipt) ReadReceiptRequest.Request else ReadReceiptRequest.DoNotRequest
+        val options = SendOptions(directOnly, request)
+        return Outbox.Entry(to, ByteArray(size), expiry, status, expiry * 1_000 + skewMillis, options)
     }
 
     private fun drafted(entry: Outbox.Entry): Outbox.Entry =
@@ -327,6 +332,51 @@ class OutboxTest {
             assertEquals(emptyList(), attempts)
             assertEquals(DeliveryStatus.Delivered, late.status.value)
             assertEquals(DeliveryStatus.Expired, lost.status.value)
+        }
+
+    @Test
+    fun aReadReceiptMovesTheDestinationsRequestedDeliveredMessagesToReadAndNoOthers() =
+        runTest {
+            // Arrange
+            val outbox = outbox()
+            val (requested, unrequested) = drafted(entry(readReceipt = true)) to drafted(entry())
+            outbox.add(requested)
+            outbox.add(unrequested)
+            val ids = listOf(requested.draft!!.messageId, unrequested.draft!!.messageId)
+            outbox.delivered(PEER, ids)
+
+            // Act
+            outbox.delivered(OTHER, ids, read = true)
+            val before = requested.status.value
+            outbox.delivered(PEER, ids, read = true)
+
+            // Assert
+            assertEquals(DeliveryStatus.Delivered, before)
+            assertEquals(DeliveryStatus.Read, requested.status.value)
+            assertEquals(DeliveryStatus.Delivered, unrequested.status.value)
+        }
+
+    @Test
+    fun aReadReceiptAloneMovesARequestedMessageToReadStopsItsRetriesAndFreesItsBytes() =
+        runTest {
+            // Arrange
+            val outbox = outbox()
+            capacity.reserve(Capacity.LIMIT.toInt())
+            val (requested, unrequested) = drafted(entry(readReceipt = true)) to drafted(entry())
+            outbox.add(requested)
+            outbox.add(unrequested)
+            requested.sent()
+
+            // Act
+            outbox.delivered(PEER, listOf(requested.draft!!.messageId, unrequested.draft!!.messageId), read = true)
+
+            // Assert
+            assertEquals(DeliveryStatus.Read, requested.status.value)
+            assertEquals(DeliveryStatus.Queued, unrequested.status.value)
+            assertTrue(capacity.reserve(0))
+            attempts.clear()
+            times(2_000)
+            assertEquals(1, attempts.size)
         }
 
     @Test

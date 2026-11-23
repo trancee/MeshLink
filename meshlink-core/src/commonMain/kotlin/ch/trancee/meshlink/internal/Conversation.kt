@@ -84,15 +84,17 @@ public class Conversation(
 
     /**
      * A new message of [payload] to [peer] with a fresh `message_id` and tombstone secret, sealed at
-     * the next nonce; `null` once the nonces run out.
+     * the next nonce; `null` once the nonces run out. [readReceipt] asks the peer for a read receipt.
      */
     public fun draft(
         payload: ByteArray,
         expiry: UInt,
+        readReceipt: Boolean = false,
     ): Draft? {
         val messageId = crypto.randomBytes(MESSAGE_ID)
         val k = crypto.randomBytes(K)
-        val sealed = seal(MessageContent(messageId, expiry, k, emptyList(), payload).encode(secured = true))
+        val requested = listOfNotNull(Tlv(READ_RECEIPT_REQUESTED, ByteArray(0)).takeIf { readReceipt })
+        val sealed = seal(MessageContent(messageId, expiry, k, requested, payload).encode(secured = true))
         return sealed?.let { Draft(peer, messageId, expiry, derivations.tombstoneCommitment(k), it, this) }
     }
 
@@ -110,24 +112,19 @@ public class Conversation(
         return sealed?.let { ReceiptDraft(peer, messageId, expiry, tombstones, it) }
     }
 
-    /** The `MESSAGE` bytes of [draft], tagged for [epoch] with [hopLimit]. */
-    public fun frame(
-        draft: Draft,
-        epoch: UInt,
-        hopLimit: Int,
-    ): ByteArray {
-        val header = header(draft.messageId, draft.expiry, epoch, hopLimit)
-        return MessageFrame(header, draft.commitment, draft.container).encode()
-    }
-
-    /** The `DELIVERY_RECEIPT` bytes of [receipt], tagged for [epoch] with [hopLimit]. */
-    public fun frame(
-        receipt: ReceiptDraft,
-        epoch: UInt,
-        hopLimit: Int,
-    ): ByteArray {
-        val header = header(receipt.messageId, receipt.expiry, epoch, hopLimit)
-        return DeliveryReceipt(header, receipt.tombstones, receipt.container).encode()
+    /**
+     * A `READ_RECEIPT` to [peer] listing [messageIds] in the order they were read, with a fresh
+     * `message_id` and the latest [expiry] of the listed messages; `null` once the nonces run out.
+     *
+     * @param messageIds 1 to [ReadReceipt.IDS_MAX] message IDs.
+     */
+    public fun readReceipt(
+        messageIds: List<ByteArray>,
+        expiry: UInt,
+    ): ReadDraft? {
+        val messageId = crypto.randomBytes(MESSAGE_ID)
+        val sealed = seal(readPlaintext(messageId, expiry, messageIds, emptyList(), secured = true))
+        return sealed?.let { ReadDraft(messageId, expiry, it, ::destination, ::source) }
     }
 
     /** The destination tag of this end's frames for [epoch]. */
@@ -166,8 +163,24 @@ public class Conversation(
         val plaintext = open(owned.container)
         val content = plaintext?.let { MessageContent.decode(it, secured = true) as? Decoded.Valid }?.value
         return content?.takeIf { derivations.bound(owned, it, nowSeconds) }?.let {
-            Delivery(peer, it.payload, Tombstone(it.messageId, it.k), it.expiry)
+            Delivery(peer, it.payload, Tombstone(it.messageId, it.k), it.expiry, it.readReceiptRequested)
         }
+    }
+
+    /**
+     * The IDs the peer's `READ_RECEIPT` in [bytes] reports read, or `null` to ignore it. It must
+     * decode, carry one of the tags [owns] at [nowSeconds], open as a kind `0x03` frame, and hold a
+     * read receipt plaintext as [readIds] checks.
+     */
+    public fun read(
+        bytes: ByteArray,
+        nowSeconds: Long,
+    ): List<ByteArray>? {
+        val frame = (ReadReceipt.decode(bytes) as? Decoded.Valid)?.value
+        val owned = frame?.takeIf { owns(it.header.destinationTag, nowSeconds) } ?: return null
+        val plaintext = open(owned.container)
+        val content = plaintext?.let { (ReceiptContent.decode(it, secured = true) as? Decoded.Valid)?.value }
+        return content?.let { readIds(owned.header, it, nowSeconds) }
     }
 
     /**
@@ -200,6 +213,26 @@ public class Conversation(
         const val INITIATOR_TO_RESPONDER = 0x01
         const val RESPONDER_TO_INITIATOR = 0x02
     }
+}
+
+/** The `MESSAGE` bytes of [draft], tagged for [epoch] with [hopLimit]. */
+public fun Conversation.frame(
+    draft: Draft,
+    epoch: UInt,
+    hopLimit: Int,
+): ByteArray {
+    val header = header(draft.messageId, draft.expiry, epoch, hopLimit)
+    return MessageFrame(header, draft.commitment, draft.container).encode()
+}
+
+/** The `DELIVERY_RECEIPT` bytes of [receipt], tagged for [epoch] with [hopLimit]. */
+public fun Conversation.frame(
+    receipt: ReceiptDraft,
+    epoch: UInt,
+    hopLimit: Int,
+): ByteArray {
+    val header = header(receipt.messageId, receipt.expiry, epoch, hopLimit)
+    return DeliveryReceipt(header, receipt.tombstones, receipt.container).encode()
 }
 
 private fun Conversation.header(

@@ -3,6 +3,7 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
+import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,12 +16,16 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 
-/** A secured node's end of its messages (spec "First messages", "Sessions" and "Static-key rotation"). */
+/**
+ * A secured node's end of its messages (spec "First messages", "Sessions", "Read receipts" and
+ * "Static-key rotation").
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SecuredEndTest {
     private val crypto = SodiumCryptoProvider
@@ -28,7 +33,8 @@ class SecuredEndTest {
     private val neighbor = nodeId(1)
 
     // A secured node of identity seed [seed]: its end, the lanes and inbox it uses, whom it heard from,
-    // the peers it opened sessions with, the receipts it sent, and those that arrived for its messages.
+    // the peers it opened sessions with, the receipts it sent, and the delivery and read receipts that
+    // arrived for its messages.
     private class Node(
         val keys: SecuredKeys,
     ) {
@@ -40,6 +46,7 @@ class SecuredEndTest {
         val opened = mutableListOf<NodeId>()
         val replies = mutableListOf<Outgoing>()
         val arrived = mutableListOf<Pair<NodeId, List<List<Byte>>>>()
+        val read = mutableListOf<Pair<NodeId, List<List<Byte>>>>()
         val nodeId = NodeId(keys.nodeId)
     }
 
@@ -56,13 +63,20 @@ class SecuredEndTest {
         val receipts =
             Receipts<Reply>(clock, backgroundScope, { reply, tombstones, expiry ->
                 node.end.acknowledger.reply(reply, tombstones, expiry)
-            }, { from, ids -> node.arrived += from to ids.map { it.toList() } }) { it is Reply.First }
+            }, { from, ids -> node.arrived += from to ids.map { it.toList() } }, readsOf(node)) { it is Reply.First }
         receipts.begin()
         val hooks = SecuredHooks({ node.heard += it }, {}, { node.opened += it }) { node.replies += it }
         node.end = SecuredEnd(crypto, clock, node.inbox, node.lookups, receipts, hooks)
         if (certified) node.end.keys.certify(node.keys)
         return node
     }
+
+    private fun TestScope.readsOf(node: Node): Reads {
+        val arrived = { from: NodeId, ids: List<ByteArray> -> node.read += from to ids.map { it.toList() } }
+        return reads(arrived = arrived)
+    }
+
+    private fun TestScope.expiry() = (nowSeconds() + LIFETIME).toUInt()
 
     // [from] sends [to] a first message, which [to] opens and its app takes: [to]'s answer goes.
     private suspend fun TestScope.firstTaken(
@@ -92,7 +106,7 @@ class SecuredEndTest {
     ): Outbox.Entry {
         val now = SchedulerClock(testScheduler).wallClockMillis()
         val status = MutableStateFlow<DeliveryStatus>(DeliveryStatus.Queued)
-        return Outbox.Entry(to, payload, now / 1_000 + LIFETIME, status, now + 600_000, directOnly = false)
+        return Outbox.Entry(to, payload, now / 1_000 + LIFETIME, status, now + 600_000, SendOptions())
     }
 
     private fun TestScope.nowSeconds() = SchedulerClock(testScheduler).wallClockMillis() / 1_000
@@ -454,6 +468,99 @@ class SecuredEndTest {
         }
 
     @Test
+    fun aReadReceiptGoesInTheCurrentSessionItsSenderInitiatedAndOnlyItsPeerTakesIt() =
+        runTest {
+            // Arrange
+            val (alice, bob, carol) = Triple(node(1), node(2), node(3))
+            session(alice, bob)
+            alice.end.acknowledger.readReceipt(bob.nodeId, listOf(ID), expiry())
+            val outgoing = alice.replies.last()
+            val frame = outgoing.frame(5)
+
+            // Act
+            bob.end.acknowledger.read(frame.tampered(), nowSeconds())
+            bob.end.acknowledger.read(byteArrayOf(ReadReceipt.TYPE.toByte()), nowSeconds())
+            carol.end.acknowledger.read(frame, nowSeconds())
+            bob.end.acknowledger.read(frame, nowSeconds())
+
+            // Assert
+            assertEquals(listOf(alice.nodeId to listOf(ID.toList())), bob.read)
+            assertEquals(emptyList(), carol.read)
+            assertTrue(bob.end.owns(outgoing.destination, nowSeconds()))
+            assertTrue(alice.end.owns(outgoing.origin, nowSeconds()))
+            val decoded = assertIs<Decoded.Valid<ReadReceipt>>(ReadReceipt.decode(frame))
+            assertIs<Container.Transport>(decoded.value.container)
+        }
+
+    @Test
+    fun aResponderSendsItsReadReceiptAsAFirstMessageUntilItOpensAFrameOfTheSession() =
+        runTest {
+            // Arrange: Alice may never have had the answer that opens Bob's session.
+            val (alice, bob) = node(1) to node(2)
+            val (_, answer) = firstTaken(alice, bob)
+            bob.end.acknowledger.readReceipt(alice.nodeId, listOf(ID), expiry())
+            val unconfirmed = bob.replies.last()
+            alice.end.acknowledger.acknowledged(answer.frame(5), nowSeconds())
+            val draft = assertNotNull(alice.end.draft(entry(bob.nodeId, SECOND)))
+
+            // Act
+            bob.end.deliver(alice.end.frame(draft, hopLimit = 5), nowSeconds())
+            bob.end.acknowledger.readReceipt(alice.nodeId, listOf(ID), expiry())
+            val confirmed = bob.replies.last()
+            alice.end.acknowledger.read(unconfirmed.frame(5), nowSeconds())
+            alice.end.acknowledger.read(confirmed.frame(5), nowSeconds())
+
+            // Assert
+            val kinds =
+                listOf(unconfirmed, confirmed).map {
+                    assertIs<Decoded.Valid<ReadReceipt>>(ReadReceipt.decode(it.frame(5))).value.container.kind
+                }
+            assertEquals(listOf(Container.IK_INITIATOR, Container.TRANSPORT), kinds)
+            assertEquals(List(2) { bob.nodeId to listOf(ID.toList()) }, alice.read)
+        }
+
+    @Test
+    fun aReadReceiptWithoutASessionIsAFirstMessageToThePublicTagThatOpensNoSession() =
+        runTest {
+            // Arrange
+            val (alice, bob) = node(1) to node(2)
+            knows(bob, alice)
+            bob.end.acknowledger.readReceipt(alice.nodeId, listOf(ID), expiry())
+            val outgoing = bob.replies.single()
+            val frame = outgoing.frame(5)
+
+            // Act
+            alice.end.acknowledger.read(frame.tampered(), nowSeconds())
+            alice.end.acknowledger.read(frame, nowSeconds())
+            runCurrent()
+
+            // Assert
+            assertEquals(listOf(bob.nodeId to listOf(ID.toList())), alice.read)
+            assertContentEquals(tags.publicTag(alice.keys.static.publicKey, epoch()), outgoing.destination)
+            val decoded = assertIs<Decoded.Valid<ReadReceipt>>(ReadReceipt.decode(frame))
+            assertIs<Container.IkInitiator>(decoded.value.container)
+            assertEquals(emptyList(), alice.replies)
+            assertEquals(emptyList(), alice.opened)
+        }
+
+    @Test
+    fun aReadReceiptToANodeWhoseCertificateIsNotHeldOrFromANodeWithoutKeysIsNotSent() =
+        runTest {
+            // Arrange
+            val (alice, bob) = node(1) to node(2)
+            val keyless = node(3, certified = false)
+            knows(keyless, alice)
+
+            // Act
+            bob.end.acknowledger.readReceipt(alice.nodeId, listOf(ID), expiry())
+            keyless.end.acknowledger.readReceipt(alice.nodeId, listOf(ID), expiry())
+
+            // Assert
+            assertEquals(emptyList(), bob.replies)
+            assertEquals(emptyList(), keyless.replies)
+        }
+
+    @Test
     fun aSessionMessageLapsesAtItsSecondRetryAndTheNextIsAFirstMessage() =
         runTest {
             // Arrange
@@ -500,6 +607,7 @@ class SecuredEndTest {
     private fun ByteArray.tampered() = copyOf().also { it[it.lastIndex] = (it.last() + 1).toByte() }
 
     private companion object {
+        val ID = ByteArray(12) { 7 }
         val PAYLOAD = "hello".encodeToByteArray()
         const val GRACE_SECONDS = 3_630L
         const val KEY = 32

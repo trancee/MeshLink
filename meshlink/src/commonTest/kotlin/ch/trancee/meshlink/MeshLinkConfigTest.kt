@@ -5,6 +5,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MeshLinkConfigTest {
     private fun configWith(meshId: String): MeshLinkConfig =
@@ -84,9 +85,29 @@ class MeshLinkConfigTest {
             meshId = "Festival"
             meshKey = none
             messageLifetimeSeconds = 1800
+            readReceiptsRequestByDefault = false
+            readReceiptsSend = false
             """.trimIndent(),
             description,
         )
+    }
+
+    @OptIn(InternalMeshLinkApi::class)
+    @Test
+    fun readReceiptSettingsAreOffByDefaultAndKeptWhenSet() {
+        // Arrange
+        val builder = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "Festival" }
+
+        // Act
+        val off = builder.build()
+        builder.readReceiptsRequestByDefault = true
+        builder.readReceiptsSend = true
+        val on = builder.build()
+
+        // Assert
+        assertEquals(listOf(false, false), listOf(off.readReceiptsRequestByDefault, off.readReceiptsSend))
+        assertEquals(listOf(true, true), listOf(on.readReceiptsRequestByDefault, on.readReceiptsSend))
+        assertTrue("readReceiptsRequestByDefault = true\nreadReceiptsSend = true" in on.describe())
     }
 
     @Test

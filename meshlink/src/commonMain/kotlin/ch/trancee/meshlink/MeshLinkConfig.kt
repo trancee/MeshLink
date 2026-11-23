@@ -1,6 +1,10 @@
+@file:OptIn(ExperimentalObjCRefinement::class)
+
 package ch.trancee.meshlink
 
 import ch.trancee.meshlink.internal.Derivations
+import kotlin.experimental.ExperimentalObjCRefinement
+import kotlin.native.HiddenFromObjC
 
 /**
  * Starts a [MeshLinkConfig] for [preset] and [securityProfile] (ADR 0007 decision 4). [configure]
@@ -35,14 +39,37 @@ public class MeshLinkConfigBuilder internal constructor(
     public var meshKey: ByteArray? = null
 
     /**
+     * Whether a message sent with [ReadReceiptRequest.Default] asks for a read receipt; `false` by
+     * default. Internal until the feature toggles land.
+     */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public var readReceiptsRequestByDefault: Boolean = false
+
+    /**
+     * Whether this node sends a read receipt when the app marks a message read that asked for one;
+     * `false` by default. Internal until the feature toggles land.
+     */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public var readReceiptsSend: Boolean = false
+
+    /**
      * Validates the settings and returns the immutable config.
      *
      * @throws MeshLinkException.InvalidConfig if a setting is invalid.
      */
+    @OptIn(InternalMeshLinkApi::class)
     @Throws(MeshLinkException::class)
     public fun build(): MeshLinkConfig {
         checkMeshId()
-        return MeshLinkConfig(preset, securityProfile, meshId, checkedMeshKey())
+        return MeshLinkConfig(
+            preset,
+            securityProfile,
+            meshId,
+            checkedMeshKey(),
+            Reading(readReceiptsRequestByDefault, readReceiptsSend),
+        )
     }
 
     private fun checkMeshId() {
@@ -87,12 +114,23 @@ public class MeshLinkConfig internal constructor(
     /** The name of the mesh; see [MeshLinkConfigBuilder.meshId]. */
     public val meshId: String,
     private val key: ByteArray?,
+    internal val reading: Reading,
 ) {
     /** A copy of the mesh key, or `null` for an open mesh; see [MeshLinkConfigBuilder.meshKey]. */
     public val meshKey: ByteArray? get() = key?.copyOf()
 
     /** How long a message this node sends stays deliverable, in seconds; from [preset]. */
     public val messageLifetimeSeconds: Int = preset.messageLifetimeSeconds
+
+    /** See [MeshLinkConfigBuilder.readReceiptsRequestByDefault]. */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public val readReceiptsRequestByDefault: Boolean get() = reading.requestByDefault
+
+    /** See [MeshLinkConfigBuilder.readReceiptsSend]. */
+    @InternalMeshLinkApi
+    @HiddenFromObjC
+    public val readReceiptsSend: Boolean get() = reading.send
 
     /** Every effective setting, one `name = value` line each. */
     public fun describe(): String =
@@ -102,5 +140,13 @@ public class MeshLinkConfig internal constructor(
             "meshId = \"$meshId\"",
             "meshKey = ${if (key == null) "none" else "<redacted>"}",
             "messageLifetimeSeconds = $messageLifetimeSeconds",
+            "readReceiptsRequestByDefault = ${reading.requestByDefault}",
+            "readReceiptsSend = ${reading.send}",
         ).joinToString("\n")
 }
+
+/** The read receipt settings of a [MeshLinkConfig]. */
+internal class Reading(
+    val requestByDefault: Boolean,
+    val send: Boolean,
+)

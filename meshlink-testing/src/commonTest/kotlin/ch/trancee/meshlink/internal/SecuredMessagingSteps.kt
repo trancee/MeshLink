@@ -23,6 +23,7 @@ internal fun StepsBuilder.securedMessagingSteps() {
     securedWhens(line)
     securedThens(line)
     securedSessionSteps(line)
+    readReceiptSteps(line)
 }
 
 private fun StepsBuilder.securedGivens(line: SecuredLine) {

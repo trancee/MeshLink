@@ -22,6 +22,7 @@ import ch.trancee.meshlink.internal.NoisePattern
 import ch.trancee.meshlink.internal.NoiseResult
 import ch.trancee.meshlink.internal.NoiseRole
 import ch.trancee.meshlink.internal.Opening
+import ch.trancee.meshlink.internal.ReadReceipt
 import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.SecuredKeys
 import ch.trancee.meshlink.internal.StaticKeys
@@ -29,6 +30,7 @@ import ch.trancee.meshlink.internal.Tlv
 import ch.trancee.meshlink.internal.Tombstone
 import ch.trancee.meshlink.internal.UnicastHeader
 import ch.trancee.meshlink.internal.WireProfile
+import ch.trancee.meshlink.internal.frame
 import ch.trancee.meshlink.internal.session
 import ch.trancee.meshlink.vectors.mutationInputs
 import kotlin.test.Test
@@ -322,6 +324,78 @@ class ConversationTest {
     }
 
     @Test
+    fun aRequestedReadReceiptReachesThePeerAndAnUnrequestedOneDoesNot() =
+        profiles.forEach { profile ->
+            val opened = Opened(profile)
+            val alice = opened.adopted()
+            val bob = opened.first.conversation
+            val requested = assertNotNull(alice.draft(SECOND, EXPIRY, readReceipt = true))
+            val unrequested = assertNotNull(alice.draft(THIRD, EXPIRY))
+
+            val delivery = assertNotNull(bob.accept(alice.frame(requested, epoch, HOP_LIMIT), NOW))
+            val plain = assertNotNull(bob.accept(alice.frame(unrequested, epoch, HOP_LIMIT), NOW))
+
+            assertTrue(delivery.readReceipt, "$profile")
+            assertFalse(plain.readReceipt, "$profile")
+        }
+
+    @Test
+    fun aReadReceiptSealedInTheSessionIsReadOnceByThePeer() =
+        profiles.forEach { profile ->
+            // Arrange
+            val opened = Opened(profile)
+            val alice = opened.adopted()
+            val bob = opened.first.conversation
+            val ids = listOf(ByteArray(ID) { 1 }, ByteArray(ID) { 2 })
+            val read = assertNotNull(bob.readReceipt(ids, EXPIRY))
+
+            // Act
+            val bytes = read.frame(epoch, HOP_LIMIT)
+
+            // Assert
+            val frame = (ReadReceipt.decode(bytes) as Decoded.Valid).value
+            assertContentEquals(bob.destination(epoch), frame.header.destinationTag)
+            assertContentEquals(bob.destination(epoch), read.destination(epoch))
+            assertContentEquals(bob.source(epoch), frame.header.sourceTag)
+            assertContentEquals(bob.source(epoch), read.source(epoch))
+            assertContentEquals(read.messageId, frame.header.messageId)
+            assertEquals(EXPIRY, frame.header.expiry)
+            assertIs<Container.Transport>(frame.container)
+            val listed = assertNotNull(alice.read(bytes, NOW), "$profile")
+            assertEquals(ids.map { it.toList() }, listed.map { it.toList() })
+            assertNull(alice.read(bytes, NOW), "replayed")
+        }
+
+    @Test
+    fun aFlawedReadReceiptIsIgnored() {
+        val forgery = Forgery(Opened(WireProfile.CLASSICAL))
+        val alice = assertNotNull(forgery.opened.opening.adopt(forgery.answer(), NOW))
+        val ids = listOf(Tlv(MESSAGE_IDS, ByteArray(ID) { 3 }))
+        val header = UnicastHeader(HOP_LIMIT, RECEIPT_ID, EXPIRY, alice.source(epoch), alice.destination(epoch))
+        val read = { plaintext: ByteArray, header: UnicastHeader ->
+            ReadReceipt(header, forgery.seal(plaintext)).encode()
+        }
+        val content = ReceiptContent(RECEIPT_ID, EXPIRY, ids)
+        val first =
+            decode(
+                forgery.opened.alice.codec
+                    .frame(forgery.opened.draft, epoch, HOP_LIMIT),
+            ).container
+        val flaws =
+            mapOf(
+                "undecodable" to byteArrayOf(ReadReceipt.TYPE.toByte()),
+                "other tag" to read(content.encode(secured = true), header.with(destination = ID_TAG)),
+                "ik container" to ReadReceipt(header, first).encode(),
+                "not a receipt" to read(ReceiptContent(RECEIPT_ID, EXPIRY, emptyList()).encode(secured = true), header),
+                "unsecured padding" to read(content.encode(secured = false), header),
+            )
+
+        flaws.forEach { (flaw, flawed) -> assertNull(alice.read(flawed, NOW), flaw) }
+        assertNull(alice.read(read(content.encode(secured = true), header), EXPIRY.toLong() + SKEW + 1), "expired")
+        assertNotNull(alice.read(read(content.encode(secured = true), header), NOW))
+    }
+
+    @Test
     fun aConversationSealsNothingAtTheReservedNonce() {
         val key = ByteArray(KEY) { 1 }
         val spent = CipherState(crypto, key, ULong.MAX_VALUE)
@@ -330,6 +404,7 @@ class ConversationTest {
 
         assertNull(conversation.draft(SECOND, EXPIRY))
         assertNull(conversation.receipt(listOf(Tombstone(ByteArray(ID), ByteArray(K))), EXPIRY))
+        assertNull(conversation.readReceipt(listOf(ByteArray(ID)), EXPIRY))
         assertEquals(0, conversation.sent)
     }
 
@@ -345,6 +420,10 @@ class ConversationTest {
                 bob.accept(input, NOW)?.let { assertContentEquals(SECOND, it.payload, "$profile") }
             }
             mutationInputs(opened.answer).forEach { Forgery(Opened(profile)).opened.opening.adopt(it, NOW) }
+            val read = assertNotNull(bob.readReceipt(listOf(PAYLOAD_ID), EXPIRY))
+            mutationInputs(read.frame(epoch, HOP_LIMIT)).forEach { input ->
+                alice.read(input, NOW)?.let { assertEquals(listOf(PAYLOAD_ID.toList()), it.map { id -> id.toList() }) }
+            }
         }
 
     private fun decode(bytes: ByteArray): MessageFrame = (MessageFrame.decode(bytes) as Decoded.Valid).value
@@ -405,6 +484,7 @@ class ConversationTest {
         val SECOND = "second".encodeToByteArray()
         val THIRD = "third".encodeToByteArray()
         val ANSWER_ID = ByteArray(ID) { 9 }
+        val PAYLOAD_ID = ByteArray(ID) { 4 }
         val RECEIPT_ID = ByteArray(ID) { 8 }
         val ID_TAG = ByteArray(TAG) { 6 }
     }

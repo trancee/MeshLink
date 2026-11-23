@@ -38,7 +38,7 @@ Link encryption hides routing messages from outsiders in the secured profiles (A
 - **Route-discovery load:** per-conversation routes and tag sets change the route-discovery load. Simulated in stage F and within budget; see Amendments.
 - **First messages:** the first message of every session still reveals its destination's public tag, so a holder of that node's key sees that the node was contacted.
 - **Direct neighbors:** a direct neighbor knows the node's identity, its other neighbors' on-air identifiers and its recent catch-up history.
-- **Session ends:** a read receipt sent after the session ended starts a new session and is addressed to the original sender's public tag.
+- **Session ends:** a read receipt sent after the session ended is addressed to the original sender's public tag (see Amendments).
 
 ## Consequences
 
@@ -62,3 +62,7 @@ None: greenfield.
 - **Not simulated (Risks):** resolved. Per-conversation routes, with conversation tags changing every 5 min, cost about the same as per-node routes in every cell; route requests stayed within noise. The decision stands.
   - The pre-registered fallback, keeping the previous-epoch tag while its route works, was not adopted: with about 12 min between messages per pair, the old route had always expired by the next send.
   - Bursty conversations were not simulated.
+
+2026-11-23, read receipts built ([ADR 0013](0013-message-lifecycle-and-receipts.md) amendment of that date):
+
+- **Session ends (Risks):** a read receipt sent without a confirmed session (none, or one whose message 2 the sender may not have received) is addressed to the original sender's public tag but opens no session. Holders of the sender's key see that it was contacted, as with any first message.

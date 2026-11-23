@@ -21,16 +21,19 @@ public class UnsecuredMessaging(
      *
      * @param payload at most [PAYLOAD_MAX] bytes, so the frame is a small frame.
      * @param expiry Unix seconds; the caller adds the message lifetime to the current time.
+     * @param readReceipt whether the plaintext asks for a read receipt (`READ_RECEIPT_REQUESTED`).
      */
     public fun draft(
         destination: ByteArray,
         payload: ByteArray,
         expiry: UInt,
+        readReceipt: Boolean = false,
     ): Draft {
         require(payload.size <= PAYLOAD_MAX) { "payload must be at most $PAYLOAD_MAX bytes, not ${payload.size}" }
         val messageId = crypto.randomBytes(MESSAGE_ID)
         val k = crypto.randomBytes(K)
-        val plaintext = MessageContent(messageId, expiry, k, emptyList(), payload).encode(secured = false)
+        val requested = listOfNotNull(Tlv(READ_RECEIPT_REQUESTED, ByteArray(0)).takeIf { readReceipt })
+        val plaintext = MessageContent(messageId, expiry, k, requested, payload).encode(secured = false)
         val container = Container.Unsecured(nodeId, plaintext)
         return Draft(destination, messageId, expiry, derivations.tombstoneCommitment(k), container)
     }
@@ -82,6 +85,47 @@ public class UnsecuredMessaging(
     }
 
     /**
+     * A `READ_RECEIPT` from this node to [destination] listing [messageIds], in the order they were
+     * read, with a fresh `message_id` and the given [expiry]: the reader's default message lifetime from now.
+     *
+     * @param messageIds 1 to [ReadReceipt.IDS_MAX] message IDs.
+     */
+    public fun readReceipt(
+        destination: ByteArray,
+        messageIds: List<ByteArray>,
+        expiry: UInt,
+    ): ReadDraft {
+        val messageId = crypto.randomBytes(MESSAGE_ID)
+        val plaintext = readPlaintext(messageId, expiry, messageIds, emptyList(), secured = false)
+        return ReadDraft(
+            messageId,
+            expiry,
+            Container.Unsecured(nodeId, plaintext),
+            { derivations.unsecuredTag(destination, it) },
+            { derivations.unsecuredTag(nodeId, it) },
+        )
+    }
+
+    /**
+     * What the `READ_RECEIPT` in [bytes] reports read, or `null` to ignore it. It must decode, carry
+     * this node's tag like [accept], use an `unsecured` container whose plaintext repeats the header's
+     * `message_id` and `expiry` and lists 1 to [ReadReceipt.IDS_MAX] IDs in `MESSAGE_IDS`, and its
+     * expiry must lie within [LIFETIME_MAX_SECONDS] of [nowSeconds], allowing [CLOCK_SKEW_SECONDS]
+     * either way.
+     */
+    public fun read(
+        bytes: ByteArray,
+        nowSeconds: Long,
+    ): Acknowledgement? {
+        val frame = (ReadReceipt.decode(bytes) as? Decoded.Valid)?.value
+        val owned = frame?.takeIf { owns(it.header.destinationTag, nowSeconds) } ?: return null
+        return (owned.container as? Container.Unsecured)?.let { container ->
+            val content = (ReceiptContent.decode(container.plaintext, secured = false) as? Decoded.Valid)?.value
+            content?.let { readIds(owned.header, it, nowSeconds) }?.let { Acknowledgement(container.senderNodeId, it) }
+        }
+    }
+
+    /**
      * What the `DELIVERY_RECEIPT` in [bytes] acknowledges, or `null` to ignore it. It must decode,
      * carry this node's tag like [accept], use an `unsecured` container whose plaintext repeats the
      * header's `message_id` and `expiry`, and list in `MESSAGE_IDS` the IDs of its tombstones in the
@@ -118,8 +162,12 @@ public class UnsecuredMessaging(
         tag: ByteArray,
         nowSeconds: Long,
     ): Boolean {
-        val tags = window(Derivations.epoch(nowSeconds))
-        return tags.any { it.contentEquals(tag) }
+        val epoch = Derivations.epoch(nowSeconds)
+        if (epoch != windowEpoch) {
+            window = listOf(epoch - 1u, epoch, epoch + 1u).map { derivations.unsecuredTag(nodeId, it) }
+            windowEpoch = epoch
+        }
+        return window.any { it.contentEquals(tag) }
     }
 
     private fun delivery(
@@ -129,7 +177,8 @@ public class UnsecuredMessaging(
         val container = frame.container as? Container.Unsecured ?: return null
         val content = (MessageContent.decode(container.plaintext, secured = false) as? Decoded.Valid)?.value
         return content?.takeIf { derivations.bound(frame, it, nowSeconds) }?.let {
-            Delivery(container.senderNodeId, it.payload, Tombstone(it.messageId, it.k), it.expiry)
+            val tombstone = Tombstone(it.messageId, it.k)
+            Delivery(container.senderNodeId, it.payload, tombstone, it.expiry, it.readReceiptRequested)
         }
     }
 
@@ -140,14 +189,6 @@ public class UnsecuredMessaging(
         val container = frame.container as? Container.Unsecured ?: return null
         val ids = receiptIds(frame, container.plaintext, nowSeconds, secured = false)
         return ids?.let { Acknowledgement(container.senderNodeId, it) }
-    }
-
-    private fun window(epoch: UInt): List<ByteArray> {
-        if (epoch != windowEpoch) {
-            window = listOf(epoch - 1u, epoch, epoch + 1u).map { derivations.unsecuredTag(nodeId, it) }
-            windowEpoch = epoch
-        }
-        return window
     }
 
     public companion object {
@@ -169,6 +210,14 @@ public class UnsecuredMessaging(
 }
 
 private const val MESSAGE_IDS = 0x83
+private const val ID = 12
+
+/** The zero-length plaintext TLV asking the recipient for a read receipt (spec "Plaintext"). */
+internal const val READ_RECEIPT_REQUESTED = 0x04
+
+/** Whether this content asks for a read receipt (`READ_RECEIPT_REQUESTED`). */
+internal val MessageContent.readReceiptRequested: Boolean
+    get() = extensions.any { it.type == READ_RECEIPT_REQUESTED }
 
 /** The expiries a frame received at Unix second [nowSeconds] may carry, allowing `clock-skew` either way. */
 private fun live(nowSeconds: Long): LongRange {
@@ -230,6 +279,71 @@ internal fun receiptIds(
 }
 
 /**
+ * A read receipt plaintext (spec "Plaintext") of [messageId] and [expiry]: [extensions], then the
+ * concatenated [ids] in `MESSAGE_IDS`, padded if [secured].
+ */
+internal fun readPlaintext(
+    messageId: ByteArray,
+    expiry: UInt,
+    ids: List<ByteArray>,
+    extensions: List<Tlv>,
+    secured: Boolean,
+): ByteArray {
+    require(ids.size in 1..ReadReceipt.IDS_MAX) {
+        "a read receipt lists 1 to ${ReadReceipt.IDS_MAX} ids, not ${ids.size}"
+    }
+    val listed = Tlv(MESSAGE_IDS, ids.fold(ByteArray(0)) { bytes, id -> bytes + id })
+    return ReceiptContent(messageId, expiry, extensions + listed).encode(secured)
+}
+
+/**
+ * The IDs a read receipt with [header] reports read if its opened [content] belongs to it at Unix
+ * second [nowSeconds] (spec "Read receipts"), else `null`: it repeats the header's `message_id` and
+ * `expiry`, lists 1 to [ReadReceipt.IDS_MAX] whole IDs in `MESSAGE_IDS`, and its expiry lies within
+ * `message-lifetime-max` of now, allowing `clock-skew` either way.
+ */
+internal fun readIds(
+    header: UnicastHeader,
+    content: ReceiptContent,
+    nowSeconds: Long,
+): List<ByteArray>? {
+    val listed = (content.extensions.firstOrNull { it.type == MESSAGE_IDS } ?: return null).value
+    val matches =
+        listed.size in ID..ID * ReadReceipt.IDS_MAX && listed.size % ID == 0 &&
+            content.messageId.contentEquals(header.messageId) &&
+            content.expiry == header.expiry &&
+            header.expiry.toLong() in live(nowSeconds)
+    return if (matches) List(listed.size / ID) { listed.copyOfRange(it * ID, it * ID + ID) } else null
+}
+
+/**
+ * A drafted `READ_RECEIPT`: everything its frames keep across epochs. It writes its own routing tags
+ * for each epoch ([destination], [source]).
+ */
+public class ReadDraft internal constructor(
+    public val messageId: ByteArray,
+    public val expiry: UInt,
+    public val container: Container,
+    private val destinationTag: (UInt) -> ByteArray,
+    private val sourceTag: (UInt) -> ByteArray,
+) {
+    /** The destination routing tag for [epoch]. */
+    public fun destination(epoch: UInt): ByteArray = destinationTag(epoch)
+
+    /** The source routing tag for [epoch]. */
+    public fun source(epoch: UInt): ByteArray = sourceTag(epoch)
+
+    /** The `READ_RECEIPT` bytes, tagged for [epoch] with [hopLimit]. */
+    public fun frame(
+        epoch: UInt,
+        hopLimit: Int,
+    ): ByteArray {
+        val header = UnicastHeader(hopLimit, messageId, expiry, destination(epoch), source(epoch))
+        return ReadReceipt(header, container).encode()
+    }
+}
+
+/**
  * A drafted message to [destination]: everything its frames keep across retries. Each write sets
  * the routing tags for its epoch ([UnsecuredMessaging.frame], [FirstMessages.frame],
  * [Conversation.frame]). A first message's [destination] is the responder's certified X25519 key and
@@ -246,14 +360,15 @@ public class Draft internal constructor(
 )
 
 /**
- * An accepted message: the claimed [sender] NodeId, the [payload], and the [tombstone] and [expiry]
- * its delivery receipt carries.
+ * An accepted message: the claimed [sender] NodeId, the [payload], the [tombstone] and [expiry] its
+ * delivery receipt carries, and whether the sender asked for a [readReceipt].
  */
 public class Delivery(
     public val sender: ByteArray,
     public val payload: ByteArray,
     public val tombstone: Tombstone,
     public val expiry: UInt,
+    public val readReceipt: Boolean,
 )
 
 /** A drafted `DELIVERY_RECEIPT` to [destination]: everything its frames keep across epochs. */

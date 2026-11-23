@@ -29,7 +29,10 @@ internal interface Endpoint {
     fun carries(kind: Int): Boolean
 }
 
-/** This node's end of delivery receipts (spec "Delivery receipts"); called on the node's dispatcher. */
+/**
+ * This node's end of delivery and read receipts (spec "Delivery receipts", "Read receipts"); called on
+ * the node's dispatcher.
+ */
 internal interface Acknowledger {
     /** Takes a later copy of a `MESSAGE` [frame] this node accepted: its receipt goes again. */
     fun repeated(
@@ -39,6 +42,12 @@ internal interface Acknowledger {
 
     /** Takes a `DELIVERY_RECEIPT` [frame] for this node. */
     fun acknowledged(
+        frame: ByteArray,
+        nowSeconds: Long,
+    )
+
+    /** Takes a `READ_RECEIPT` [frame] for this node. */
+    fun read(
         frame: ByteArray,
         nowSeconds: Long,
     )
@@ -226,7 +235,7 @@ internal class Router(
         }
     }
 
-    // A MESSAGE or DELIVERY_RECEIPT must decode and carry a container kind the profile allows, a
+    // A MESSAGE, DELIVERY_RECEIPT or READ_RECEIPT must decode and carry a container kind the profile allows, a
     // ROUTE_REPLY must decode, and so must a secured node's LOOKUP_REPLY; other unicast types pass by header.
     private fun carried(
         type: Int,
@@ -241,6 +250,11 @@ internal class Router(
             DeliveryReceipt.TYPE -> {
                 val receipt = DeliveryReceipt.decode(bytes)
                 receipt is Decoded.Valid && endpoint.carries(receipt.value.container.kind)
+            }
+
+            ReadReceipt.TYPE -> {
+                val read = ReadReceipt.decode(bytes)
+                read is Decoded.Valid && endpoint.carries(read.value.container.kind)
             }
 
             RouteReply.TYPE -> {
@@ -258,7 +272,7 @@ internal class Router(
 
     // A destination learns the reverse route to each frame's source, which its receipts go back on;
     // takes each MESSAGE once while it is timely and every later copy as a repeat; takes its
-    // DELIVERY_RECEIPTs; and learns the route each ROUTE_REPLY found. Other types come later.
+    // DELIVERY_RECEIPTs and READ_RECEIPTs; and learns the route each ROUTE_REPLY found. Other types come later.
     private fun accept(
         peer: NodeId,
         frame: UnicastFrame,
@@ -270,6 +284,7 @@ internal class Router(
         when (frame.type) {
             MessageFrame.TYPE -> message(frame, bytes, nowSeconds)
             DeliveryReceipt.TYPE -> endpoint.acknowledger.acknowledged(bytes, nowSeconds)
+            ReadReceipt.TYPE -> endpoint.acknowledger.read(bytes, nowSeconds)
         }
     }
 

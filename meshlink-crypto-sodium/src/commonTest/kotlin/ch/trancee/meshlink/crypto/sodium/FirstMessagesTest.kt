@@ -15,7 +15,9 @@ import ch.trancee.meshlink.internal.NoiseKeys
 import ch.trancee.meshlink.internal.NoisePattern
 import ch.trancee.meshlink.internal.NoiseResult
 import ch.trancee.meshlink.internal.NoiseRole
+import ch.trancee.meshlink.internal.ReadReceipt
 import ch.trancee.meshlink.internal.Reassembly
+import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.SecuredKeys
 import ch.trancee.meshlink.internal.StaticKeys
 import ch.trancee.meshlink.internal.Tlv
@@ -77,7 +79,7 @@ class FirstMessagesTest {
             assertContentEquals(alice.nodeId, delivery.message.sender)
             assertContentEquals(alice.certificate.encode(), delivery.certificate.encode())
             assertContentEquals(PAYLOAD, delivery.message.payload)
-            assertFalse(delivery.readReceipt)
+            assertFalse(delivery.message.readReceipt)
         }
 
     @Test
@@ -87,7 +89,7 @@ class FirstMessagesTest {
 
         val delivery = bob.codec.accept(alice.codec.frame(draft, epoch, HOP_LIMIT), NOW)
 
-        assertTrue(assertNotNull(delivery).readReceipt)
+        assertTrue(assertNotNull(delivery).message.readReceipt)
     }
 
     @Test
@@ -171,6 +173,8 @@ class FirstMessagesTest {
 
         assertNull(alice.codec.draft(lowOrder, PAYLOAD, EXPIRY, readReceipt = false))
         assertNull(quantumAlice.codec.draft(lowOrderXWing, PAYLOAD, EXPIRY, readReceipt = false))
+        assertNull(alice.codec.readReceipt(lowOrder, listOf(MESSAGE_ID), EXPIRY))
+        assertNull(quantumAlice.codec.readReceipt(lowOrderXWing, listOf(MESSAGE_ID), EXPIRY))
     }
 
     @Test
@@ -285,6 +289,97 @@ class FirstMessagesTest {
             }
         }
 
+    @Test
+    fun aReadReceiptToTheSendersCertificateIsReadWithoutAnAnswer() =
+        profiles.forEach { profile ->
+            // Arrange
+            val (alice, bob) = sides(profile)
+            val ids = listOf(ByteArray(ID) { 1 }, ByteArray(ID) { 2 })
+            val read = assertNotNull(bob.codec.readReceipt(alice.certificate, ids, EXPIRY))
+
+            // Act
+            val bytes = read.frame(epoch, HOP_LIMIT)
+
+            // Assert
+            val frame = (ReadReceipt.decode(bytes) as Decoded.Valid).value
+            assertContentEquals(tags.publicTag(alice.static.publicKey, epoch), frame.header.destinationTag)
+            assertContentEquals(tags.publicTag(alice.static.publicKey, epoch), read.destination(epoch))
+            assertContentEquals(read.source(epoch), frame.header.sourceTag)
+            assertContentEquals(read.messageId, frame.header.messageId)
+            assertEquals(EXPIRY, frame.header.expiry)
+            assertIs<Container.IkInitiator>(frame.container)
+            val acknowledgement = assertNotNull(alice.codec.read(bytes, NOW), "$profile")
+            assertContentEquals(bob.nodeId, acknowledgement.sender)
+            assertEquals(ids.map { it.toList() }, acknowledgement.messageIds.map { it.toList() })
+        }
+
+    @Test
+    fun aReadReceiptsPlaintextCarriesTheCertificateASeedAndTheIdsFromTheConversationTag() {
+        val (alice, bob) = sides(WireProfile.CLASSICAL)
+        val read = assertNotNull(bob.codec.readReceipt(alice.certificate, listOf(MESSAGE_ID), EXPIRY))
+        val frame = (ReadReceipt.decode(read.frame(epoch, HOP_LIMIT)) as Decoded.Valid).value
+        val container = assertIs<Container.IkInitiator>(frame.container)
+        val responder =
+            NoiseHandshake(crypto, NoisePattern.IK, NoiseRole.RESPONDER, PROLOGUE_CLASSICAL, NoiseKeys(alice.static))
+        val padded = (responder.readMessage(container.noiseMessage) as NoiseResult.Ok).value
+        val content = (ReceiptContent.decode(padded, secured = true) as Decoded.Valid).value
+        val seed = content.extensions.single { it.type == CONVERSATION_SEED }.value
+
+        val secret = tags.conversationSecret(seed, bob.nodeId, alice.nodeId)
+
+        assertContentEquals(tags.conversationTag(secret, 2, epoch), frame.header.sourceTag)
+        assertEquals(listOf(SENDER_CERTIFICATE, CONVERSATION_SEED, MESSAGE_IDS), content.extensions.map { it.type })
+        assertContentEquals(bob.certificate.encode(), content.extensions.first().value)
+        assertContentEquals(read.messageId, content.messageId)
+        assertEquals(0, padded.size % BLOCK)
+    }
+
+    @Test
+    fun aWellFormedReadReceiptForgeryIsReadSoEachRefusalBelowIsCausedByItsOneFlaw() =
+        profiles.forEach { profile ->
+            val (alice, bob) = sides(profile)
+
+            assertNotNull(bob.codec.read(Forgery(alice, bob).read(), NOW), "$profile")
+        }
+
+    @Test
+    fun aReadReceiptBreakingARuleIsIgnored() =
+        profiles.forEach { profile ->
+            val (alice, bob) = sides(profile)
+            val forged = Forgery(alice, bob)
+            val other = Side(profile, 3)
+            val sealed = { content: ReceiptContent -> forged.read(content.encode(secured = true)) }
+            val flaws =
+                mapOf(
+                    "undecodable" to byteArrayOf(ReadReceipt.TYPE.toByte()),
+                    "other node" to forged.read(destination = tags.publicTag(other.static.publicKey, epoch)),
+                    "transport container" to
+                        forged.read(container = Container.Transport(0u, ByteArray(TRANSPORT_MIN))),
+                    "other responder" to forged.read(responderStatic = other.static.publicKey),
+                    "no padding" to forged.read(forged.receipt().encode(secured = false)),
+                    "no seed" to sealed(forged.receipt(seed = null)),
+                    "no certificate" to sealed(forged.receipt(certificate = null)),
+                    "other x25519 key" to sealed(forged.receipt(alice.certify(other.static.publicKey).encode())),
+                    "partial id" to sealed(forged.receipt(listed = MESSAGE_ID + 1)),
+                    "other message_id" to sealed(forged.receipt(messageId = ByteArray(ID) { 1 })),
+                )
+
+            flaws.forEach { (flaw, frame) -> assertNull(bob.codec.read(frame, NOW), "$profile: $flaw") }
+        }
+
+    @Test
+    fun mutatedReadReceiptsNeverThrowAndOnlyListTheOriginalIds() =
+        profiles.forEach { profile ->
+            val (alice, bob) = sides(profile)
+            val read = assertNotNull(bob.codec.readReceipt(alice.certificate, listOf(MESSAGE_ID), EXPIRY))
+
+            mutationInputs(read.frame(epoch, HOP_LIMIT)).forEach { input ->
+                alice.codec.read(input, NOW)?.let {
+                    assertEquals(listOf(MESSAGE_ID.toList()), it.messageIds.map { id -> id.toList() }, "$profile")
+                }
+            }
+        }
+
     private fun bobKeys(bob: Side) = SecuredKeys(bob.nodeId, bob.static, bob.xWing, bob.certificate)
 
     private fun decode(bytes: ByteArray): MessageFrame = (MessageFrame.decode(bytes) as Decoded.Valid).value
@@ -315,6 +410,40 @@ class FirstMessagesTest {
             container: Container? = null,
             kemKeyPair: KeyPair? = null,
         ): ByteArray {
+            val message = message(plaintext, responderStatic, seal, kemKeyPair)
+            val destination = tags.publicTag(bob.static.publicKey, epoch)
+            val header = UnicastHeader(HOP_LIMIT, MESSAGE_ID, EXPIRY, destination, ByteArray(TAG))
+            return MessageFrame(header, commitment, container ?: Container.IkInitiator(message)).encode()
+        }
+
+        fun receipt(
+            certificate: ByteArray? = alice.certificate.encode(),
+            seed: ByteArray? = ByteArray(BLOCK) { 5 },
+            listed: ByteArray = MESSAGE_ID,
+            messageId: ByteArray = MESSAGE_ID,
+        ): ReceiptContent {
+            val sender = certificate?.let { Tlv(SENDER_CERTIFICATE, it) }
+            val extensions = listOfNotNull(sender, seed?.let { Tlv(CONVERSATION_SEED, it) }, Tlv(MESSAGE_IDS, listed))
+            return ReceiptContent(messageId, EXPIRY, extensions)
+        }
+
+        fun read(
+            plaintext: ByteArray = receipt().encode(secured = true),
+            destination: ByteArray = tags.publicTag(bob.static.publicKey, epoch),
+            responderStatic: ByteArray = bob.static.publicKey,
+            container: Container? = null,
+        ): ByteArray {
+            val message = message(plaintext, responderStatic, { it }, null)
+            val header = UnicastHeader(HOP_LIMIT, MESSAGE_ID, EXPIRY, destination, ByteArray(TAG))
+            return ReadReceipt(header, container ?: Container.IkInitiator(message)).encode()
+        }
+
+        private fun message(
+            plaintext: ByteArray,
+            responderStatic: ByteArray,
+            seal: (ByteArray) -> ByteArray,
+            kemKeyPair: KeyPair?,
+        ): ByteArray {
             val pattern = if (alice.profile == WireProfile.POST_QUANTUM) NoisePattern.IK_HFS else NoisePattern.IK
             val prologue = Derivations.e2ePrologue(1, alice.profile)
             val keys = NoiseKeys(alice.static, kemKeyPair = kemKeyPair, remoteStatic = responderStatic)
@@ -324,10 +453,7 @@ class FirstMessagesTest {
                     val info = Derivations.hpkeInfo(alice.static.publicKey, bob.nodeId)
                     seal(Hpke(crypto).seal(it, info, plaintext).ok())
                 } ?: plaintext
-            val message = (initiator.writeMessage(payload) as NoiseResult.Ok).value
-            val destination = tags.publicTag(bob.static.publicKey, epoch)
-            val header = UnicastHeader(HOP_LIMIT, MESSAGE_ID, EXPIRY, destination, ByteArray(TAG))
-            return MessageFrame(header, commitment, container ?: Container.IkInitiator(message)).encode()
+            return (initiator.writeMessage(payload) as NoiseResult.Ok).value
         }
     }
 
@@ -344,6 +470,7 @@ class FirstMessagesTest {
         const val HOP_LIMIT = 255
         const val SENDER_CERTIFICATE = 0x01
         const val CONVERSATION_SEED = 0x82
+        const val MESSAGE_IDS = 0x83
         val EXPIRY = (NOW + 300).toUInt()
         val PAYLOAD = "hello".encodeToByteArray()
         val MESSAGE_ID = ByteArray(ID) { 7 }
