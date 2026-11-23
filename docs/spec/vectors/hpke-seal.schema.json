@@ -75,6 +75,7 @@
                 "flags",
                 "result",
                 "recipient_ikm",
+                "recipient_secret_key",
                 "recipient_public_key",
                 "encapsulation_randomness",
                 "sender_static_key",
@@ -104,6 +105,10 @@
                   ]
                 },
                 "recipient_ikm": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "recipient_secret_key": {
                   "type": "string",
                   "pattern": "^[0-9a-f]{64}$"
                 },

@@ -39,6 +39,12 @@ impl Identity {
         x25519_public(&self.x25519_private)
     }
 
+    /// The X-Wing secret key, its 32 B seed: HPKE `DeriveKeyPair(xwing_ikm)` (draft-ietf-hpke-pq-05).
+    #[must_use]
+    pub fn xwing_secret_key(&self) -> Vec<u8> {
+        XWing::derive_keypair(&self.xwing_ikm).0.to_bytes().to_vec()
+    }
+
     /// The X-Wing public key: HPKE `DeriveKeyPair(xwing_ikm)` (draft-ietf-hpke-pq-05).
     #[must_use]
     pub fn xwing_key(&self) -> Vec<u8> {

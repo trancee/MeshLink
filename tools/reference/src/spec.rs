@@ -68,6 +68,14 @@ pub fn link_prologue(versions: &[u8], selected: u8, profile: u8, mesh_id_digest:
     out
 }
 
+/// The end-to-end Noise prologue: `DS("e2e-prologue") ‖ u8(protocol_version) ‖ u8(profile)`.
+#[must_use]
+pub fn e2e_prologue(version: u8, profile: u8) -> Vec<u8> {
+    let mut out = ds("e2e-prologue");
+    out.extend_from_slice(&[version, profile]);
+    out
+}
+
 #[must_use]
 pub fn hpke_info(sender_static_key: &[u8], recipient_node_id: &[u8]) -> Vec<u8> {
     let mut out = ds("hpke-first-message");

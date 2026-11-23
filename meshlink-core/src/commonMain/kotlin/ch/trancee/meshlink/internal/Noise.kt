@@ -10,6 +10,8 @@ public enum class NoisePattern(
     /** The Noise protocol name, which the handshake hashes first. */
     public val protocolName: String,
     internal val messages: List<List<NoiseToken>>,
+    /** Whether the initiator knows the responder's static key before message 1 (the `<- s` pre-message). */
+    internal val knowsResponder: Boolean = false,
 ) {
     /** `XX`: the open mesh's link handshake in the `Classical` profile. */
     XX("Noise_XX_25519_ChaChaPoly_SHA256", xx()),
@@ -22,12 +24,18 @@ public enum class NoisePattern(
 
     /** `XXhfs+psk3`: the gated mesh's in the `PostQuantum` profile. */
     XX_HFS_PSK3("Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256", xxHfs(NoiseToken.PSK)),
+
+    /** `IK`: the end-to-end layer in the `Classical` profile, to a responder whose static key the initiator knows. */
+    IK("Noise_IK_25519_ChaChaPoly_SHA256", ik(), knowsResponder = true),
+
+    /** `IKhfs`: the end-to-end layer in the `PostQuantum` profile, with `e1` after `es` and `ekem1` after `ee`. */
+    IK_HFS("Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256", ikHfs(), knowsResponder = true),
     ;
 
     internal val usesPsk: Boolean get() = messages.any { NoiseToken.PSK in it }
 }
 
-internal enum class NoiseToken { E, S, EE, ES, SE, PSK, E1, EKEM1 }
+internal enum class NoiseToken { E, S, EE, ES, SE, SS, PSK, E1, EKEM1 }
 
 private fun xx(vararg last: NoiseToken): List<List<NoiseToken>> =
     listOf(
@@ -43,6 +51,18 @@ private fun xxHfs(vararg last: NoiseToken): List<List<NoiseToken>> =
         listOf(NoiseToken.S, NoiseToken.SE, *last),
     )
 
+private fun ik(): List<List<NoiseToken>> =
+    listOf(
+        listOf(NoiseToken.E, NoiseToken.ES, NoiseToken.S, NoiseToken.SS),
+        listOf(NoiseToken.E, NoiseToken.EE, NoiseToken.SE),
+    )
+
+private fun ikHfs(): List<List<NoiseToken>> =
+    listOf(
+        listOf(NoiseToken.E, NoiseToken.ES, NoiseToken.E1, NoiseToken.S, NoiseToken.SS),
+        listOf(NoiseToken.E, NoiseToken.EE, NoiseToken.EKEM1, NoiseToken.SE),
+    )
+
 /** Which side of a handshake this node is; the initiator writes the first message. */
 public enum class NoiseRole { INITIATOR, RESPONDER }
 
@@ -50,7 +70,8 @@ public enum class NoiseRole { INITIATOR, RESPONDER }
  * One side's keys: its X25519 [static] key pair, the 32-byte [psk] if the pattern has one, the
  * [ephemeral] key pair, and for the `hfs` patterns the initiator's ML-KEM-768 [kemKeyPair] and the
  * responder's 32-byte [encapsulationSeed]. Each `null` input is drawn fresh from the provider; only
- * tests fix them.
+ * tests fix them. An `IK` initiator also gives the responder's [remoteStatic] key, which no other
+ * side has.
  */
 public class NoiseKeys(
     internal val static: KeyPair,
@@ -58,8 +79,10 @@ public class NoiseKeys(
     internal val ephemeral: KeyPair? = null,
     internal val kemKeyPair: KeyPair? = null,
     encapsulationSeed: ByteArray? = null,
+    remoteStatic: ByteArray? = null,
 ) {
     internal val psk: ByteArray? = psk?.copyOf()
+    internal val remoteStatic: ByteArray? = remoteStatic?.copyOf()
     internal val encapsulationSeed: ByteArray? = encapsulationSeed?.copyOf()
 
     init {
@@ -267,14 +290,18 @@ public class NoiseHandshake(
     private val encapsulationSeed = keys.encapsulationSeed
     private val symmetric = SymmetricState(crypto, pattern.protocolName)
     private var remoteEphemeral = EMPTY
-    private var remoteStatic = EMPTY
+    private var remoteStatic = keys.remoteStatic ?: EMPTY
     private var remoteKem = EMPTY
     private var index = 0
     private var closed = false
 
     init {
         require(pattern.usesPsk == (keys.psk != null)) { "${pattern.protocolName} needs a psk exactly if it has one" }
+        require((initiator && pattern.knowsResponder) == (keys.remoteStatic != null)) {
+            "Only an initiator of ${pattern.protocolName} gives the responder's static key if the pattern knows it"
+        }
         symmetric.mixHash(prologue)
+        if (pattern.knowsResponder) symmetric.mixHash(if (initiator) remoteStatic else static.publicKey)
     }
 
     /** Whether every handshake message has been written or read, so [split] may follow. */
@@ -453,8 +480,12 @@ public class NoiseHandshake(
                 if (initiator) dh(ephemeral, remoteStatic) else dh(static, remoteEphemeral)
             }
 
-            else -> {
+            NoiseToken.SE -> {
                 if (initiator) dh(static, remoteEphemeral) else dh(ephemeral, remoteStatic)
+            }
+
+            else -> {
+                dh(static, remoteStatic)
             }
         }
 

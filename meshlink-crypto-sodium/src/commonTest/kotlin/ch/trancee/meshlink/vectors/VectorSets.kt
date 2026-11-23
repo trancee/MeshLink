@@ -11,8 +11,31 @@ private val frameKey: (Json, Json) -> String =
 private fun hpkeCases(document: Json): List<RawCase> =
     document.list.mapIndexed { index, entry -> RawCase(entry, entry, index + 1, "valid") }
 
-private val kemId: (Json, Json) -> String =
-    { _, test -> "kem 0x" + test["kem_id"].int.toString(HEX).padStart(KEM_ID_DIGITS, '0') }
+/** An HPKE suite: `kem 0x647a kdf 0x0001 aead 0x0003`. */
+private val hpkeSuite: (Json, Json) -> String =
+    { _, test -> listOf("kem", "kdf", "aead").joinToString(" ") { "$it ${hpkeId(test["${it}_id"].int)}" } }
+
+private fun hpkeId(id: Int): String = "0x" + id.toString(HEX).padStart(HPKE_ID_DIGITS, '0')
+
+/** MeshLink's HPKE suite (D-35); the other suites of `hpke-pq/test-vectors.json`, as kem, kdf, aead. */
+private val MESHLINK_HPKE = Triple(0x647a, 0x0001, 0x0003)
+private val OTHER_HPKE_SUITES =
+    listOf(
+        Triple(0x0040, 0x0001, 0x0001),
+        Triple(0x0041, 0x0001, 0x0001),
+        Triple(0x0042, 0x0002, 0x0002),
+        Triple(0x0050, 0x0001, 0x0001),
+        Triple(0x0051, 0x0002, 0x0002),
+        Triple(0x0010, 0x0010, 0x0001),
+        Triple(0x0011, 0x0011, 0x0002),
+        Triple(0x0020, 0x0012, 0x0003),
+        Triple(0x0021, 0x0013, 0x0003),
+        Triple(0x0050, 0x0010, 0x0002),
+        Triple(0x647a, 0x0011, 0x0003),
+        Triple(0x0042, 0x0013, 0x0001),
+    )
+
+private fun Triple<Int, Int, Int>.key(): String = "kem ${hpkeId(first)} kdf ${hpkeId(second)} aead ${hpkeId(third)}"
 
 private val NOISE_PROTOCOLS = listOf("XX", "XXpsk3", "IK").map { "Noise_${it}_$NOISE_SUITE" }
 private val NOISE_OTHER_SUITES =
@@ -78,6 +101,11 @@ internal val vectorSets: List<VectorSet> =
                 "resolvable-tag" to resolvableTag,
                 "tombstone-commitment" to tombstoneCommitment,
                 "lookup-tag" to lookupTag,
+                "public-tag" to publicTag,
+                "conversation-secret" to conversationSecret,
+                "conversation-tag" to conversationTag,
+                "e2e-prologue" to e2ePrologue,
+                "hpke-info" to hpkeInfo,
                 "lookup-reply-key" to lookupReplyKey,
                 "certificate-signing-input" to certificateSigningInput,
                 "broadcast-signing-input" to broadcastSigningInput,
@@ -86,7 +114,8 @@ internal val vectorSets: List<VectorSet> =
         VectorSet("vectors/handshake-hfs.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
         VectorSet("vectors/handshake-payload.json", mapOf("handshake-payload" to handshakePayload), key = layoutKey),
         VectorSet("vectors/handshake-xx.json", mapOf("NoiseHandshake" to noiseHandshake), key = groupType),
-        VectorSet("vectors/hpke-seal.json", emptyMap(), key = groupType),
+        VectorSet("vectors/first-message.json", mapOf("FirstMessage" to firstMessage), key = groupType),
+        VectorSet("vectors/hpke-seal.json", mapOf("HpkeSeal" to hpkeSeal), key = groupType),
         VectorSet(
             "vectors/inner-plaintext.json",
             mapOf("inner-message" to innerContent(message = true), "inner-receipt" to innerContent(message = false)),
@@ -134,11 +163,16 @@ internal val vectorSets: List<VectorSet> =
         ),
         VectorSet(
             "cacophony/cacophony.txt",
-            NOISE_PROTOCOLS.take(2).associateWith { noise },
+            NOISE_PROTOCOLS.associateWith { noise },
             cases = ::cacophonyCases,
             key = noiseKey,
         ),
-        VectorSet("hpke-pq/test-vectors.json", mapOf("kem 0x647a" to xWing), cases = ::hpkeCases, key = kemId),
+        VectorSet(
+            "hpke-pq/test-vectors.json",
+            mapOf(MESHLINK_HPKE.key() to xWing),
+            cases = ::hpkeCases,
+            key = hpkeSuite,
+        ),
         VectorSet(
             "wycheproof/chacha20_poly1305_test.json",
             mapOf("AeadTest" to chaCha20Poly1305),
@@ -173,19 +207,15 @@ private fun pending(
 
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
-    pending("hpke-seal.json", "45", "HpkeSeal") +
-        pending("derivations.json", "45", "public-tag", "conversation-secret", "conversation-tag", "e2e-prologue") +
-        pending("derivations.json", "45", "hpke-info") +
-        pending("routed-frames.json", "47", "0x41") +
+    pending("routed-frames.json", "47", "0x41") +
         pending("routed-frames.json", "48", "0x42") +
-        listOf("0x0010", "0x0011", "0x0020", "0x0021", "0x0040", "0x0041", "0x0042", "0x0050", "0x0051").map {
+        OTHER_HPKE_SUITES.map {
             Skip.NotApplicable(
                 "hpke-pq/test-vectors.json",
-                "kem $it",
-                "MeshLink's only HPKE KEM is X-Wing, 0x647a (ADR 0004)",
+                it.key(),
+                "MeshLink's only HPKE suite is X-Wing, HKDF-SHA256, ChaCha20Poly1305 (D-35, ADR 0004)",
             )
         } +
-        Skip.Pending(CACOPHONY, NOISE_PROTOCOLS[2], "46") +
         Skip.NotApplicable(CACOPHONY, OTHER_NOISE_PATTERNS, "MeshLink runs only XX, XXpsk3 and IK (ADR 0002)") +
         NOISE_OTHER_SUITES.map {
             Skip.NotApplicable(CACOPHONY, "Noise_*_$it", "MeshLink's only Noise suite is $NOISE_SUITE (ADR 0002)")
@@ -202,4 +232,4 @@ private const val NOISE_SUITE = "25519_ChaChaPoly_SHA256"
 private const val OTHER_NOISE_PATTERNS = "Noise_*_25519_ChaChaPoly_SHA256, other patterns"
 private const val HEX = 16
 private const val INVALID_DK = "InvalidDecapsulationKey"
-private const val KEM_ID_DIGITS = 4
+private const val HPKE_ID_DIGITS = 4

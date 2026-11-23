@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "first-message.schema.json",
+  "title": "MeshLink protocol 1 test vectors: first-message.json",
+  "type": "object",
+  "required": [
+    "tier",
+    "algorithm",
+    "schema",
+    "generatorVersion",
+    "numberOfTests",
+    "notes",
+    "testGroups"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "tier": {
+      "const": 2
+    },
+    "algorithm": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "first-message.schema.json"
+    },
+    "generatorVersion": {
+      "type": "string"
+    },
+    "numberOfTests": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "notes": {
+      "type": "object"
+    },
+    "testGroups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "protocol",
+          "profile",
+          "tests"
+        ],
+        "properties": {
+          "type": {
+            "const": "FirstMessage"
+          },
+          "protocol": {
+            "enum": [
+              "Noise_IK_25519_ChaChaPoly_SHA256",
+              "Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256"
+            ]
+          },
+          "profile": {
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "tests": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "tcId",
+                "comment",
+                "flags",
+                "result",
+                "now",
+                "initiator",
+                "responder",
+                "responder_key",
+                "initiator_node_id",
+                "responder_node_id",
+                "plaintext",
+                "payload",
+                "message"
+              ],
+              "properties": {
+                "tcId": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "result": {
+                  "enum": [
+                    "valid",
+                    "invalid"
+                  ]
+                },
+                "now": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "initiator": {
+                  "type": "object",
+                  "required": [
+                    "static_private",
+                    "ephemeral_private",
+                    "prologue"
+                  ],
+                  "properties": {
+                    "static_private": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "ephemeral_private": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "kem_keygen_seed": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{128}$"
+                    },
+                    "prologue": {
+                      "type": "string",
+                      "pattern": "^([0-9a-f]{2})*$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "responder": {
+                  "type": "object",
+                  "required": [
+                    "static_private",
+                    "prologue"
+                  ],
+                  "properties": {
+                    "static_private": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "xwing_secret_key": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "prologue": {
+                      "type": "string",
+                      "pattern": "^([0-9a-f]{2})*$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "responder_key": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "initiator_node_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "responder_node_id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "plaintext": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "info": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "encapsulation_randomness": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{128}$"
+                },
+                "payload": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "message": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{2})*$"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
