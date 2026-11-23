@@ -172,6 +172,8 @@ Exit: end-to-end sealed unicast with delivery and read receipts works in every p
 |---|---|---|---|
 | 44 | [Find a peer's certificate by lookup](issues/44-certificate-lookup.md) | AFK | 21, 37 |
 | 45 | [Seal first messages with HPKE](issues/45-hpke-first-messages.md) | AFK | 20, 44 |
+| 45a | [Add the end-to-end cryptography for first messages](issues/45a-e2e-crypto.md) | AFK | 20, 44 |
+| 45b | [Seal first messages with HPKE in secured sends](issues/45b-secured-first-messages.md) | AFK | 44, 45a |
 | 46 | [Keep end-to-end sessions with `IK` and `IKhfs`](issues/46-e2e-sessions.md) | AFK | 45, 47 |
 | 47 | [Report delivery with delivery receipts](issues/47-delivery-receipts.md) | AFK | 45 |
 | 48 | [Report reading with read receipts](issues/48-read-receipts.md) | AFK | 46, 47 |

@@ -6,7 +6,7 @@ use crate::handshake::{self, KemInput, Rejected, Side};
 use crate::json::{Value, hex, int, object, text, texts};
 use crate::lookup;
 use crate::seal;
-use crate::spec::{flip, hpke_info, link_prologue, mesh_id_digest, mesh_psk, seed, seed64, tlv};
+use crate::spec::{e2e_prologue, flip, hpke_info, link_prologue, mesh_id_digest, mesh_psk, seed, seed64, tlv};
 
 /// Where the files live, relative to this crate.
 pub const DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/spec/vectors");
@@ -19,8 +19,13 @@ const XX: &str = "Noise_XX_25519_ChaChaPoly_SHA256";
 const XXPSK3: &str = "Noise_XXpsk3_25519_ChaChaPoly_SHA256";
 const XXHFS: &str = "Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256";
 const XXHFSPSK3: &str = "Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256";
+const IK: &str = "Noise_IK_25519_ChaChaPoly_SHA256";
+const IKHFS: &str = "Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256";
 const RESOLVING_KEY: u8 = 0x02;
 const CERTIFICATE: u8 = 0x81;
+const SENDER_CERTIFICATE: u8 = 0x01;
+const CONVERSATION_SEED: u8 = 0x82;
+const PADDING_BLOCK: usize = 32;
 
 /// One generated file: its name and the vector and schema documents.
 pub struct Document {
@@ -43,6 +48,7 @@ pub fn all() -> Vec<Document> {
         certificate_signatures(),
         handshake_xx(),
         handshake_hfs(),
+        first_message(),
         hpke_seal(),
         link_transport(),
         lookup_reply(),
@@ -907,6 +913,265 @@ fn handshake_test(setup: Setup, tamper: Option<(usize, usize)>, comment: &str, f
 }
 
 // ---------------------------------------------------------------------------
+// First messages (ticket 45a)
+// ---------------------------------------------------------------------------
+
+/// A secured `MESSAGE` plaintext from `alice`, padded: her `profile` certificate and a
+/// conversation seed in its extensions, as every `IK_INITIATOR` plaintext carries.
+fn first_plaintext(alice: &Identity, profile: u8) -> Vec<u8> {
+    let mut extensions = tlv(SENDER_CERTIFICATE, &alice.certificate(profile, NOT_BEFORE, NOT_AFTER));
+    extensions.extend(tlv(CONVERSATION_SEED, &seed("alice conversation seed")));
+    let mut content = seed("first message id")[..12].to_vec();
+    content.extend_from_slice(&(NOW + 3_600).to_be_bytes());
+    content.extend_from_slice(&seed("first message k")[..16]);
+    content.extend_from_slice(&u16::try_from(extensions.len()).expect("extensions").to_be_bytes());
+    content.extend(extensions);
+    content.extend_from_slice(b"hello");
+    let mut out = u32::try_from(content.len()).expect("content").to_be_bytes().to_vec();
+    out.extend(content);
+    out.resize(out.len().next_multiple_of(PADDING_BLOCK), 0);
+    out
+}
+
+/// How a first-message test departs from the valid run.
+#[derive(Clone, Copy)]
+enum Change {
+    None,
+    /// The initiator holds carol's static key instead of bob's.
+    WrongResponderKey,
+    /// This byte of the HPKE seal flipped before the initiator writes it.
+    Seal(usize),
+    /// This byte of message 1 flipped in transit.
+    Transit(usize),
+}
+
+fn first_message_test(profile: u8, change: Change, comment: &str, flags: &[&'static str]) -> Test {
+    let (alice, bob, carol) = (Identity::new("alice"), Identity::new("bob"), Identity::new("carol"));
+    let post_quantum = profile == POST_QUANTUM;
+    let (protocol, version) = (if post_quantum { IKHFS } else { IK }, 1);
+    let prologue = e2e_prologue(version, profile);
+    let initiator = Side {
+        static_private: alice.x25519_private,
+        ephemeral_private: seed("alice first message ephemeral"),
+        kem: post_quantum.then_some(KemInput::Seed(seed64("alice first message kem"))),
+        prologue: prologue.clone(),
+        psk: None,
+    };
+    // The responder encapsulates only in message 2, so its KEM input never shows here.
+    let responder = Side {
+        static_private: bob.x25519_private,
+        ephemeral_private: seed("bob first message ephemeral"),
+        kem: post_quantum.then_some(KemInput::Message(seed("bob first message kem"))),
+        prologue: prologue.clone(),
+        psk: None,
+    };
+    let responder_key = if matches!(change, Change::WrongResponderKey) {
+        carol.x25519_key()
+    } else {
+        bob.x25519_key()
+    };
+    let plaintext = first_plaintext(&alice, profile);
+    let info = hpke_info(&alice.x25519_key(), &bob.node_id());
+    let randomness = seed64("alice first message seal");
+    let mut payload = if post_quantum {
+        seal::seal(&bob.xwing_key(), &info, &plaintext, &randomness)
+    } else {
+        plaintext.clone()
+    };
+    if let Change::Seal(byte) = change {
+        payload = flip(&payload, byte);
+    }
+    let tamper = if let Change::Transit(byte) = change {
+        Some(byte)
+    } else {
+        None
+    };
+    let (message, read) = handshake::first_message(protocol, &initiator, &responder_key, &responder, &payload, tamper);
+    let opened = read.as_ref().and_then(|read| {
+        assert_eq!(read, &payload, "{comment}");
+        if post_quantum {
+            seal::open(&bob.xwing_ikm, &info, read)
+        } else {
+            Some(read.clone())
+        }
+    });
+    let error = match (&read, &opened) {
+        (None, _) => Some("handshake-failed"),
+        (Some(_), None) => Some("open-failed"),
+        (Some(_), Some(opened)) => {
+            assert_eq!(opened, &plaintext, "{comment}");
+            None
+        }
+    };
+    let expected = match change {
+        Change::None => None,
+        Change::Seal(_) => Some("open-failed"),
+        Change::WrongResponderKey | Change::Transit(_) => Some("handshake-failed"),
+    };
+    assert_eq!(error, expected, "{comment}");
+    let mut initiator_fields = vec![
+        ("static_private", hex(&initiator.static_private)),
+        ("ephemeral_private", hex(&initiator.ephemeral_private)),
+    ];
+    let mut responder_fields = vec![("static_private", hex(&responder.static_private))];
+    if post_quantum {
+        initiator_fields.push(("kem_keygen_seed", hex(&initiator.kem.expect("kem").bytes())));
+        responder_fields.push(("xwing_secret_key", hex(&bob.xwing_secret_key())));
+    }
+    initiator_fields.push(("prologue", hex(&prologue)));
+    responder_fields.push(("prologue", hex(&prologue)));
+    let mut fields = vec![
+        ("now", int(NOW)),
+        ("initiator", object(initiator_fields)),
+        ("responder", object(responder_fields)),
+        ("responder_key", hex(&responder_key)),
+        ("initiator_node_id", hex(&alice.node_id())),
+        ("responder_node_id", hex(&bob.node_id())),
+        ("plaintext", hex(&plaintext)),
+    ];
+    if post_quantum {
+        fields.push(("info", hex(&info)));
+        fields.push(("encapsulation_randomness", hex(&randomness)));
+    }
+    fields.push(("payload", hex(&payload)));
+    fields.push(("message", hex(&message)));
+    test(comment, flags, fields, error)
+}
+
+fn first_message() -> Document {
+    let last = |profile: u8| {
+        let seal = if profile == POST_QUANTUM {
+            seal::ENC_LENGTH + 16
+        } else {
+            0
+        };
+        let kem = if profile == POST_QUANTUM { 1_184 + 16 } else { 0 };
+        32 + kem + 48 + first_plaintext(&Identity::new("alice"), profile).len() + seal + 16 - 1
+    };
+    let group = |protocol: &str, profile: u8, tests: Vec<Test>| Group {
+        attributes: vec![
+            ("type", text("FirstMessage")),
+            ("protocol", text(protocol)),
+            ("profile", int(profile)),
+        ],
+        tests,
+    };
+    let groups = vec![
+        group(
+            IK,
+            CLASSICAL,
+            vec![
+                first_message_test(CLASSICAL, Change::None, "classical first message", &[]),
+                first_message_test(
+                    CLASSICAL,
+                    Change::Transit(last(CLASSICAL)),
+                    "payload tag bit flipped in transit",
+                    &["Tampered"],
+                ),
+                first_message_test(
+                    CLASSICAL,
+                    Change::WrongResponderKey,
+                    "initiator holds another responder key",
+                    &["WrongResponderKey"],
+                ),
+            ],
+        ),
+        group(
+            IKHFS,
+            POST_QUANTUM,
+            vec![
+                first_message_test(POST_QUANTUM, Change::None, "post-quantum first message", &[]),
+                first_message_test(
+                    POST_QUANTUM,
+                    Change::Seal(0),
+                    "enc bit flipped before writing",
+                    &["TamperedSeal"],
+                ),
+                first_message_test(
+                    POST_QUANTUM,
+                    Change::Seal(seal::ENC_LENGTH),
+                    "ciphertext bit flipped before writing",
+                    &["TamperedSeal"],
+                ),
+                first_message_test(
+                    POST_QUANTUM,
+                    Change::Transit(last(POST_QUANTUM)),
+                    "payload tag bit flipped in transit",
+                    &["Tampered"],
+                ),
+                first_message_test(
+                    POST_QUANTUM,
+                    Change::WrongResponderKey,
+                    "initiator holds another responder key",
+                    &["WrongResponderKey"],
+                ),
+            ],
+        ),
+    ];
+    let side = |extra: Option<(&'static str, usize)>, ephemeral: bool| {
+        let mut required = vec!["static_private"];
+        let mut properties = vec![("static_private", s_hex_of(32))];
+        if ephemeral {
+            required.push("ephemeral_private");
+            properties.push(("ephemeral_private", s_hex_of(32)));
+        }
+        if let Some((field, length)) = extra {
+            properties.push((field, s_hex_of(length)));
+        }
+        required.push("prologue");
+        properties.push(("prologue", s_hex()));
+        s_object(&required, properties)
+    };
+    let initiator = side(Some(("kem_keygen_seed", 64)), true);
+    let responder = side(Some(("xwing_secret_key", 32)), false);
+    document(
+        "first-message.json",
+        "MeshLink/1 end-to-end first message (Noise IK and IKhfs message 1)",
+        &[
+            (
+                "ReferenceKeys",
+                "Keys, ephemerals, the KEM seed and the seal randomness come from fixed labels in tools/reference. The initiator is alice, the responder bob; responder_key is the static key the initiator holds for the responder (pre-message).",
+            ),
+            (
+                "Replay",
+                "The initiator writes message 1 from its inputs, responder_key and payload; its output equals message except for Tampered tests. For IK the payload is plaintext; for IKhfs it is the HPKE seal of plaintext with info and encapsulation_randomness (as hpke-seal.json), except for TamperedSeal tests. The responder reads message to payload, then for IKhfs opens payload to plaintext with xwing_secret_key. handshake-failed: the Noise read fails; open-failed: the read succeeds and the seal does not open.",
+            ),
+            ("Tampered", "One bit of message 1 flipped in transit."),
+            (
+                "TamperedSeal",
+                "One bit of the HPKE seal flipped before the initiator writes it.",
+            ),
+            (
+                "WrongResponderKey",
+                "The initiator holds another node's static key for the responder.",
+            ),
+        ],
+        groups,
+        vec![
+            ("now", s_integer(0)),
+            ("initiator", initiator),
+            ("responder", responder),
+            ("responder_key", s_hex_of(32)),
+            ("initiator_node_id", s_hex_of(32)),
+            ("responder_node_id", s_hex_of(32)),
+            ("plaintext", s_hex()),
+            ("info?", s_hex()),
+            ("encapsulation_randomness?", s_hex_of(64)),
+            ("payload", s_hex()),
+            ("message", s_hex()),
+        ],
+        vec![
+            ("type", s_const(text("FirstMessage"))),
+            ("protocol", s_enum(&[IK, IKHFS])),
+            (
+                "profile",
+                object(vec![("enum", Value::List(vec![int(CLASSICAL), int(POST_QUANTUM)]))]),
+            ),
+        ],
+    )
+}
+
+// ---------------------------------------------------------------------------
 // HPKE X-Wing seal (ticket 45)
 // ---------------------------------------------------------------------------
 
@@ -915,6 +1180,7 @@ fn hpke_seal() -> Document {
     let bob = Identity::new("bob");
     let carol = Identity::new("carol");
     let recipient_key = bob.xwing_key();
+    let recipient_secret_key = bob.xwing_secret_key();
     let sender_key = alice.x25519_key();
     let seal_test = |comment: &str,
                      flags: &[&'static str],
@@ -940,6 +1206,7 @@ fn hpke_seal() -> Document {
         };
         let fields = vec![
             ("recipient_ikm", hex(&bob.xwing_ikm)),
+            ("recipient_secret_key", hex(&recipient_secret_key)),
             ("recipient_public_key", hex(&recipient_key)),
             ("encapsulation_randomness", hex(&randomness)),
             ("sender_static_key", hex(&sender_key)),
@@ -978,11 +1245,11 @@ fn hpke_seal() -> Document {
         &[
             (
                 "ReferenceKeys",
-                "Keys come from fixed labels in tools/reference. recipient_public_key is the X-Wing key of HPKE DeriveKeyPair(recipient_ikm); encapsulation_randomness is the 64 B X-Wing Encaps input (draft-ietf-hpke-pq-05).",
+                "Keys come from fixed labels in tools/reference. recipient_secret_key (the 32 B X-Wing seed) and recipient_public_key are HPKE DeriveKeyPair(recipient_ikm); encapsulation_randomness is the 64 B X-Wing Encaps input (draft-ietf-hpke-pq-05).",
             ),
             (
                 "Replay",
-                "A sender with these inputs and aad empty produces payload = enc (1,120 B) ‖ ct for valid tests. A recipient opens payload with recipient_ikm and info; invalid tests must not open.",
+                "A sender with these inputs and aad empty produces payload = enc (1,120 B) ‖ ct for valid tests. A recipient opens payload with recipient_secret_key and info; invalid tests must not open.",
             ),
             ("Tampered", "The payload changed after sealing."),
             (
@@ -1002,6 +1269,7 @@ fn hpke_seal() -> Document {
         }],
         vec![
             ("recipient_ikm", s_hex_of(32)),
+            ("recipient_secret_key", s_hex_of(32)),
             ("recipient_public_key", s_hex_of(1_216)),
             ("encapsulation_randomness", s_hex_of(64)),
             ("sender_static_key", s_hex_of(32)),

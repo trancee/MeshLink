@@ -1,4 +1,5 @@
-//! Noise `XX`, `XXpsk3`, `XXhfs` and `XXhfs+psk3` link handshakes (`docs/spec/link.md`, "Handshake").
+//! Noise `XX`, `XXpsk3`, `XXhfs` and `XXhfs+psk3` link handshakes (`docs/spec/link.md`, "Handshake"),
+//! and `IK` and `IKhfs` first messages (`docs/spec/end-to-end.md`, "First messages").
 //!
 //! snow's own ML-KEM-768 draws from the system random generator, so its transcripts can't be
 //! reproduced. [`FixedKem`] runs the same FIPS 203 algorithms from fixed inputs instead: key
@@ -138,6 +139,12 @@ pub struct Side {
 
 impl Side {
     fn build(&self, protocol: &str, initiator: bool) -> HandshakeState {
+        self.build_knowing(protocol, initiator, None)
+    }
+
+    /// The side's handshake state; an `IK` initiator holds `responder_key` as the responder's
+    /// static key.
+    fn build_knowing(&self, protocol: &str, initiator: bool, responder_key: Option<&[u8]>) -> HandshakeState {
         let mut builder = Builder::with_resolver(
             protocol.parse().expect("protocol name"),
             Box::new(FixedResolver(self.kem)),
@@ -149,6 +156,9 @@ impl Side {
         .expect("prologue");
         if let Some(psk) = &self.psk {
             builder = builder.psk(3, psk).expect("psk");
+        }
+        if let Some(key) = responder_key {
+            builder = builder.remote_public_key(key).expect("responder key");
         }
         if initiator {
             builder.build_initiator()
@@ -277,6 +287,34 @@ pub fn run(
             transport,
         }),
     }
+}
+
+/// `IK` or `IKhfs` message 1: the initiator, holding `responder_key`, writes `payload`, and
+/// `tamper` flips that byte in transit. The message as delivered and the payload the responder
+/// reads from it, or `None` if the responder rejects it.
+#[must_use]
+pub fn first_message(
+    protocol: &str,
+    initiator: &Side,
+    responder_key: &[u8; 32],
+    responder: &Side,
+    payload: &[u8],
+    tamper: Option<usize>,
+) -> (Vec<u8>, Option<Vec<u8>>) {
+    let mut writer = initiator.build_knowing(protocol, true, Some(responder_key));
+    let mut message = vec![0; MAX_MESSAGE];
+    let length = writer.write_message(payload, &mut message).expect("write");
+    message.truncate(length);
+    if let Some(byte) = tamper {
+        message = crate::spec::flip(&message, byte);
+    }
+    let mut read = vec![0; MAX_MESSAGE];
+    let payload = responder
+        .build(protocol, false)
+        .read_message(&message, &mut read)
+        .ok()
+        .map(|n| read[..n].to_vec());
+    (message, payload)
 }
 
 #[cfg(test)]

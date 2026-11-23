@@ -40,7 +40,8 @@ class NoiseTest {
 
     /**
      * Both sides of [pattern]; ephemerals and KEM inputs come from [seed] if it is not `null`, and
-     * from the provider otherwise.
+     * from the provider otherwise. An `IK` initiator knows [knownResponder], by default the
+     * responder's static key.
      */
     private fun sides(
         pattern: NoisePattern,
@@ -49,20 +50,24 @@ class NoiseTest {
         initiatorKeys: (SeededRandom?) -> KeyPair? = { it?.let(::keyPair) },
         responderStatic: KeyPair? = null,
         provider: CryptoProvider = crypto,
+        knownResponder: ByteArray? = null,
     ): Pair<NoiseHandshake, NoiseHandshake> {
         val random = seed?.let(::SeededRandom)
         val statics = SeededRandom(0)
+        val initiatorStatic = keyPair(statics)
+        val responderKeyPair = responderStatic ?: keyPair(statics)
         val usedPsk = pattern in PSK_PATTERNS
         val initiator =
             NoiseKeys(
-                keyPair(statics),
+                initiatorStatic,
                 initiatorPsk.takeIf { usedPsk },
                 initiatorKeys(random),
                 kemKeyPair = random?.let { crypto.mlKem768KeyPair(bytes(it, KEM_SEED_LENGTH)) },
+                remoteStatic = (knownResponder ?: responderKeyPair.publicKey).takeIf { pattern in IK_PATTERNS },
             )
         val responder =
             NoiseKeys(
-                responderStatic ?: keyPair(statics),
+                responderKeyPair,
                 psk.takeIf { usedPsk },
                 random?.let(::keyPair),
                 encapsulationSeed = random?.let { bytes(it, ENCAPSULATION_SEED_LENGTH) },
@@ -71,17 +76,19 @@ class NoiseTest {
             NoiseHandshake(provider, pattern, NoiseRole.RESPONDER, prologue, responder)
     }
 
-    /** The three handshake messages, with [tamper] applied to each before the reader sees it. */
+    /** The handshake messages, with [tamper] applied to each before the reader sees it. */
     private fun handshake(
         initiator: NoiseHandshake,
         responder: NoiseHandshake,
         tamper: (Int, ByteArray) -> ByteArray = { _, message -> message },
     ): List<ByteArray> =
-        payloads.mapIndexed { index, payload ->
-            val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
-            val message = tamper(index, writer.writeMessage(payload).ok())
-            assertContentEquals(payload, reader.readMessage(message).ok())
-            message
+        buildList {
+            while (!(initiator.isComplete && responder.isComplete)) {
+                val (writer, reader) = if (size % 2 == 0) initiator to responder else responder to initiator
+                val message = tamper(size, writer.writeMessage(payloads[size]).ok())
+                assertContentEquals(payloads[size], reader.readMessage(message).ok())
+                add(message)
+            }
         }
 
     /** The first failure of a handshake whose messages pass through [tamper], with both sides then refusing. */
@@ -91,12 +98,14 @@ class NoiseTest {
         tamper: (Int, ByteArray) -> ByteArray,
     ): NoiseFailure {
         val (initiator, responder) = sides
-        payloads.forEachIndexed { index, payload ->
+        var index = 0
+        while (!(initiator.isComplete && responder.isComplete)) {
             val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
-            val written = writer.writeMessage(payload)
+            val written = writer.writeMessage(payloads[index])
             if (written is NoiseResult.Failed) return written.failure.also { writer.assertClosed() }
             val read = reader.readMessage(tamper(index, written.ok()))
             if (read is NoiseResult.Failed) return read.failure.also { reader.assertClosed() }
+            index++
         }
         throw AssertionError("the handshake completed")
     }
@@ -131,7 +140,9 @@ class NoiseTest {
 
             assertContentEquals(sending.handshakeHash, receiving.handshakeHash, pattern.protocolName)
             assertEquals(HASH_LENGTH, sending.handshakeHash.size)
-            assertContentEquals(keyPair(SeededRandom(0)).publicKey, receiving.remoteStatic)
+            val statics = SeededRandom(0)
+            assertContentEquals(keyPair(statics).publicKey, receiving.remoteStatic)
+            assertContentEquals(keyPair(statics).publicKey, sending.remoteStatic)
             assertEquals(messages.map { it.hex() }, repeated.map { it.hex() })
             assertEquals(LENGTHS[pattern], messages.map { it.size }, pattern.protocolName)
             sending.exchange(receiving)
@@ -263,7 +274,7 @@ class NoiseTest {
     @Test
     fun truncatedAndExtendedMessagesFail() {
         NoisePattern.entries.forEach { pattern ->
-            repeat(MESSAGE_COUNT) { target ->
+            repeat(LENGTHS.getValue(pattern).size) { target ->
                 val shorter = failure(pattern, tamper = at(target) { it.copyOf(it.size - 1) })
                 val longer = failure(pattern, tamper = at(target) { it.copyOf(it.size + 1) })
                 assertEquals(NoiseFailure.AUTHENTICATION_FAILED, shorter, "${pattern.protocolName} $target")
@@ -392,6 +403,17 @@ class NoiseTest {
     }
 
     @Test
+    fun anIkMessageToAnotherResponderKeyFailsItsFirstRead() {
+        IK_PATTERNS.forEach { pattern ->
+            val other = keyPair(SeededRandom(2)).publicKey
+            val sides = sides(pattern, knownResponder = other)
+
+            assertEquals(NoiseFailure.AUTHENTICATION_FAILED, failure(pattern, sides) { _, bytes -> bytes })
+            assertFalse(sides.second.isComplete)
+        }
+    }
+
+    @Test
     fun aLowOrderPeerEphemeralFailsTheHandshake() {
         val sides = sides(NoisePattern.XX, initiatorKeys = { lowOrder })
         assertEquals(NoiseFailure.INVALID_PUBLIC_KEY, failure(NoisePattern.XX, sides) { _, bytes -> bytes })
@@ -411,6 +433,14 @@ class NoiseTest {
         assertFailsWith<IllegalArgumentException> {
             NoiseHandshake(crypto, NoisePattern.XX_PSK3, NoiseRole.INITIATOR, prologue, NoiseKeys(static))
         }
+        val known = NoiseKeys(static, remoteStatic = static.publicKey)
+        listOf(
+            Triple(NoisePattern.IK, NoiseRole.INITIATOR, NoiseKeys(static)),
+            Triple(NoisePattern.IK, NoiseRole.RESPONDER, known),
+            Triple(NoisePattern.XX, NoiseRole.INITIATOR, known),
+        ).forEach { (pattern, role, keys) ->
+            assertFailsWith<IllegalArgumentException> { NoiseHandshake(crypto, pattern, role, prologue, keys) }
+        }
     }
 
     private companion object {
@@ -420,7 +450,6 @@ class NoiseTest {
         const val NONCE_LENGTH = 12
         const val ZERO_PREFIX = 4
         const val BYTE_VALUES = 256
-        const val MESSAGE_COUNT = 3
         const val MESSAGE_LENGTH = 64
         const val STATIC_END = 32 + 48
         const val KEM_SEED_LENGTH = 64
@@ -430,6 +459,7 @@ class NoiseTest {
         const val PQ_PAYLOAD_LENGTH = 1_357
         const val HANDSHAKE_MESSAGE_MAX = 4_096
         val PSK_PATTERNS = setOf(NoisePattern.XX_PSK3, NoisePattern.XX_HFS_PSK3)
+        val IK_PATTERNS = setOf(NoisePattern.IK, NoisePattern.IK_HFS)
         private val CLASSICAL_2_3 = listOf(32 + 48 + 3 + 16, 48 + 5 + 16)
         private val HFS_2_3 = listOf(32 + 1_088 + 16 + 48 + 3 + 16, 48 + 5 + 16)
         val LENGTHS =
@@ -438,6 +468,8 @@ class NoiseTest {
                 NoisePattern.XX_PSK3 to listOf(32 + 3 + 16) + CLASSICAL_2_3,
                 NoisePattern.XX_HFS to listOf(32 + 1_184 + 3) + HFS_2_3,
                 NoisePattern.XX_HFS_PSK3 to listOf(32 + 1_184 + 16 + 3 + 16) + HFS_2_3,
+                NoisePattern.IK to listOf(32 + 48 + 3 + 16, 32 + 3 + 16),
+                NoisePattern.IK_HFS to listOf(32 + 1_184 + 16 + 48 + 3 + 16, 32 + 1_088 + 16 + 3 + 16),
             )
     }
 }

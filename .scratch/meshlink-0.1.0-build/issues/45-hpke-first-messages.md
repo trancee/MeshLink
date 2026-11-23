@@ -1,10 +1,12 @@
 # Seal first messages with HPKE
 
-Status: ready-for-agent
+Status: split into [45a](45a-e2e-crypto.md) and [45b](45b-secured-first-messages.md)
 Type: AFK
 Blocked by: 20, 44
 
 ## Behavior
+
+Split (owner decision): [45a](45a-e2e-crypto.md) adds the cryptography and vectors, and [45b](45b-secured-first-messages.md) the secured send path. This ticket closes when both are done.
 
 In `Classical` and `PostQuantum`, `send(to, payload)` to any peer, direct or routed, arrives end-to-end encrypted as a first message. Relays learn neither the content nor the exact size.
 

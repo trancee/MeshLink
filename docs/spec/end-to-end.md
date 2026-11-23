@@ -24,7 +24,7 @@ The end-to-end layer protects unicast messages and receipts between origin and d
 
 - Message 1 carries the first message (0-RTT, no forward secrecy). Message 2 completes the session. Later frames are Noise transport messages with forward secrecy.
 
-Vectors: `derivations.json`, derivation `e2e-prologue`. Handshake vectors are tier 2.
+Vectors: `derivations.json`, derivation `e2e-prologue`; tier 2 `first-message.json` for message 1. Message 2 and transport vectors are pending.
 
 ## Containers
 
@@ -157,7 +157,7 @@ A first message opens a session. It is a `MESSAGE` (or a `READ_RECEIPT`, see [Re
 
 HPKE is RFC 9180 base mode with KEM X-Wing (`0x647A`, draft-ietf-hpke-pq), KDF HKDF-SHA256 and AEAD ChaCha20Poly1305. The initiator's static key is used in `info` because the responder learns it from `IKhfs` before it opens the seal, and learns the initiator's NodeId only from the sealed `SENDER_CERTIFICATE`. The seal adds 1,136 B ([conflict C-06](decisions.md#c-06)).
 
-Vectors: `derivations.json`, derivation `hpke-info`. Seal vectors are tier 2.
+Vectors: `derivations.json`, derivation `hpke-info`; tier 2 `hpke-seal.json` and `first-message.json`.
 
 ## Sessions
 

@@ -87,7 +87,7 @@ public class Derivations(
     public companion object {
         private const val HASH_LENGTH = 32
         private const val MESH_TAG_LENGTH = 4
-        private const val ROUTING_TAG_LENGTH = 8
+        internal const val ROUTING_TAG_LENGTH = 8
         private const val COMMITMENT_LENGTH = 16
 
         /** The length of an epoch, in seconds (D-02). */
@@ -118,6 +118,21 @@ public class Derivations(
                 byteArrayOf(selected.toByte(), profile.code.toByte()) +
                 meshIdDigest
 
+        /** The end-to-end Noise prologue: `DS("e2e-prologue") ‖ u8(protocol_version) ‖ u8(profile)`. */
+        public fun e2ePrologue(
+            version: Int,
+            profile: WireProfile,
+        ): ByteArray = Domain.E2E_PROLOGUE.encoded + byteArrayOf(version.toByte(), profile.code.toByte())
+
+        /**
+         * The first-message HPKE `info`: `DS("hpke-first-message") ‖ initiator x25519 static key ‖
+         * responder NodeId` (D-35).
+         */
+        public fun hpkeInfo(
+            senderStaticKey: ByteArray,
+            recipientNodeId: ByteArray,
+        ): ByteArray = Domain.HPKE_FIRST_MESSAGE.encoded + senderStaticKey + recipientNodeId
+
         /**
          * The epoch number of [unixSeconds]: `floor(unix_seconds / 300)`.
          *
@@ -147,6 +162,11 @@ public enum class Domain(
     BROADCAST("broadcast"),
     LOOKUP_TAG("lookup-tag"),
     LOOKUP_REPLY("lookup-reply"),
+    PUBLIC_TAG("public-tag"),
+    E2E_PROLOGUE("e2e-prologue"),
+    HPKE_FIRST_MESSAGE("hpke-first-message"),
+    CONVERSATION("conversation"),
+    CONVERSATION_TAG("conversation-tag"),
     ;
 
     /** `DS(purpose) = u8(len(s)) ‖ s`, where `s = "MeshLink/1 " ‖ purpose`. */

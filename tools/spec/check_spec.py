@@ -470,6 +470,53 @@ def tier2_seal(g, t, where):
         fail("%s: an invalid seal fails with open-failed" % where)
 
 
+# Each first-message pattern: its profile byte and whether it has a KEM.
+FIRST_PATTERNS = {"noise-ik": (0x01, False), "noise-ikhfs": (0x02, True)}
+FIRST_CAUSES = {(): None, ("Tampered",): "handshake-failed", ("WrongResponderKey",): "handshake-failed",
+                ("TamperedSeal",): "open-failed"}
+
+
+def tier2_first_message(g, t, where):
+    pattern = next((v for k, v in FIRST_PATTERNS.items() if constant(k) == g["protocol"]), None)
+    if pattern is None or pattern[0] != g["profile"]:
+        return fail("%s: protocol %s for profile %s" % (where, g["protocol"], g["profile"]))
+    profile, kem = pattern
+    i, r = t["initiator"], t["responder"]
+    if ("kem_keygen_seed" in i, "xwing_secret_key" in r, "info" in t, "encapsulation_randomness" in t) != (kem,) * 4:
+        fail("%s: KEM and seal inputs belong to IKhfs only" % where)
+    if {i["prologue"], r["prologue"]} != {m.e2e_prologue(1, profile).hex()}:
+        fail("%s: both prologues must be the e2e prologue for profile 0x%02x" % (where, profile))
+    plaintext, payload = b(t["plaintext"]), b(t["payload"])
+    try:
+        content = m.decode_inner(plaintext, "message", True)
+    except m.DecodeError as e:
+        return fail("%s: plaintext %s" % (where, e.code))
+    tlvs = {x["type"]: b(x["value"]) for x in content["extensions"]}
+    cert = m.decode_certificate(tlvs.get("0x01", b""))
+    if sorted(tlvs) != ["0x01", "0x82"] or len(tlvs["0x82"]) != 32:
+        fail("%s: plaintext must carry SENDER_CERTIFICATE and a 32 B CONVERSATION_SEED" % where)
+    elif cert["profile"] != "0x%02x" % profile or m.node_id(b(cert["ed25519_key"])).hex() != t["initiator_node_id"]:
+        fail("%s: SENDER_CERTIFICATE is not the profile 0x%02x certificate of the initiator" % (where, profile))
+    elif not cert["not_before"] - SKEW <= t["now"] < cert["not_after"] + SKEW:
+        fail("%s: SENDER_CERTIFICATE not valid at now" % where)
+    if kem:
+        if m.hpke_info(b(cert["x25519_key"]), b(t["responder_node_id"])).hex() != t["info"]:
+            fail("%s: info must name the initiator's static key and the responder NodeId" % where)
+        if len(payload) != XWING_ENC + len(plaintext) + TAG:
+            fail("%s: payload is not a seal of plaintext" % where)
+    elif payload != plaintext:
+        fail("%s: the IK payload is the plaintext" % where)
+    size = X25519 + ((KEM_PUBLIC + TAG) if kem else 0) + (X25519 + TAG) + len(payload) + TAG
+    if len(b(t["message"])) != size:
+        fail("%s: message is %d B, expected %d" % (where, len(b(t["message"])), size))
+    causes = tuple(t["flags"])
+    if causes not in FIRST_CAUSES or (causes == ("TamperedSeal",) and not kem):
+        return fail("%s: flags %s" % (where, causes))
+    expected = FIRST_CAUSES[causes]
+    if t.get("error") != expected or t["result"] != ("invalid" if expected else "valid"):
+        fail("%s: expected %s, file says %s" % (where, expected, t.get("error")))
+
+
 def tier2_link(g, t, where):
     pattern = next((v for k, v in PATTERNS.items() if constant(k) == g["protocol"]), None)
     if pattern is None or pattern[2]:
@@ -548,6 +595,7 @@ def tier2_lookup(g, t, where):
 
 
 TIER2 = {"BroadcastVerify": tier2_broadcast, "CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal,
+         "FirstMessage": tier2_first_message,
          "LinkTransport": tier2_link, "LookupReplySeal": tier2_lookup}
 
 

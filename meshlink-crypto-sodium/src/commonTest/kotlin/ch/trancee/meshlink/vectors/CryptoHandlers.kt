@@ -13,7 +13,9 @@ import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.CryptoResult
 import ch.trancee.meshlink.internal.Decoded
 import ch.trancee.meshlink.internal.Derivations
+import ch.trancee.meshlink.internal.EndToEndTags
 import ch.trancee.meshlink.internal.HandshakePayload
+import ch.trancee.meshlink.internal.Hpke
 import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.KeyPair
 import ch.trancee.meshlink.internal.LinkCipher
@@ -41,6 +43,7 @@ import kotlin.time.Duration.Companion.seconds
 
 private val crypto: CryptoProvider = SodiumCryptoProvider
 private val derivations = Derivations(crypto)
+private val endToEndTags = EndToEndTags(derivations)
 
 /** A `derivations.json` handler: [compute] of the test's `inputs` must equal its `output`. */
 private fun derivation(compute: (Json) -> ByteArray): Handler =
@@ -89,6 +92,31 @@ internal val tombstoneCommitment: Handler = derivation { derivations.tombstoneCo
 
 internal val lookupTag: Handler =
     derivation { derivations.lookupTag(it["salt"].string.hex(), it["node_id"].string.hex()) }
+
+internal val publicTag: Handler =
+    derivation { endToEndTags.publicTag(it["x25519_key"].string.hex(), it["epoch"].uInt) }
+
+internal val conversationSecret: Handler =
+    derivation {
+        endToEndTags.conversationSecret(
+            it["seed"].string.hex(),
+            it["initiator_node_id"].string.hex(),
+            it["responder_node_id"].string.hex(),
+        )
+    }
+
+internal val conversationTag: Handler =
+    derivation {
+        endToEndTags.conversationTag(it["conversation_secret"].string.hex(), it["direction"].int, it["epoch"].uInt)
+    }
+
+internal val e2ePrologue: Handler =
+    derivation { inputs ->
+        Derivations.e2ePrologue(inputs["version"].int, WireProfile.entries.single { it.code == inputs["profile"].int })
+    }
+
+internal val hpkeInfo: Handler =
+    derivation { Derivations.hpkeInfo(it["sender_static_key"].string.hex(), it["recipient_node_id"].string.hex()) }
 
 internal val lookupReplyKey: Handler =
     derivation { inputs ->
@@ -357,8 +385,10 @@ internal val mlKem768Decapsulate: Handler =
     }
 
 /**
- * draft-ietf-hpke-pq-05 Appendix A, X-Wing (`0x647a`): the raw KEM's fields. `skRm` is the X-Wing
- * seed, `ikmE` the encapsulation seed. The HPKE key schedule fields belong to ticket 45.
+ * draft-ietf-hpke-pq-05 Appendix A.5, X-Wing (`0x647a`), HKDF-SHA256, ChaCha20Poly1305, base mode.
+ * `skRm` is the X-Wing seed and `ikmE` the encapsulation seed. Both the sender's and the
+ * receiver's context must reach the key schedule, then the sender seals every encryption in order
+ * and the receiver opens it; both export every value.
  */
 internal val xWing: Handler =
     Handler("shared_secret") { case ->
@@ -370,7 +400,117 @@ internal val xWing: Handler =
         val decapsulated = crypto.xWingDecapsulate(keyPair.secretKey, case.hex("enc"))
         if (decapsulated !is CryptoResult.Ok) fail("decapsulation failed: $decapsulated")
         assertEquals(case.test["shared_secret"].string, decapsulated.value.hex(), "decapsulated")
+        hpkeContexts(case, keyPair)
     }
+
+private fun hpkeContexts(
+    case: VectorCase,
+    keyPair: KeyPair,
+) {
+    val info = case.hex("info")
+    val sender = Hpke(crypto).sender(keyPair.publicKey, info, case.hex("ikmE")).ok()
+    assertEquals(case.test["enc"].string, sender.enc.hex(), "sender enc")
+    val receiver = Hpke(crypto).receiver(keyPair.secretKey, case.hex("enc"), info).ok()
+    for (context in listOf(sender.context, receiver)) {
+        assertEquals(case.test["key"].string, context.key.hex(), "key")
+        assertEquals(case.test["base_nonce"].string, context.baseNonce.hex(), "base_nonce")
+        assertEquals(case.test["exporter_secret"].string, context.exporterSecret.hex(), "exporter_secret")
+    }
+    case.test["encryptions"].list.forEachIndexed { index, encryption ->
+        val aad = encryption["aad"].string.hex()
+        val ct = sender.context.seal(aad, encryption["pt"].string.hex())
+        assertEquals(encryption["ct"].string, ct.hex(), "encryption ${index + 1}")
+        assertEquals(encryption["pt"].string, receiver.open(aad, ct).ok().hex(), "opened ${index + 1}")
+    }
+    for (export in case.test["exports"].list) {
+        val exporterContext = export["exporter_context"].string.hex()
+        for (context in listOf(sender.context, receiver)) {
+            val exported = context.export(exporterContext, export["L"].int)
+            assertEquals(export["exported_value"].string, exported.hex(), "export")
+        }
+    }
+}
+
+/**
+ * `hpke-seal.json` (tier 2): the first-message `info` from its parts, then the payload opened with
+ * the recipient's X-Wing seed. A valid test must reseal to the payload byte for byte; an invalid
+ * one must fail its tag.
+ */
+internal val hpkeSeal: Handler =
+    Handler("payload") { case ->
+        val info = Derivations.hpkeInfo(case.hex("sender_static_key"), case.hex("recipient_node_id"))
+        assertEquals(case.test["info"].string, info.hex(), "info")
+        val publicKey = crypto.xWingKeyPair(case.hex("recipient_secret_key")).publicKey
+        assertEquals(case.test["recipient_public_key"].string, publicKey.hex(), "recipient_public_key")
+        val opened = Hpke(crypto).open(case.hex("recipient_secret_key"), info, case.hex("payload"))
+        if (case.result == "valid") {
+            assertEquals(case.test["plaintext"].string, opened.ok().hex(), "plaintext")
+            val sealed = Hpke(crypto).seal(publicKey, info, case.hex("plaintext"), case.hex("encapsulation_randomness"))
+            assertEquals(case.test["payload"].string, sealed.ok().hex(), "payload")
+        } else {
+            opened.assertFailed(CryptoFailure.AUTHENTICATION_FAILED)
+        }
+    }
+
+/**
+ * `first-message.json` (tier 2): both sides hold the e2e prologue of the group's profile. The
+ * initiator writes `payload` from its keys and the responder key it holds, and its message must
+ * equal `message` except in a `Tampered` test. The responder reads `message` to `payload`; for
+ * `IKhfs` it opens the seal to `plaintext`, which must reseal to `payload`. `handshake-failed` means
+ * the read fails; `open-failed` that the read succeeds and the seal does not open.
+ */
+internal val firstMessage: Handler =
+    Handler("message") { case ->
+        val pattern = NoisePattern.entries.single { it.protocolName == case.group["protocol"].string }
+        val profile = WireProfile.entries.single { it.code == case.group["profile"].int }
+        val prologue = Derivations.e2ePrologue(1, profile)
+        val (initiatorSide, responderSide) = case.test["initiator"] to case.test["responder"]
+        listOf(initiatorSide, responderSide).forEach { assertEquals(it["prologue"].string, prologue.hex()) }
+        val initiatorStatic = crypto.x25519KeyPair(initiatorSide["static_private"].string.hex())
+        val initiatorKeys =
+            NoiseKeys(
+                initiatorStatic,
+                ephemeral = crypto.x25519KeyPair(initiatorSide["ephemeral_private"].string.hex()),
+                kemKeyPair = initiatorSide.optional("kem_keygen_seed")?.hex()?.let(crypto::mlKem768KeyPair),
+                remoteStatic = case.hex("responder_key"),
+            )
+        val responderKeys = NoiseKeys(crypto.x25519KeyPair(responderSide["static_private"].string.hex()))
+        val initiator = NoiseHandshake(crypto, pattern, NoiseRole.INITIATOR, prologue, initiatorKeys)
+        val responder = NoiseHandshake(crypto, pattern, NoiseRole.RESPONDER, prologue, responderKeys)
+        val (payload, message) = case.test["payload"].string to case.test["message"].string
+        val written = initiator.writeMessage(payload.hex()).value().hex()
+        assertEquals("Tampered" in case.test["flags"].list.map { it.string }, written != message, "message")
+        val read = responder.readMessage(message.hex())
+        val error =
+            when {
+                read is NoiseResult.Failed -> "handshake-failed"
+                case.test.has("info") -> openFirstMessage(case, initiatorStatic.publicKey, read.value())
+                else -> null.also { assertEquals(case.test["plaintext"].string, read.value().hex(), "plaintext") }
+            }
+        if (read is NoiseResult.Ok) assertEquals(payload, read.value.hex(), "payload")
+        assertEquals(case.test.optional("error"), error)
+    }
+
+/** Opens an `IKhfs` first-message seal: `null` if it opens to `plaintext` and reseals to [payload]. */
+private fun openFirstMessage(
+    case: VectorCase,
+    initiatorKey: ByteArray,
+    payload: ByteArray,
+): String? {
+    val info = Derivations.hpkeInfo(initiatorKey, case.hex("responder_node_id"))
+    assertEquals(case.test["info"].string, info.hex(), "info")
+    val secretKey = case.test["responder"]["xwing_secret_key"].string.hex()
+    val opened = Hpke(crypto).open(secretKey, info, payload)
+    if (opened !is CryptoResult.Ok) {
+        opened.assertFailed(CryptoFailure.AUTHENTICATION_FAILED)
+        return "open-failed"
+    }
+    assertEquals(case.test["plaintext"].string, opened.value.hex(), "plaintext")
+    val publicKey = crypto.xWingKeyPair(secretKey).publicKey
+    val sealed = Hpke(crypto).seal(publicKey, info, opened.value, case.hex("encapsulation_randomness"))
+    assertContentEquals(payload, sealed.ok(), "reseal")
+    return null
+}
 
 private const val ML_KEM_PUBLIC_KEY = 1184
 
@@ -402,25 +542,28 @@ internal val noise: Handler =
                         crypto.x25519KeyPair(case.hex("${side}_static")),
                         psk,
                         crypto.x25519KeyPair(case.hex("${side}_ephemeral")),
+                        remoteStatic = case.test.optional("${side}_remote_static")?.hex(),
                     )
                 NoiseHandshake(crypto, pattern, role, case.hex("${side}_prologue"), keys)
             }
         val messages = case.test["messages"].list
-        messages.take(HANDSHAKE_MESSAGES).forEachIndexed { index, message ->
-            val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
-            val payload = message["payload"].string
-            val ciphertext = writer.writeMessage(payload.hex()).value().hex()
-            assertEquals(message["ciphertext"].string, ciphertext, "message $index")
-            assertEquals(payload, reader.readMessage(message["ciphertext"].string.hex()).value().hex())
-        }
+        val handshake =
+            messages.indices.asSequence().takeWhile { !initiator.isComplete }.count { index ->
+                val (writer, reader) = if (index % 2 == 0) initiator to responder else responder to initiator
+                val payload = messages[index]["payload"].string
+                val ciphertext = writer.writeMessage(payload.hex()).value().hex()
+                assertEquals(messages[index]["ciphertext"].string, ciphertext, "message $index")
+                assertEquals(payload, reader.readMessage(ciphertext.hex()).value().hex())
+                true
+            }
         val (sending, receiving) = initiator.split().value() to responder.split().value()
         assertEquals(case.test["handshake_hash"].string, sending.handshakeHash.hex())
         assertEquals(case.test["handshake_hash"].string, receiving.handshakeHash.hex())
-        messages.drop(HANDSHAKE_MESSAGES).forEachIndexed { offset, message ->
-            val (writer, reader) = if (offset % 2 == 1) sending to receiving else receiving to sending
-            val payload = message["payload"].string
+        for (index in handshake until messages.size) {
+            val (writer, reader) = if (index % 2 == 0) sending to receiving else receiving to sending
+            val payload = messages[index]["payload"].string
             val ciphertext = writer.encrypt(payload.hex()).value().hex()
-            assertEquals(message["ciphertext"].string, ciphertext, "message ${offset + HANDSHAKE_MESSAGES}")
+            assertEquals(messages[index]["ciphertext"].string, ciphertext, "message $index")
             assertEquals(payload, reader.decrypt(ciphertext.hex()).value().hex())
         }
     }
@@ -544,5 +687,3 @@ private fun handshakeSides(
 private fun Json.optional(field: String): String? = if (has(field)) this[field].string else null
 
 private fun <T> NoiseResult<T>.value(): T = assertIs<NoiseResult.Ok<T>>(this).value
-
-private const val HANDSHAKE_MESSAGES = 3
