@@ -1,7 +1,7 @@
 package ch.trancee.meshlink.internal
 
 // An end-to-end layer that owns [own], carries [kinds], takes MESSAGE frames while [accepting], and records them,
-// later copies, delivery receipts and found routes.
+// later copies, delivery and read receipts and found routes.
 internal class FakeEndpoint(
     private val own: ByteArray?,
 ) : Endpoint,
@@ -10,6 +10,7 @@ internal class FakeEndpoint(
     val found = mutableListOf<ByteArray>()
     val repeated = mutableListOf<ByteArray>()
     val acknowledged = mutableListOf<ByteArray>()
+    val read = mutableListOf<ByteArray>()
     var accepting = true
     var kinds = setOf(Container.UNSECURED)
 
@@ -40,6 +41,13 @@ internal class FakeEndpoint(
         nowSeconds: Long,
     ) {
         acknowledged += frame
+    }
+
+    override fun read(
+        frame: ByteArray,
+        nowSeconds: Long,
+    ) {
+        read += frame
     }
 
     override fun tag(): ByteArray? = own

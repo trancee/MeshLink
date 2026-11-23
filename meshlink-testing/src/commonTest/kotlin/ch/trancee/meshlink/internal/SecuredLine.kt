@@ -3,11 +3,13 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshLinkConfigBuilder
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.SecurityProfile
+import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.SendResult
 import ch.trancee.meshlink.meshLinkConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,15 +23,21 @@ import kotlin.coroutines.ContinuationInterceptor
 import kotlin.test.assertIs
 
 /**
- * A scenario's line of [length] secured nodes of identity seeds from [seed] on one stretch of seeded
- * virtual air, links only between neighbors: each node records the frames its links carried to it and
- * the messages it received; each sent message, its statuses.
+ * A scenario's line of [length] nodes of identity seeds from [seed] on one stretch of seeded virtual air,
+ * links only between neighbors: each node records the frames its links carried to it, the messages it
+ * received and its link diagnostics; each sent message, its statuses.
  */
 @OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
 internal class SecuredLine(
     private val seed: Long,
     val length: Int = LENGTH,
 ) {
+    /** Sets up the config of node `index`; set before [start]. */
+    var configure: MeshLinkConfigBuilder.(index: Int) -> Unit = {}
+
+    /** The crypto node `index` uses, made of its own; set before [start]. */
+    var crypto: (index: Int, CryptoProvider) -> CryptoProvider = { _, crypto -> crypto }
+
     private lateinit var scope: TestScope
     private lateinit var air: VirtualAir
     private var scopeInitialized = false
@@ -38,6 +46,7 @@ internal class SecuredLine(
     val nodes = mutableListOf<MeshLink>()
     val received = mutableListOf<OpenedFrames>()
     val inboxes = mutableListOf<MutableList<ReceivedMessage>>()
+    val diagnostics = mutableListOf<MutableList<LinkDiagnostic>>()
 
     /**
      * The status of the last sent message at each change, and whether Alice then held its destination's
@@ -79,13 +88,17 @@ internal class SecuredLine(
                 } ?: air.platform(dispatcher)
             air.move(platform.radio, index * SPACING, 0.0)
             platforms += platform
-            val crypto = OpenedFrames(SeededCrypto(seed + index))
-            val node = create(platform, crypto, MESH)
+            val crypto = OpenedFrames(crypto(index, SeededCrypto(seed + index)))
+            val node = create(platform, crypto, MESH, index)
             nodes += node
             received += crypto
             inboxes +=
                 mutableListOf<ReceivedMessage>().also { inbox ->
                     scope.backgroundScope.launch { node.messages.collect { inbox += it } }
+                }
+            diagnostics +=
+                mutableListOf<LinkDiagnostic>().also { events ->
+                    scope.backgroundScope.launch { node.linkDiagnostics.collect { events += it } }
                 }
             node.start()
         }
@@ -96,8 +109,13 @@ internal class SecuredLine(
         platform: VirtualPlatform,
         crypto: CryptoProvider,
         meshId: String,
+        index: Int,
     ): MeshLink {
-        val config = meshLinkConfig(Preset.ProximityDiscovery, profile) { this.meshId = meshId }.build()
+        val config =
+            meshLinkConfig(Preset.ProximityDiscovery, profile) {
+                this.meshId = meshId
+                configure(index)
+            }.build()
         return MeshLink.create(config, MeshPlatform.of(platform, crypto))
     }
 
@@ -110,7 +128,7 @@ internal class SecuredLine(
             List(2) { index ->
                 val platform = air.platform(StandardTestDispatcher(scope.testScheduler))
                 air.move(platform.radio, FAR + index * SPACING, 0.0)
-                create(platform, SeededCrypto(seed + length + index), ELSEWHERE).also { nodes += it }
+                create(platform, SeededCrypto(seed + length + index), ELSEWHERE, length + index).also { nodes += it }
             }
         pair.forEach { it.start() }
         scope.testScheduler.advanceTimeBy(LINKED_MILLIS)
@@ -139,6 +157,9 @@ internal class SecuredLine(
 
     private fun lookups() = checkNotNull(nodes[0].certificateLookups)
 
+    // Whether the first node holds [peer]'s certificate; an `Unsecured` node holds none.
+    private suspend fun holds(peer: NodeId) = nodes[0].certificateLookups?.certificateOf(peer) != null
+
     /** The first node looks up the certificate of node [target]. */
     fun lookUp(target: Int) {
         lookups().lookUp(id(target))
@@ -148,20 +169,24 @@ internal class SecuredLine(
     /** The certificate of node [target] the first node holds, if any. */
     suspend fun certificate(target: Int) = lookups().certificateOf(id(target))
 
-    /** Node [from] sends [text] to [to], recording its statuses under [text]; then [settleMillis] pass. */
+    /**
+     * Node [from] sends [text] to [to] with [options], recording its statuses under [text]; then
+     * [settleMillis] pass.
+     */
     fun send(
         to: NodeId,
         text: String,
         from: Int = 0,
         settleMillis: Long = DELIVERED_MILLIS,
+        options: SendOptions = SendOptions(),
     ) {
         sent = text
         sentAtMillis = TestClock(scope.testScheduler).wallClockMillis()
-        val message = assertIs<SendResult.Accepted>(nodes[from].send(to, text.encodeToByteArray())).message
+        val message = assertIs<SendResult.Accepted>(nodes[from].send(to, text.encodeToByteArray(), options)).message
         val statuses = mutableListOf<DeliveryStatus>().also { history[text] = it }
         scope.backgroundScope.launch {
             message.status.collect { status ->
-                val held = lookups().certificateOf(to) != null
+                val held = holds(to)
                 this@SecuredLine.statuses += status to held
                 statuses += status
                 changes += status to TestClock(scope.testScheduler).wallClockMillis()
@@ -181,6 +206,9 @@ internal class SecuredLine(
 
     /** The `MESSAGE` frames the links carried to node [index], in order. */
     fun messages(index: Int): List<MessageFrame> = decoded(index) { MessageFrame.decode(it) }
+
+    /** The `READ_RECEIPT` frames the links carried to node [index], in order. */
+    fun reads(index: Int): List<ReadReceipt> = decoded(index) { ReadReceipt.decode(it) }
 
     /** The `DELIVERY_RECEIPT` frames the links carried to node [index], in order, with their bytes. */
     fun receipts(index: Int): List<Pair<ByteArray, DeliveryReceipt>> =

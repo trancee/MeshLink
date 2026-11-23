@@ -17,6 +17,7 @@ import ch.trancee.meshlink.internal.LookupReply
 import ch.trancee.meshlink.internal.LookupRequest
 import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
+import ch.trancee.meshlink.internal.ReadReceipt
 import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.RecordReader
 import ch.trancee.meshlink.internal.RouteReply
@@ -242,6 +243,17 @@ internal val deliveryReceipt: Handler =
             frame.tombstones.map { it.messageId.hex() to it.k.hex() },
             "tombstones",
         )
+        assertContainer(decoded["container"], frame.container)
+    }
+
+internal val readReceipt: Handler =
+    layout({ _, bytes -> ReadReceipt.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), ReadReceipt.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["destination_tag"].string, frame.header.destinationTag.hex(), "destination_tag")
+        assertEquals(decoded["source_tag"].string, frame.header.sourceTag.hex(), "source_tag")
         assertContainer(decoded["container"], frame.container)
     }
 

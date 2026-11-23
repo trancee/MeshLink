@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 class DeliveryOrderTest {
     @Test
-    fun aStatusOnlyMovesForwardExceptThatSentAndHeldAlternate() {
+    fun aStatusOnlyMovesForwardExceptThatSentAndHeldAlternateAndDeliveredMayBecomeRead() {
         val random = Random(SEED)
 
         repeat(SEQUENCES) {
@@ -25,7 +25,8 @@ class DeliveryOrderTest {
             // Assert
             history.zipWithNext().zip(requests).forEach { (step, request) ->
                 val (from, to) = step
-                val allowed = !from.terminal && request != DeliveryStatus.Queued
+                val read = from == DeliveryStatus.Delivered && request == DeliveryStatus.Read
+                val allowed = (!from.terminal || read) && request != DeliveryStatus.Queued
                 assertEquals(if (allowed) request else from, to, "$from then $request in $requests")
             }
             assertTrue(history.zipWithNext().all { (from, to) -> rank(from) <= rank(to) }, "$history")
@@ -33,14 +34,15 @@ class DeliveryOrderTest {
     }
 
     @Test
-    fun deliveredExpiredAndFailedAreTerminal() {
-        assertEquals(listOf(true, true, true, false, false, false), STATUSES.map { it.terminal })
+    fun deliveredReadExpiredAndFailedAreTerminal() {
+        assertEquals(listOf(true, true, true, true, false, false, false), STATUSES.map { it.terminal })
     }
 
     private fun rank(status: DeliveryStatus): Int =
         when {
             status == DeliveryStatus.Queued -> 0
-            status.terminal -> 2
+            status == DeliveryStatus.Delivered -> 2
+            status.terminal -> 3
             else -> 1
         }
 
@@ -51,6 +53,7 @@ class DeliveryOrderTest {
         val STATUSES =
             listOf(
                 DeliveryStatus.Delivered,
+                DeliveryStatus.Read,
                 DeliveryStatus.Expired,
                 DeliveryStatus.Failed(FailureReason.Stopped),
                 DeliveryStatus.Queued,

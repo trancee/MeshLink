@@ -153,6 +153,7 @@ internal val vectorSets: List<VectorSet> =
             mapOf(
                 "0x40" to messageFrame,
                 "0x41" to deliveryReceipt,
+                "0x42" to readReceipt,
                 "0x43" to routeReply,
                 "0x44" to lookupReply,
                 "0x7e" to unicastFrame,
@@ -201,22 +202,15 @@ internal val vectorSets: List<VectorSet> =
         VectorSet("wycheproof/x25519_test.json", mapOf("XdhComp" to x25519), key = groupType),
     )
 
-private fun pending(
-    file: String,
-    ticket: String,
-    vararg keys: String,
-): List<Skip> = keys.map { Skip.Pending("vectors/$file", it, ticket) }
-
 /** Tests no handler runs yet: each names the ticket that lands the code, or why MeshLink never runs it. */
 internal val vectorSkips: List<Skip> =
-    pending("routed-frames.json", "48", "0x42") +
-        OTHER_HPKE_SUITES.map {
-            Skip.NotApplicable(
-                "hpke-pq/test-vectors.json",
-                it.key(),
-                "MeshLink's only HPKE suite is X-Wing, HKDF-SHA256, ChaCha20Poly1305 (D-35, ADR 0004)",
-            )
-        } +
+    OTHER_HPKE_SUITES.map {
+        Skip.NotApplicable(
+            "hpke-pq/test-vectors.json",
+            it.key(),
+            "MeshLink's only HPKE suite is X-Wing, HKDF-SHA256, ChaCha20Poly1305 (D-35, ADR 0004)",
+        )
+    } +
         Skip.NotApplicable(CACOPHONY, OTHER_NOISE_PATTERNS, "MeshLink runs only XX, XXpsk3 and IK (ADR 0002)") +
         NOISE_OTHER_SUITES.map {
             Skip.NotApplicable(CACOPHONY, "Noise_*_$it", "MeshLink's only Noise suite is $NOISE_SUITE (ADR 0002)")

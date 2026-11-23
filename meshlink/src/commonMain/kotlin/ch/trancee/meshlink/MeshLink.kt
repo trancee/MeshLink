@@ -78,8 +78,8 @@ public class MeshLink private constructor(
     private val meshKey = config.meshKey
     private val scanner = Scanner(port.radio, port.clock, port.random, Discovery(crypto, meshId, profile, meshKey))
     private val links = MutableStateFlow<Links?>(null)
-    private val post = Post(crypto, port.clock, scope, config.messageLifetimeSeconds, profile) { scanner.density }
     private val diagnostics = MutableSharedFlow<LinkDiagnostic>(extraBufferCapacity = DIAGNOSTICS_BUFFER)
+    private val post = Post(crypto, port.clock, scope, config, { scanner.density }) { diagnostics.tryEmit(it) }
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()

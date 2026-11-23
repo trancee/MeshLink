@@ -84,6 +84,15 @@ class RouterTest {
         return DeliveryReceipt(header, listOf(Tombstone(messageId(id + 100), ByteArray(16))), container).encode()
     }
 
+    private fun TestScope.read(
+        id: Int,
+        destination: ByteArray,
+        container: Container = Container.Unsecured(ByteArray(32), byteArrayOf()),
+    ): ByteArray {
+        val header = UnicastHeader(5, messageId(id), (nowSeconds() + 60).toUInt(), destination, tag(8))
+        return ReadReceipt(header, container).encode()
+    }
+
     // Originates message [id] whose frame is its hop limit.
     private fun Router.send(
         id: Int,
@@ -247,7 +256,7 @@ class RouterTest {
             val router = router()
 
             // Act
-            router.received(a, unicast(0x42, 5, messageId(1), nowSeconds(), tag(9), tag(8)))
+            router.received(a, unicast(0x45, 5, messageId(1), nowSeconds(), tag(9), tag(8)))
 
             // Assert
             assertEquals(1, waiting().getValue(b).size)
@@ -384,6 +393,40 @@ class RouterTest {
 
             // Assert
             assertEquals(emptyList(), endpoint.acknowledged)
+            assertEquals(1, waiting().getValue(b).size)
+        }
+
+    @Test
+    fun aReadReceiptForThisNodeIsTakenAndOneForAnotherIsRelayed() =
+        runTest {
+            // Arrange
+            val router = router()
+            val mine = read(id = 1, destination = OWN)
+
+            // Act
+            router.received(a, mine)
+            router.received(a, read(id = 2, destination = tag(9)))
+
+            // Assert
+            assertContentEquals(mine, endpoint.read.single())
+            assertEquals(emptyList(), endpoint.acknowledged)
+            assertEquals(1, waiting().getValue(b).size)
+        }
+
+    @Test
+    fun aMalformedOrDisallowedReadReceiptIsDropped() =
+        runTest {
+            // Arrange
+            val router = router(kinds = setOf(Container.IK_INITIATOR, Container.TRANSPORT))
+            val malformed = read(id = 1, destination = OWN).let { it.copyOf(it.size - 1) }
+
+            // Act
+            router.received(a, malformed)
+            router.received(a, read(id = 2, destination = OWN))
+            router.received(a, read(id = 3, destination = tag(9), container = TRANSPORT))
+
+            // Assert
+            assertEquals(emptyList(), endpoint.read)
             assertEquals(1, waiting().getValue(b).size)
         }
 

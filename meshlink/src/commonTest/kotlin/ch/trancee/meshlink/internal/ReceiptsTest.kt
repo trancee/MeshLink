@@ -26,7 +26,7 @@ class ReceiptsTest {
         val receipts =
             Receipts(SchedulerClock(testScheduler), backgroundScope, { to, tombstones, expiry ->
                 sent += Sent(testScheduler.currentTime, to, tombstones.map { it.messageId[0].toInt() }, expiry)
-            }, { from, ids -> delivered += from to ids.size }, prompt)
+            }, { from, ids -> delivered += from to ids.size }, reads(), prompt)
         receipts.begin()
         return receipts
     }

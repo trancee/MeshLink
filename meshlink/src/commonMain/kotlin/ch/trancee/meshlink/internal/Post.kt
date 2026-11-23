@@ -2,13 +2,16 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
+import ch.trancee.meshlink.MeshLinkConfig
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.OutgoingMessage
+import ch.trancee.meshlink.ReadReceiptRequest
 import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.Requirement
 import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.SendResult
+import ch.trancee.meshlink.wireProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,9 +81,10 @@ internal enum class Settled {
  * A node's messaging: validates and sends its messages, relays other nodes' frames, and accepts the
  * `MESSAGE` frames for this node into [inbox] (ADR 0007 decisions 7 and 9, ADR 0013, spec "Unicast
  * forwarding"), and floods [broadcasts] (spec "Flood forwarding"). [density] is the node's current
- * density class.
+ * density class. Sends and takes read receipts as [config] allows (spec "Read receipts"), and
+ * [diagnose]s each sent message it stops tracking for one.
  *
- * A secured [profile]'s mesh may not carry the unsecured container (spec "End-to-end"): it sends each
+ * A secured profile's mesh may not carry the unsecured container (spec "End-to-end"): it sends each
  * message with its end-to-end session to the destination, else as a first message sealed to the
  * destination's certificate (spec "First messages" and "Sessions"), which its [lookups] find for nodes
  * it is not linked to (spec "Certificate lookup"); a message waits `Queued` until the certificate
@@ -92,14 +96,18 @@ internal class Post(
     crypto: CryptoProvider,
     private val clock: Clock,
     private val scope: CoroutineScope,
-    private val lifetimeSeconds: Int,
-    profile: WireProfile,
+    private val config: MeshLinkConfig,
     private val density: () -> DensityClass,
+    diagnose: (LinkDiagnostic) -> Unit,
 ) : Mail {
+    private val lifetimeSeconds = config.messageLifetimeSeconds
+    private val profile = config.securityProfile.wireProfile
     private val secured = profile != WireProfile.UNSECURED
     private val capacity = Capacity()
     private val lanes = Lanes()
-    private val outbox = Outbox(clock, scope, capacity, density, ::transmit)
+    private val reading = ReadTracking { diagnose(LinkDiagnostic.ReadTrackingEvicted(it)) }
+    private val outbox = Outbox(clock, scope, capacity, density, reading, ::transmit)
+    private val posting = ReceiptPost(clock, scope, config, outbox, { router }, density)
     private val self = MutableStateFlow<NodeId?>(null)
 
     private val routes = Routes()
@@ -121,21 +129,39 @@ internal class Post(
 
     // A delivery receipt goes back on the reverse route its messages came on, else like any unicast.
     private val receipts: Receipts<NodeId> =
-        Receipts(clock, scope, { to, tombstones, expiry ->
-            val acknowledger = unsecuredEnd.acknowledger
-            val receipt = acknowledger.receipt(to, tombstones, expiry)
-            router.originate(acknowledger.destination(receipt), unsecuredEnd.tag(), density(), search = false) {
-                acknowledger.parcel(receipt, it)
-            }
-        }, outbox::delivered)
+        Receipts(
+            clock,
+            scope,
+            { to, tombstones, expiry ->
+                val acknowledger = unsecuredEnd.acknowledger
+                val receipt = acknowledger.receipt(to, tombstones, expiry)
+                router.originate(acknowledger.destination(receipt), unsecuredEnd.tag(), density(), search = false) {
+                    acknowledger.parcel(receipt, it)
+                }
+            },
+            outbox::delivered,
+            posting.reads { to, ids, expiry ->
+                posting.originate(unsecuredEnd.acknowledger.readReceipt(to, ids, expiry))
+            },
+        )
     private val unsecuredEnd: UnsecuredEnd =
         UnsecuredEnd(crypto, clock, inbox, receipts, routed::heard, releases::found)
 
     // A first message's answer goes alone at once; session receipts are batched like any.
     private val securedReceipts: Receipts<Reply> =
-        Receipts(clock, scope, { reply, tombstones, expiry ->
-            securedEnd.acknowledger.reply(reply, tombstones, expiry)
-        }, outbox::delivered) { it is Reply.First }
+        Receipts(
+            clock,
+            scope,
+            { reply, tombstones, expiry ->
+                securedEnd.acknowledger.reply(reply, tombstones, expiry)
+            },
+            outbox::delivered,
+            posting.reads { to, ids, expiry ->
+                securedEnd.acknowledger.readReceipt(to, ids, expiry)
+            },
+        ) {
+            it is Reply.First
+        }
     private val securedEnd: SecuredEnd =
         SecuredEnd(
             crypto,
@@ -143,11 +169,7 @@ internal class Post(
             inbox,
             certificates,
             securedReceipts,
-            SecuredHooks(routed::heard, releases::found, releases::arrived) { outgoing ->
-                router.originate(outgoing.destination, outgoing.origin, density(), search = false) { hopLimit ->
-                    Parcel(outgoing.messageId, relayed = false, { outgoing.frame(hopLimit) }) {}
-                }
-            },
+            SecuredHooks(routed::heard, releases::found, releases::arrived, posting::originate),
         )
     private val end: Origin = if (secured) securedEnd else unsecuredEnd
     private val codec = BroadcastCodec(crypto, secured)
@@ -206,9 +228,20 @@ internal class Post(
         val bytes = payload.copyOf()
         // A node that closes before the message reaches the outbox cancels this before it runs.
         val deadline = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS) * MILLIS_PER_SECOND
+        val readReceipt =
+            when (options.readReceipt) {
+                ReadReceiptRequest.Default -> {
+                    if (config.reading.requestByDefault) ReadReceiptRequest.Request else ReadReceiptRequest.DoNotRequest
+                }
+
+                else -> {
+                    options.readReceipt
+                }
+            }
+        val resolved = SendOptions(options.directOnly, readReceipt)
         val add = {
             routed.sending(to)
-            outbox.add(Outbox.Entry(to, bytes, expiry, status, deadline, options.directOnly))
+            outbox.add(Outbox.Entry(to, bytes, expiry, status, deadline, resolved))
         }
         scope.launch { add() }.invokeOnCompletion {
             if (it != null) status.value = DeliveryStatus.Failed(FailureReason.Stopped)
@@ -294,11 +327,39 @@ internal class Post(
     }
 
     private companion object {
-        const val MILLIS_PER_SECOND = 1_000L
-
         // resend-base.
         const val RESEND_BASE_MILLIS = 1_000L
     }
+}
+
+/**
+ * Sends this node's receipts that go without a route discovery of their own: on the reverse route their
+ * messages came on, else like any unicast, by [router]. Makes the read receipts [config] allows, each
+ * expiring the default message lifetime after it is made (spec "Read receipts"), and hands those that
+ * arrive to [outbox].
+ */
+private class ReceiptPost(
+    private val clock: Clock,
+    private val scope: CoroutineScope,
+    private val config: MeshLinkConfig,
+    private val outbox: Outbox,
+    private val router: () -> Router,
+    private val density: () -> DensityClass,
+) {
+    /** Sends [outgoing]. */
+    fun originate(outgoing: Outgoing) {
+        router().originate(outgoing.destination, outgoing.origin, density(), search = false) { hopLimit ->
+            Parcel(outgoing.messageId, relayed = false, { outgoing.frame(hopLimit) }) {}
+        }
+    }
+
+    /** This node's read receipts, each of which [send] sends to its node for its messages with its expiry. */
+    fun reads(send: (to: NodeId, messageIds: List<ByteArray>, expiry: UInt) -> Unit): Reads =
+        Reads(scope, config.reading.send, { to, ids -> send(to, ids, expiry()) }) { from, ids ->
+            outbox.delivered(from, ids, read = true)
+        }
+
+    private fun expiry(): UInt = (clock.wallClockMillis() / MILLIS_PER_SECOND + config.messageLifetimeSeconds).toUInt()
 }
 
 /**
@@ -333,6 +394,8 @@ private class Releases(
 
 // resend-per-hop.
 private const val RESEND_PER_HOP_MILLIS = 200L
+
+private const val MILLIS_PER_SECOND = 1_000L
 
 // A node blocked on its identity has no run: start couldn't begin one.
 internal fun accepting(state: MeshState): Boolean =

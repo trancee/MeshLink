@@ -1,6 +1,6 @@
 # 0013: Message lifecycle and receipts
 
-Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 6 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata; 2026-11-23, delivery receipts built).
+Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 7 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata; 2026-11-23, delivery receipts built and read receipts built).
 
 ## Context
 
@@ -79,7 +79,7 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
 
 2026-11-08, routing metadata exposure ([ADR 0016](0016-routing-metadata-exposure.md)):
 
-- **Receipt addressing:** delivery acks and receipts use the conversation tag toward the sender. A read receipt sent after the end-to-end session ended starts a new session and is addressed to the sender's public tag.
+- **Receipt addressing:** delivery acks and receipts use the conversation tag toward the sender. A read receipt sent after the end-to-end session ended is addressed to the sender's public tag (it opens no session; see the 2026-11-23 amendment).
 
 2026-11-08, certificate acquisition ([ADR 0018](0018-certificate-acquisition.md)):
 
@@ -96,3 +96,10 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
 - **Who may deliver (decisions 5 and 6):** the origin takes a receipt only if it decodes, carries the origin's tag, lists in `MESSAGE_IDS` the IDs of its tombstones in the same order, and expires within the maximum message lifetime of now, with 30 s of clock skew either way. It then delivers only its messages to the receipt's sender. A receipt that arrives after the retries ran out still delivers until the expiry plus 30 s (decision 6).
 - **Direct-only (decision 8):** a direct-only message goes only to a linked destination, with `hop_limit` 1, and waits `Held` otherwise; ordinary retries resend it while it lives.
 - **Profiles:** receipts run end to end in `unsecured` only. Secured receipts ride in `IK` message 2 and transport frames, which come with secured sessions (ticket 46); until then a secured relay forwards receipts by header and a secured origin ignores them.
+
+2026-11-23, read receipts built (0.1.0 backlog ticket "Report reading with read receipts"):
+
+- **Config (decision 10):** the builder values are `readReceiptsRequestByDefault` and `readReceiptsSend`, both off by default. `SendOptions.readReceipt` (`Default`, `Request`, `DoNotRequest`) overrides the sender's default per message.
+- **Batching (decision 4; D-39):** a recipient lists the messages of one sender that its app marked read and sends their read receipt 2 s after the first, or at once when it lists 64. Batches not yet sent when the node stops are dropped.
+- **Tracking:** a sender watches at most 1,000 delivered messages for their read receipts. Watching one more forgets the oldest, which stays `Delivered`, and emits the link diagnostic `ML7002`.
+- **Secured addressing (amends "Receipt addressing" of 2026-11-08):** a read receipt travels in the current session only if the recipient initiated it or has opened one of the sender's frames with it. Otherwise the sender may never have received message 2, and a read receipt that is never retried would be lost; so it is a first message to the sender's public tag. Nothing answers that first message, so it opens no session.

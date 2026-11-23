@@ -1,11 +1,10 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.NodeId
-import ch.trancee.meshlink.ReceivedMessage
 
 /**
  * What a secured end tells its node: whom it [heard] from, each route a route discovery [found], each
- * peer a session [opened] with, whose waiting messages go now, and each delivery receipt to [send].
+ * peer a session [opened] with, whose waiting messages go now, and each delivery or read receipt to [send].
  */
 internal class SecuredHooks(
     val heard: (sender: NodeId) -> Unit,
@@ -36,13 +35,20 @@ internal sealed interface Reply {
     ) : Reply
 }
 
-/** A delivery receipt ready to route from [origin] to [destination], framed with [frame] for the current epoch. */
+/**
+ * A delivery or read receipt ready to route from [origin] to [destination], framed with [frame] for the
+ * current epoch.
+ */
 internal class Outgoing(
     val destination: ByteArray,
     val origin: ByteArray,
     val messageId: ByteArray,
     val frame: (hopLimit: Int) -> ByteArray,
-)
+) {
+    /** The read receipt [draft], tagged for the [epoch] of now and framed for the epoch it is written in. */
+    constructor(draft: ReadDraft, epoch: () -> UInt) :
+        this(draft.destination(epoch()), draft.source(epoch()), draft.messageId, { draft.frame(epoch(), it) })
+}
 
 /**
  * This node's end of a secured mesh's messages (spec "First messages", "Sessions" and "Routing tags").
@@ -85,7 +91,10 @@ internal class SecuredEnd(
      */
     override fun draft(entry: Outbox.Entry): Draft? {
         val session = sessions.current(entry.to, clock.seconds())
-        val sealed = session?.draft(entry.payload, entry.expiry.toUInt())?.also { sessions.sealed(session, it) }
+        val sealed =
+            session?.draft(entry.payload, entry.expiry.toUInt(), entry.readReceipt)?.also {
+                sessions.sealed(session, it)
+            }
         return sealed ?: firsts.draft(entry)
     }
 
@@ -164,7 +173,7 @@ internal class SecuredEnd(
             outstanding.values.removeAll { it.first.done }
             if (certificate == null) lookups.find(entry.to, entry.deadlineMillis)
             val free = certificate?.takeIf { entry.to !in outstanding }
-            val draft = free?.let { codec.draft(it, entry.payload, entry.expiry.toUInt(), readReceipt = false) }
+            val draft = free?.let { codec.draft(it, entry.payload, entry.expiry.toUInt(), entry.readReceipt) }
             draft?.let {
                 outstanding[entry.to] = entry to it
                 conversations.open(it)
@@ -195,8 +204,10 @@ internal class SecuredEnd(
     }
 
     /**
-     * The delivery receipts of this node: it acknowledges each message it opened in the message's
-     * conversation, and takes the answers to its first messages and its sessions' receipts.
+     * The delivery and read receipts of this node: it acknowledges each message it opened in the message's
+     * conversation, and takes the answers to its first messages and its sessions' receipts. Its read
+     * receipts go in the current session with their destination once it is confirmed, else as first
+     * messages to its certificate; it takes those that come either way.
      */
     inner class Receipting : Acknowledger {
         // The messages opened, by message_id, with how their receipts go, until they expire.
@@ -237,6 +248,37 @@ internal class SecuredEnd(
                 sessions.answered(conversation, messageIds)
                 receipts.arrived(NodeId(conversation.peer), messageIds)
             }
+        }
+
+        override fun read(
+            frame: ByteArray,
+            nowSeconds: Long,
+        ) {
+            val tag = (ReadReceipt.decode(frame) as? Decoded.Valid)?.let { it.value.header.destinationTag }
+            val conversation = tag?.let { sessions.owner(it, nowSeconds) }
+            val session = conversation?.read(frame, nowSeconds)?.let { Acknowledgement(conversation.peer, it) }
+            val read = session ?: keys.read(frame, nowSeconds)
+            read?.let { receipts.reads.arrived(NodeId(it.sender), it.messageIds) }
+        }
+
+        /**
+         * Sends a read receipt from this node to [to] for [messageIds], expiring at Unix second [expiry]:
+         * in the current session with [to] if confirmed, else as a first message to its certificate; none
+         * without either, or before this node has keys. A session is confirmed once this node initiated
+         * it or opened a frame of [to]'s in it: before that, [to] may never have had the answer that opens it.
+         */
+        fun readReceipt(
+            to: NodeId,
+            messageIds: List<ByteArray>,
+            expiry: UInt,
+        ) {
+            val confirmed = sessions.current(to, clock.seconds())?.takeIf { it.initiator || it.received > 0 }
+            val session = confirmed?.readReceipt(messageIds, expiry)
+            val draft =
+                session ?: keys.current()?.let { codec ->
+                    lookups.certificate(to)?.let { codec.readReceipt(it, messageIds, expiry) }
+                }
+            draft?.let { hooks.send(Outgoing(it, clock::epoch)) }
         }
 
         /**
@@ -299,7 +341,7 @@ internal class SecuredEnd(
             hooks.heard(sender)
             forget(nowSeconds)
             opened[delivery.tombstone.messageId.toList()] = reply to delivery
-            val message = ReceivedMessage(sender, delivery.payload, broadcast = false)
+            val message = receipts.reads.message(sender, delivery)
             return inbox.offer(message) { receipts.taken(reply, delivery.tombstone, delivery.expiry) }
         }
 
@@ -350,6 +392,12 @@ internal class KeyRing(
         frame: ByteArray,
         nowSeconds: Long,
     ): FirstDelivery? = keys.firstNotNullOfOrNull { it.codec.accept(frame, nowSeconds) }
+
+    /** What the read receipt sent as a first message for this node in [frame] reports, opened with any keys held. */
+    fun read(
+        frame: ByteArray,
+        nowSeconds: Long,
+    ): Acknowledgement? = keys.firstNotNullOfOrNull { it.codec.read(frame, nowSeconds) }
 
     // A session's first-message [codec], whose keys are kept until Unix second [until].
     private class Held(

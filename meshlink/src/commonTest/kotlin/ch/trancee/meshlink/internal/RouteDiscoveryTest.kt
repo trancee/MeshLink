@@ -425,7 +425,7 @@ class RouteDiscoveryTest {
                 Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, lanes) {
                     DensityClass.MEDIUM
                 }
-            val receipts = Receipts<Reply>(clock, backgroundScope, { _, _, _ -> }, { _, _ -> })
+            val receipts = Receipts<Reply>(clock, backgroundScope, { _, _, _ -> }, { _, _ -> }, reads())
             val end = SecuredEnd(SodiumCryptoProvider, clock, Inbox(), lookups, receipts, SecuredHooks({}, {}, {}) {})
             val keys = securedKeys(clock, seed = 3)
             end.keys.certify(keys)

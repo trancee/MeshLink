@@ -14,7 +14,8 @@ import kotlinx.coroutines.launch
  * receipt per key, which says whom and how it goes, for each message the app took, and again for
  * each later copy of a taken one, and [send]s a batch once it holds `receipt-batch-max` messages or
  * `receipt-batch-delay` after its first; a key that is [prompt] sends each receipt alone at once.
- * Hands the receipts that arrive for this node's messages to [delivered].
+ * Hands the receipts that arrive for this node's messages to [delivered]. Its [reads] are this node's
+ * read receipts, which run with it.
  *
  * Runs on [scope]'s serial dispatcher, except [taken].
  */
@@ -23,6 +24,7 @@ internal class Receipts<K : Any>(
     private val scope: CoroutineScope,
     private val send: (key: K, tombstones: List<Tombstone>, expiry: UInt) -> Unit,
     private val delivered: (from: NodeId, messageIds: List<ByteArray>) -> Unit,
+    val reads: Reads,
     private val prompt: (key: K) -> Boolean = { false },
 ) {
     private val batches = mutableMapOf<K, MutableList<Pair<Tombstone, UInt>>>()
@@ -34,11 +36,13 @@ internal class Receipts<K : Any>(
         batches.clear()
         takenIds = MessageIds()
         run = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext.job))
+        reads.begin()
     }
 
     /** Ends the run: batches not yet sent are dropped. */
     suspend fun end() {
         run.coroutineContext.job.cancelAndJoin()
+        reads.end()
     }
 
     /**

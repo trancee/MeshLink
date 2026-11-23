@@ -7,6 +7,7 @@ import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.LinkRecord
 import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
+import ch.trancee.meshlink.internal.ReadReceipt
 import ch.trancee.meshlink.internal.Reassembly
 import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.Tlv
@@ -248,6 +249,86 @@ class UnsecuredMessagingTest {
         assertNull(acceptAt(EXPIRY.toLong() + skew + 1))
         assertNotNull(acceptAt(EXPIRY.toLong() - latest))
         assertNull(acceptAt(EXPIRY.toLong() - latest - 1))
+    }
+
+    @Test
+    fun aRequestedReadReceiptReachesTheDestinationAndAnUnrequestedOneDoesNot() {
+        val requested = sender.draft(bob, PAYLOAD, EXPIRY, readReceipt = true)
+        val unrequested = sender.draft(bob, PAYLOAD, EXPIRY)
+
+        val delivery = assertNotNull(receiver.accept(sender.frame(requested, epoch, hopLimit = 1), NOW))
+        val plain = assertNotNull(receiver.accept(sender.frame(unrequested, epoch, hopLimit = 1), NOW))
+
+        assertTrue(delivery.readReceipt)
+        assertFalse(plain.readReceipt)
+    }
+
+    @Test
+    fun theSenderReadsAReadReceiptListingTheMessagesReadInOrder() {
+        // Arrange
+        val ids = List(ReadReceipt.IDS_MAX) { index -> ByteArray(ID_12) { index.toByte() } }
+        val read = receiver.readReceipt(alice, ids, EXPIRY)
+
+        // Act
+        val bytes = read.frame(epoch, hopLimit = 3)
+
+        // Assert
+        val frame = (ReadReceipt.decode(bytes) as Decoded.Valid).value
+        assertEquals(3, frame.header.hopLimit)
+        assertEquals(EXPIRY, frame.header.expiry)
+        assertContentEquals(read.messageId, frame.header.messageId)
+        assertContentEquals(derivations.unsecuredTag(alice, epoch), frame.header.destinationTag)
+        assertContentEquals(derivations.unsecuredTag(alice, epoch), read.destination(epoch))
+        assertContentEquals(derivations.unsecuredTag(bob, epoch), frame.header.sourceTag)
+        assertContentEquals(derivations.unsecuredTag(bob, epoch), read.source(epoch))
+        val acknowledgement = assertNotNull(sender.read(bytes, NOW))
+        assertContentEquals(bob, acknowledgement.sender)
+        assertEquals(ids.map { it.toList() }, acknowledgement.messageIds.map { it.toList() })
+    }
+
+    @Test
+    fun aReadReceiptListsOneToSixtyFourMessages() {
+        val ids = List(ReadReceipt.IDS_MAX + 1) { MESSAGE_ID }
+
+        assertFailsWith<IllegalArgumentException> { receiver.readReceipt(alice, emptyList(), EXPIRY) }
+        assertFailsWith<IllegalArgumentException> { receiver.readReceipt(alice, ids, EXPIRY) }
+    }
+
+    @Test
+    fun theSenderIgnoresAFlawedReadReceipt() {
+        val most = ByteArray(ID_12 * ReadReceipt.IDS_MAX)
+        val flaws =
+            mapOf(
+                "undecodable" to byteArrayOf(ReadReceipt.TYPE.toByte()),
+                "other destination" to readFrame(listOf(Tlv(MESSAGE_IDS, MESSAGE_ID)), destination = bob),
+                "secured container" to readFrame(container = Container.Transport(0u, ByteArray(TRANSPORT_MINIMUM))),
+                "no MESSAGE_IDS" to readFrame(emptyList()),
+                "empty MESSAGE_IDS" to readFrame(listOf(Tlv(MESSAGE_IDS, ByteArray(0)))),
+                "partial id" to readFrame(listOf(Tlv(MESSAGE_IDS, MESSAGE_ID + 1))),
+                "65 ids" to readFrame(listOf(Tlv(MESSAGE_IDS, most + MESSAGE_ID))),
+                "other message_id" to readFrame(listOf(Tlv(MESSAGE_IDS, MESSAGE_ID)), contentId = ByteArray(ID_12)),
+                "other expiry" to readFrame(listOf(Tlv(MESSAGE_IDS, MESSAGE_ID)), contentExpiry = EXPIRY + 1u),
+                "not a receipt" to readFrame(plaintext = byteArrayOf(1)),
+            )
+
+        assertNotNull(sender.read(readFrame(listOf(Tlv(MESSAGE_IDS, most))), NOW))
+        flaws.forEach { (flaw, frame) -> assertNull(sender.read(frame, NOW), flaw) }
+        val skew = UnsecuredMessaging.CLOCK_SKEW_SECONDS
+        assertNull(sender.read(readFrame(listOf(Tlv(MESSAGE_IDS, MESSAGE_ID))), EXPIRY.toLong() + skew + 1), "expired")
+    }
+
+    private fun readFrame(
+        extensions: List<Tlv> = listOf(Tlv(MESSAGE_IDS, MESSAGE_ID)),
+        contentId: ByteArray = MESSAGE_ID,
+        contentExpiry: UInt = EXPIRY,
+        plaintext: ByteArray? = null,
+        destination: ByteArray = alice,
+        container: Container? = null,
+    ): ByteArray {
+        val content = plaintext ?: ReceiptContent(contentId, contentExpiry, extensions).encode(secured = false)
+        val (to, from) = derivations.unsecuredTag(destination, epoch) to derivations.unsecuredTag(bob, epoch)
+        val header = UnicastHeader(1, MESSAGE_ID, EXPIRY, to, from)
+        return ReadReceipt(header, container ?: Container.Unsecured(bob, content)).encode()
     }
 
     private fun receiptFrame(

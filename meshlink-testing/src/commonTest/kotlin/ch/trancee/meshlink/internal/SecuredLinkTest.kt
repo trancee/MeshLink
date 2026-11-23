@@ -696,6 +696,7 @@ abstract class SecuredLinkTest(
             is LinkDiagnostic.LinkCapReached -> "$code $cap"
             is LinkDiagnostic.BearerFallback -> "$code $reason"
             is LinkDiagnostic.UnknownLinkFrameDropped -> "$code $type"
+            is LinkDiagnostic.ReadTrackingEvicted -> "$code ${messageId.toHexString()}"
         }
 
     /** The cleartext `CLOSE` reasons [end] wrote. */

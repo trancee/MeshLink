@@ -75,6 +75,21 @@ public sealed interface LinkDiagnostic {
     ) : LinkDiagnostic {
         override val code: String = "ML4002"
     }
+
+    /**
+     * `ML7002`: the oldest delivered message awaiting a read receipt was forgotten, as more than 1,000
+     * were tracked; its status stays [ch.trancee.meshlink.DeliveryStatus.Delivered].
+     */
+    public class ReadTrackingEvicted(
+        messageId: ByteArray,
+    ) : LinkDiagnostic {
+        private val id = messageId.copyOf()
+
+        /** A copy of the forgotten message's `message_id`. */
+        public val messageId: ByteArray get() = id.copyOf()
+
+        override val code: String = "ML7002"
+    }
 }
 
 /** Why a link handshake failed. */
