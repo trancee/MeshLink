@@ -28,7 +28,7 @@ class RouteDiscoveryTest {
             Routes(),
             ::sevens,
             endpoint,
-            Floods(lanes, broadcastCodec(), lowTree(lanes)) {},
+            Handoff(Floods(lanes, broadcastCodec(), lowTree(lanes)) {}),
         )
 
     private fun sevens(size: Int) = ByteArray(size) { 7 }

@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
  * Not thread-safe; the node calls it on its serial dispatcher.
  *
  * [credentials] are this run's static key and certificate; [meshKey] gates the mesh with `XXpsk3`.
- * A gated mesh also passes its resolving [keys]: each payload carries this node's current key, and
- * each verified peer's key is learned (spec "Handshake payload"). An open mesh sends none and
- * ignores the peer's.
+ * A gated mesh also has resolving [keys]: each payload carries this node's current key, and each
+ * verified peer's key is learned (spec "Handshake payload"). An open mesh sends none and ignores the
+ * peer's. Each certificate a payload proves goes to [certified].
  */
 internal class Handshakes(
     private val crypto: CryptoProvider,
@@ -19,8 +19,11 @@ internal class Handshakes(
     private val credentials: LinkCredentials,
     meshKey: ByteArray?,
     private val diagnostics: MutableSharedFlow<LinkDiagnostic>,
-    val keys: ResolvingKeys?,
+    private val certified: (NodeId, IdentityCertificate) -> Unit = { _, _ -> },
 ) {
+    /** A gated mesh's resolving keys for this run; an open mesh has none. */
+    val keys: ResolvingKeys? = meshKey?.let { ResolvingKeys(crypto, clock.wallClockMillis()) }
+
     private val psk = meshKey?.let { Derivations(crypto).meshPsk(it, credentials.meshIdDigest) }
     private val certificate = credentials.certificate.encode()
     private var halfOpen = 0
@@ -81,6 +84,7 @@ internal class Handshakes(
      * The NodeId the peer's message [payload] proves, or `null` if it has no valid certificate for
      * this mesh's profile whose `x25519_key` is the Noise [remoteStatic] key (spec "Handshake payload").
      * In a gated mesh, learns the proven peer's resolving key if the payload carries a valid one.
+     * Passes the proven certificate to [certified].
      */
     fun verify(
         payload: ByteArray,
@@ -100,7 +104,10 @@ internal class Handshakes(
                     check is CertificateCheck.Valid && it.x25519Key.contentEquals(remoteStatic)
                 }
             }
-        peer?.let { id -> decoded.resolvingKey?.let { keys?.learn(id, it, clock.wallClockMillis()) } }
+        peer?.let { id ->
+            certified(id, certificate)
+            decoded.resolvingKey?.let { keys?.learn(id, it, clock.wallClockMillis()) }
+        }
         return peer
     }
 

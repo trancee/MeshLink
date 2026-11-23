@@ -15,8 +15,10 @@ import ch.trancee.meshlink.internal.Decoded
 import ch.trancee.meshlink.internal.Derivations
 import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
+import ch.trancee.meshlink.internal.KeyPair
 import ch.trancee.meshlink.internal.LinkCipher
 import ch.trancee.meshlink.internal.LinkRecord
+import ch.trancee.meshlink.internal.LookupSeal
 import ch.trancee.meshlink.internal.NoiseHandshake
 import ch.trancee.meshlink.internal.NoiseKeys
 import ch.trancee.meshlink.internal.NoisePattern
@@ -84,6 +86,20 @@ internal val linkPrologue: Handler =
     }
 
 internal val tombstoneCommitment: Handler = derivation { derivations.tombstoneCommitment(it["k"].string.hex()) }
+
+internal val lookupTag: Handler =
+    derivation { derivations.lookupTag(it["salt"].string.hex(), it["node_id"].string.hex()) }
+
+internal val lookupReplyKey: Handler =
+    derivation { inputs ->
+        LookupSeal(crypto).key(
+            inputs["shared_secret"].string.hex(),
+            inputs["salt"].string.hex(),
+            inputs["lookup_tag"].string.hex(),
+            inputs["requester_ephemeral"].string.hex(),
+            inputs["responder_ephemeral"].string.hex(),
+        )
+    }
 
 internal val broadcastSigningInput: Handler =
     derivation { BroadcastFrame.signingInput(it["frame_without_signature"].string.hex()) }
@@ -159,6 +175,73 @@ internal val certificateVerify: Handler =
             assertEquals(case.test["error"].string, assertIs<CertificateCheck.Invalid>(check).code)
         }
     }
+
+/**
+ * `lookup-reply.json`: both sides of a lookup reply. The responder seals `certificate` to `sealed` byte
+ * for byte, or refuses a low-order requester key; the requester opens `sealed` to a certificate that
+ * validates for `target_node_id`, or yields nothing for an `invalid` test.
+ */
+internal val lookupReplySeal: Handler =
+    Handler("sealed") { case ->
+        val tag = derivations.lookupTag(case.hex("salt"), case.hex("target_node_id"))
+        assertEquals(case.test["lookup_tag"].string, tag.hex(), "lookup_tag")
+        case.lookupSide("responder")?.let { lookupResponder(case, it) }
+        case.lookupSide("requester")?.let { lookupRequester(case, it) }
+    }
+
+private fun VectorCase.lookupSide(side: String): KeyPair? =
+    if (test.has("${side}_private")) {
+        crypto.x25519KeyPair(hex("${side}_private")).also {
+            assertEquals(test["${side}_ephemeral"].string, it.publicKey.hex(), "${side}_ephemeral")
+        }
+    } else {
+        null
+    }
+
+private fun lookupResponder(
+    case: VectorCase,
+    responder: KeyPair,
+) {
+    val requesterKey = case.hex("requester_ephemeral")
+    val (salt, tag) = case.hex("salt") to case.hex("lookup_tag")
+    val sealed = LookupSeal(crypto).seal(responder, requesterKey, salt, tag, case.hex("certificate"))
+    when {
+        !case.test.has("sealed") -> assertNull(sealed, "a low-order requester key is refused")
+        case.result == "valid" -> assertEquals(case.test["sealed"].string, sealed?.hex(), "sealed")
+        else -> Unit
+    }
+}
+
+private fun lookupRequester(
+    case: VectorCase,
+    requester: KeyPair,
+) {
+    val (salt, tag) = case.hex("salt") to case.hex("lookup_tag")
+    val (requesterKey, responderKey) = case.hex("requester_ephemeral") to case.hex("responder_ephemeral")
+    when (val shared = crypto.x25519(requester.secretKey, responderKey)) {
+        is CryptoResult.Ok -> {
+            assertEquals(case.test["shared_secret"].string, shared.value.hex(), "shared_secret")
+            val key = LookupSeal(crypto).key(shared.value, salt, tag, requesterKey, responderKey)
+            assertEquals(case.test["key"].string, key.hex(), "key")
+        }
+
+        is CryptoResult.Failed -> {
+            assertEquals(case.test["error"].string, "low-order-key")
+        }
+    }
+    val opened = LookupSeal(crypto).open(requester, responderKey, salt, tag, case.hex("sealed"))
+    if (case.result == "valid") {
+        assertContentEquals(case.hex("certificate"), opened, "opened")
+        val certificate = assertNotNull(opened)
+        val clock = FixedClock.atSeconds(case.test["now"].long)
+        val decoded = assertIs<Decoded.Valid<IdentityCertificate>>(IdentityCertificate.decode(certificate))
+        val profile = decoded.value.profile
+        val check = IdentityCertificate.validate(crypto, certificate, profile, case.hex("target_node_id"), clock)
+        assertIs<CertificateCheck.Valid>(check)
+    } else {
+        assertNull(opened, "an invalid reply yields no certificate")
+    }
+}
 
 /** Wycheproof `XdhComp`: an all-zero shared secret is refused as a low-order public key, never returned. */
 internal val x25519: Handler =

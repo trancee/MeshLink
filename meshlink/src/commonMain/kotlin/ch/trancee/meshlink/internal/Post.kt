@@ -61,9 +61,10 @@ internal enum class Settled {
  * forwarding"), and floods [broadcasts] (spec "Flood forwarding"). [density] is the node's current
  * density class.
  *
- * A [secured] mesh may not carry the unsecured container (spec "End-to-end"), and its own unicast
+ * A secured [profile]'s mesh may not carry the unsecured container (spec "End-to-end"), and its own unicast
  * containers come later: it keeps its messages `Queued` without writing them and processes no unicast
- * frame for itself, but relays the secured containers of other nodes. Its broadcasts are signed.
+ * frame for itself, but relays the secured containers of other nodes. Its broadcasts are signed, and
+ * its [lookups] find the certificates of nodes it is not linked to (spec "Certificate lookup").
  *
  * [send] and [awaitCapacity] are thread-safe; everything else runs on [scope]'s serial dispatcher.
  */
@@ -72,9 +73,10 @@ internal class Post(
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val lifetimeSeconds: Int,
-    private val secured: Boolean,
+    profile: WireProfile,
     private val density: () -> DensityClass,
 ) : Mail {
+    private val secured = profile != WireProfile.UNSECURED
     private val capacity = Capacity()
     private val lanes = Lanes()
     private val outbox = Outbox(clock, scope, capacity, density, ::transmit)
@@ -98,7 +100,10 @@ internal class Post(
         }
     private val codec = BroadcastCodec(crypto, secured)
     private val floods = Floods(lanes, codec, Plumtree(lanes, clock, scope, density)) { inbox.offer(it) }
-    private val router = Router(clock, lanes, routes, crypto::randomBytes, end, floods)
+
+    /** A secured node's certificate lookups; an `unsecured` node has none. */
+    val lookups = if (secured) Lookups(crypto, clock, scope, profile, lanes, density) else null
+    private val router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
 
     /** This node's broadcasts. */
     val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, lifetimeSeconds)
@@ -110,6 +115,7 @@ internal class Post(
         self.value = NodeId(identity.nodeId)
         outbox.begin()
         broadcasts.begin()
+        lookups?.begin()
     }
 
     /** Ends the run: unfinished messages and broadcasts fail with `Stopped`, and no routed peer is listed. */
@@ -117,6 +123,7 @@ internal class Post(
         outbox.end()
         broadcasts.end()
         routed.end()
+        lookups?.end()
     }
 
     /** Ends [inbox] for good. */

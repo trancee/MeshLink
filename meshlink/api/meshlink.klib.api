@@ -356,6 +356,11 @@ sealed interface ch.trancee.meshlink/SendResult { // ch.trancee.meshlink/SendRes
     }
 }
 
+final class ch.trancee.meshlink.internal/CertificateLookups { // ch.trancee.meshlink.internal/CertificateLookups|null[0]
+    final fun lookUp(ch.trancee.meshlink/NodeId) // ch.trancee.meshlink.internal/CertificateLookups.lookUp|lookUp(ch.trancee.meshlink.NodeId){}[0]
+    final suspend fun certificateOf(ch.trancee.meshlink/NodeId): ch.trancee.meshlink.internal/IdentityCertificate? // ch.trancee.meshlink.internal/CertificateLookups.certificateOf|certificateOf(ch.trancee.meshlink.NodeId){}[0]
+}
+
 final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.meshlink.internal/InMemoryIdentityStore|null[0]
     constructor <init>() // ch.trancee.meshlink.internal/InMemoryIdentityStore.<init>|<init>(){}[0]
 
@@ -364,6 +369,8 @@ final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.mesh
 }
 
 final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
+    final val certificateLookups // ch.trancee.meshlink/MeshLink.certificateLookups|{}certificateLookups[0]
+        final fun <get-certificateLookups>(): ch.trancee.meshlink.internal/CertificateLookups? // ch.trancee.meshlink/MeshLink.certificateLookups.<get-certificateLookups>|<get-certificateLookups>(){}[0]
     final val config // ch.trancee.meshlink/MeshLink.config|{}config[0]
         final fun <get-config>(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLink.config.<get-config>|<get-config>(){}[0]
     final val linkDiagnostics // ch.trancee.meshlink/MeshLink.linkDiagnostics|{}linkDiagnostics[0]

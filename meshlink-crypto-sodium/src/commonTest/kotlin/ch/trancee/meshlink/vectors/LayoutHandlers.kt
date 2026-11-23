@@ -12,6 +12,8 @@ import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.LinkFrame
 import ch.trancee.meshlink.internal.LinkRecord
+import ch.trancee.meshlink.internal.LookupReply
+import ch.trancee.meshlink.internal.LookupRequest
 import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
 import ch.trancee.meshlink.internal.ReceiptContent
@@ -301,6 +303,29 @@ internal val routeReply: Handler =
         assertEquals(decoded["target_tag"].string, frame.targetTag.hex(), "target_tag")
         assertEquals(decoded["target_sequence"].uInt, frame.targetSequence, "target_sequence")
         assertEquals(decoded["hop_count"].int, frame.hopCount, "hop_count")
+    }
+
+internal val lookupRequest: Handler =
+    layout({ _, bytes -> LookupRequest.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), LookupRequest.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["salt"].string, frame.salt.hex(), "salt")
+        assertEquals(decoded["lookup_tag"].string, frame.lookupTag.hex(), "lookup_tag")
+        assertEquals(decoded["ephemeral_key"].string, frame.ephemeralKey.hex(), "ephemeral_key")
+    }
+
+internal val lookupReply: Handler =
+    layout({ _, bytes -> LookupReply.decode(bytes) }, { _, frame -> frame.encode() }) { decoded, frame ->
+        assertEquals(decoded["type"].code(), LookupReply.TYPE, "type")
+        assertEquals(decoded["hop_limit"].int, frame.header.hopLimit, "hop_limit")
+        assertEquals(decoded["message_id"].string, frame.header.messageId.hex(), "message_id")
+        assertEquals(decoded["expiry"].uInt, frame.header.expiry, "expiry")
+        assertEquals(decoded["destination_tag"].string, frame.header.destinationTag.hex(), "destination_tag")
+        assertEquals(decoded["source_tag"].string, frame.header.sourceTag.hex(), "source_tag")
+        assertEquals(decoded["ephemeral_key"].string, frame.ephemeralKey.hex(), "ephemeral_key")
+        assertEquals(decoded["sealed_certificate"].string, frame.sealedCertificate.hex(), "sealed_certificate")
     }
 
 /** An unknown unicast type: `acceptable`, relayed by its header, so it round-trips and is mutated too. */

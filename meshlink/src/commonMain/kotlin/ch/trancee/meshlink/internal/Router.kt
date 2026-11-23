@@ -27,9 +27,24 @@ internal interface Endpoint {
 }
 
 /**
+ * Where [Router] hands the frames it does not route itself: flood types other than route requests
+ * to [floods], and a secured node's lookup frames to its [lookups]; an `unsecured` node has none.
+ */
+internal class Handoff(
+    val floods: Floods,
+    val lookups: Lookups? = null,
+)
+
+/**
  * Unicast routing (spec "Unicast forwarding", "Origin behavior" and "Route discovery"): processes
  * the frames for this node, relays the others by their header alone, runs route discovery, and
- * places this node's own frames in [lanes]. Flood types other than route requests go to [floods].
+ * places this node's own frames in [lanes]. Flood types other than route requests go to the
+ * [handoff]'s floods.
+ *
+ * A secured node passes its lookups the lookup requests, each new one leaving a reverse route keyed
+ * by its salt, and the replies to its own lookups. It relays each other lookup reply on the reverse
+ * route of its salt only, the first per salt (spec "Certificate lookup"). An `unsecured` node has
+ * no lookups, and relays lookup frames by their headers.
  *
  * [routes] are the node's routes; [random] makes message ids. Runs on the node's serial dispatcher.
  */
@@ -39,8 +54,10 @@ internal class Router(
     private val routes: Routes,
     random: (size: Int) -> ByteArray,
     private val endpoint: Endpoint,
-    private val floods: Floods,
+    handoff: Handoff,
 ) {
+    private val floods = handoff.floods
+    private val lookups = handoff.lookups
     private val discovery = RouteDiscovery(clock, lanes, routes, random, endpoint)
     private val seen = MessageIds()
     private val delivered = MessageIds()
@@ -54,10 +71,16 @@ internal class Router(
         val flood = bytes.isNotEmpty() && bytes[0].toInt() and FLOOD_MASK == FLOOD_TYPES
         if (flood) return flooded(peer, bytes, nowSeconds)
         val frame = admitted(bytes, nowSeconds) ?: return
-        if (endpoint.owns(frame.header.destinationTag, nowSeconds)) {
-            accept(peer, frame, bytes, nowSeconds)
-        } else {
-            relay(peer, frame, bytes)
+        when {
+            frame.type == LookupReply.TYPE && lookups?.replied(lookupReply(bytes)) == true -> {}
+
+            endpoint.owns(frame.header.destinationTag, nowSeconds) -> {
+                accept(peer, frame, bytes, nowSeconds)
+            }
+
+            else -> {
+                relay(peer, frame, bytes)
+            }
         }
     }
 
@@ -108,15 +131,30 @@ internal class Router(
         }
     }
 
-    // A flood frame: route requests go to route discovery, other flood types to flood forwarding.
+    // A flood frame: route requests go to route discovery, a secured node's lookup requests to its
+    // lookups, other flood types to flood forwarding.
     private fun flooded(
         peer: NodeId,
         bytes: ByteArray,
         nowSeconds: Long,
     ) {
-        if (bytes[0] != RouteRequest.TYPE.toByte()) return floods.received(peer, bytes, nowSeconds)
-        val decoded = RouteRequest.decode(bytes)
-        if (decoded is Decoded.Valid) discovery.requested(peer, decoded.value, nowSeconds)
+        val type = bytes[0].toInt() and BYTE
+        when {
+            type == RouteRequest.TYPE -> {
+                (RouteRequest.decode(bytes) as? Decoded.Valid)?.let { discovery.requested(peer, it.value, nowSeconds) }
+            }
+
+            type == LookupRequest.TYPE && lookups != null -> {
+                val request = (LookupRequest.decode(bytes) as? Decoded.Valid)?.value
+                if (request != null && lookups.answers.requested(peer, request, nowSeconds)) {
+                    routes.learn(request.salt, peer, clock.monotonicMillis())
+                }
+            }
+
+            else -> {
+                floods.received(peer, bytes, nowSeconds)
+            }
+        }
     }
 
     // Steps 2 to 6 of spec "Unicast forwarding". A relay does not retry: a refused write drops the frame.
@@ -129,21 +167,45 @@ internal class Router(
         if (seen.has(frame.header.messageId, now)) return
         routes.learn(frame.header.sourceTag, peer, now)
         val relayed = if (frame.header.hopLimit > 1) relayed(peer, frame, bytes) else null
-        val route = relayed?.let { routes.use(frame.header.destinationTag, now)?.peer }
-        val targets =
-            when {
-                relayed == null -> null
-                route != null -> listOf(route)
-                bytes.size <= Reassembly.FRAME_SMALL_MAX -> lanes.peers - peer
-                else -> null
-            }
+        val targets = relayed?.let { targets(peer, frame, bytes.size, now) }
         if (relayed == null || targets == null) return
         seen.put(frame.header.messageId, now + SEEN_WINDOW_MILLIS)
         targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }) {}) }
     }
 
-    // A MESSAGE must decode and carry a container kind the profile allows, a ROUTE_REPLY must decode;
-    // other unicast types pass by header.
+    // The links a relayed frame from [peer] goes on: its active route, else every other link for a
+    // small frame; null drops it. A secured node's lookup reply goes on a route only, and only the
+    // first per salt.
+    private fun targets(
+        peer: NodeId,
+        frame: UnicastFrame,
+        size: Int,
+        now: Long,
+    ): List<NodeId>? {
+        val route = routes.use(frame.header.destinationTag, now)?.peer
+        return when {
+            frame.type == LookupReply.TYPE && lookups != null -> {
+                route
+                    ?.takeIf { lookups.answers.passes(frame.header.destinationTag, frame.header.expiry.toLong()) }
+                    ?.let(::listOf)
+            }
+
+            route != null -> {
+                listOf(route)
+            }
+
+            size <= Reassembly.FRAME_SMALL_MAX -> {
+                lanes.peers - peer
+            }
+
+            else -> {
+                null
+            }
+        }
+    }
+
+    // A MESSAGE must decode and carry a container kind the profile allows, a ROUTE_REPLY must decode,
+    // and so must a secured node's LOOKUP_REPLY; other unicast types pass by header.
     private fun carried(
         type: Int,
         bytes: ByteArray,
@@ -156,6 +218,10 @@ internal class Router(
 
             RouteReply.TYPE -> {
                 RouteReply.decode(bytes) is Decoded.Valid
+            }
+
+            LookupReply.TYPE -> {
+                lookups == null || LookupReply.decode(bytes) is Decoded.Valid
             }
 
             else -> {
@@ -194,9 +260,6 @@ internal class Router(
         }
     }
 
-    // A ROUTE_REPLY that carried() admitted.
-    private fun reply(bytes: ByteArray): RouteReply = (RouteReply.decode(bytes) as Decoded.Valid).value
-
     companion object {
         /** The hop limit of a frame on a route, or flooded by a low-class origin. */
         const val HOP_LIMIT_MAX: Int = 255
@@ -210,8 +273,15 @@ internal class Router(
         // Flood frames have types 0x80 to 0xBF (spec "Routing").
         private const val FLOOD_MASK = 0xc0
         private const val FLOOD_TYPES = 0x80
+        private const val BYTE = 0xff
     }
 }
+
+// A ROUTE_REPLY that carried() admitted.
+private fun reply(bytes: ByteArray): RouteReply = (RouteReply.decode(bytes) as Decoded.Valid).value
+
+// A secured node's LOOKUP_REPLY that carried() admitted.
+private fun lookupReply(bytes: ByteArray): LookupReply = (LookupReply.decode(bytes) as Decoded.Valid).value
 
 /** Past [expiry] plus clock skew, or more than a lifetime plus skew ahead of [nowSeconds], a frame is dropped. */
 internal fun timely(

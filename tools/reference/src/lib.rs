@@ -7,6 +7,7 @@ pub mod broadcast;
 pub mod certificate;
 pub mod handshake;
 pub mod json;
+pub mod lookup;
 pub mod seal;
 pub mod spec;
 pub mod vectors;

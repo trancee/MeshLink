@@ -514,8 +514,41 @@ def tier2_link(g, t, where):
         )
 
 
+# Curve25519 points of low order that the lookup vectors use: zero and a point of order 8.
+LOW_ORDER = ("00" * 32, "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800")
+
+
+def tier2_lookup(g, t, where):
+    cert, now = b(t["certificate"]), t["now"]
+    fields = m.decode_certificate(cert)
+    if m.node_id(b(fields["ed25519_key"])).hex() != t["target_node_id"] or not (
+        fields["not_before"] <= now + SKEW and now < fields["not_after"] + SKEW
+    ):
+        fail("%s: the certificate does not validate for target_node_id at now" % where)
+    if m.lookup_tag(b(t["salt"]), b(t["target_node_id"])).hex() != t["lookup_tag"]:
+        fail("%s: lookup_tag mismatch" % where)
+    low = [side for side in ("requester", "responder") if side + "_private" not in t]
+    if low != [side for side in ("requester", "responder") if t[side + "_ephemeral"] in LOW_ORDER]:
+        fail("%s: exactly the low-order sides lack a private key" % where)
+    expected = "low-order-key" if low else ("open-failed" if t["flags"] else None)
+    if len(low) > 1 or t.get("error") != expected or t["result"] != ("invalid" if expected else "valid"):
+        fail("%s: expected %s, file says %s" % (where, expected, t.get("error")))
+    if ("sealed" in t) == (low == ["requester"]):
+        fail("%s: the responder seals unless the requester's key has low order" % where)
+    if "sealed" in t:
+        shared = b(t["shared_secret"])
+        if (shared == bytes(X25519)) != bool(low):
+            fail("%s: the shared secret is zero exactly for a low-order key" % where)
+        key = m.lookup_reply_key(shared, b(t["salt"]), b(t["lookup_tag"]), b(t["requester_ephemeral"]),
+                                 b(t["responder_ephemeral"]))
+        if key.hex() != t["key"]:
+            fail("%s: key mismatch" % where)
+        if len(b(t["sealed"])) != len(cert) + TAG:
+            fail("%s: sealed is not certificate + tag" % where)
+
+
 TIER2 = {"BroadcastVerify": tier2_broadcast, "CertificateVerify": tier2_certificate, "NoiseHandshake": tier2_handshake, "HpkeSeal": tier2_seal,
-         "LinkTransport": tier2_link}
+         "LinkTransport": tier2_link, "LookupReplySeal": tier2_lookup}
 
 
 def check_vectors():

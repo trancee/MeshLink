@@ -56,6 +56,7 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public final fun broadcast ([BI)Lch/trancee/meshlink/SendResult;
 	public static synthetic fun broadcast$default (Lch/trancee/meshlink/MeshLink;[BIILjava/lang/Object;)Lch/trancee/meshlink/SendResult;
 	public fun close ()V
+	public final fun getCertificateLookups ()Lch/trancee/meshlink/internal/CertificateLookups;
 	public final fun getCoc ()Z
 	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
 	public final fun getLinkDiagnostics ()Lkotlinx/coroutines/flow/SharedFlow;
@@ -383,6 +384,11 @@ public final class ch/trancee/meshlink/SendResult$Rejected : ch/trancee/meshlink
 	public final fun getReason ()Lch/trancee/meshlink/RejectionReason;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/internal/CertificateLookups {
+	public final fun certificateOf (Lch/trancee/meshlink/NodeId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun lookUp (Lch/trancee/meshlink/NodeId;)V
 }
 
 public final class ch/trancee/meshlink/internal/HandshakeFailure : java/lang/Enum {

@@ -9,6 +9,8 @@ import ch.trancee.meshlink.internal.HandshakePayload
 import ch.trancee.meshlink.internal.IdentityCertificate
 import ch.trancee.meshlink.internal.LinkFrame
 import ch.trancee.meshlink.internal.LinkRecord
+import ch.trancee.meshlink.internal.LookupReply
+import ch.trancee.meshlink.internal.LookupRequest
 import ch.trancee.meshlink.internal.MessageContent
 import ch.trancee.meshlink.internal.MessageFrame
 import ch.trancee.meshlink.internal.ReceiptContent
@@ -95,6 +97,16 @@ object FloodFrameFuzzer {
 object RouteReplyFuzzer {
     @JvmStatic
     fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, RouteReply.decode(data)) { it.encode() }
+}
+
+object LookupRequestFuzzer {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, LookupRequest.decode(data)) { it.encode() }
+}
+
+object LookupReplyFuzzer {
+    @JvmStatic
+    fun fuzzerTestOneInput(data: ByteArray): Unit = roundTrip(data, LookupReply.decode(data)) { it.encode() }
 }
 
 /** Both the secured and the unsecured framing. */
