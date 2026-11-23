@@ -1,6 +1,6 @@
 # Keep secured end-to-end sessions in the mesh
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 45b, 46a, 47
 
@@ -20,6 +20,16 @@ In `Classical` and `PostQuantum`, a first message opens an end-to-end session. L
 - **Ending:** after 6 h, after 4,096 frames in either direction, or on eviction from the session cache. The next message is a first message. The cache size is an internal parameter here; ticket 53 sets it per preset.
 - **Failure:** a session frame with no receipt by its second retry ends the session and is resent as a first message with a new `message_id`.
 
+## Outcome
+
+- Shipped in [#131](https://github.com/trancee/MeshLink/pull/131) (`56d7498`).
+- `meshlink-core`: `Conversation` (an open session with its tags, seal/open counts and receipts) and `Opening.adopt`. `FirstMessages.accept` returns the responder's conversation and its cached message 2 answer.
+- `meshlink`: `Sessions` cache (64 entries, LRU; owner decision). The current session per peer is the one whose initiator has the lowest NodeId. A session retires at 21,600 s, at 4,096 frames sent or received, on failure, or when a crossed session wins. A retired session keeps opening frames and sealing receipts until its sealed messages are answered or expire (ended sessions = A, owner decision). Message 2 is written when message 1 opens and sent when the app takes the message (owner decision).
+- An opening that gets a forged message 2 stays open and replays message 1 with its kept ephemeral keys, so a forgery cannot hijack or block it.
+- `Post`: a session message with no receipt by its second retry lapses; it is redrafted with a new `message_id` in the current session, or as a first message. Only `SecuredEnd` has `lapsed`, so `Origin` keeps abstract members (lessons, Kover).
+- Gherkin: `secured-sessions.feature` (12 pickles) plus `secured-messaging.feature` updated. Hand mutants all killed; the replay-window mutants are killed by `meshlink-crypto-sodium` tests (7 and 6 failures).
+- Docs: `docs/spec/end-to-end.md` Sessions clarifications, `DeliveryStatus.Delivered` KDoc, `CHANGELOG.md`, `docs/agents/lessons.md` "End-to-end sessions".
+
 ## Spec and ADR references
 
 - [end-to-end.md, Sessions](../../../docs/spec/end-to-end.md#sessions), [Conversation tags](../../../docs/spec/end-to-end.md#conversation-tags) and [Delivery receipts](../../../docs/spec/end-to-end.md#delivery-receipts).
@@ -28,15 +38,15 @@ In `Classical` and `PostQuantum`, a first message opens an end-to-end session. L
 
 ## Acceptance criteria
 
-- [ ] Seeded `VirtualAir` tests, 5-node line, in `Classical` and `PostQuantum`: A sends 10 messages to E. The first opens the session, the other 9 go as kind `0x03` to conversation tags, and all 10 reach `Delivered`, each delivered once.
-- [ ] A seeded test duplicates message 1 and shows the cached message 2 resent byte for byte.
-- [ ] A seeded test shows crossed sessions settling on the lower-NodeId initiator on both sides.
-- [ ] Virtual-time tests end a session at 21,600 s and at 4,096 frames, and the next message is a first message.
-- [ ] A seeded test wipes E's session state and shows A's fallback to a first message with a new `message_id` after the second retry.
-- [ ] A seeded test across an epoch change keeps delivery through the e − 1 / e + 1 tag window.
-- [ ] T10: a replayed nonce, a nonce below the window, a tampered transport frame and a message 2 for an unknown first message, all sent through the mesh, are dropped without delivery or state change.
-- [ ] Gherkin scenarios for secured sessions and secured delivery.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] Seeded `VirtualAir` tests, 5-node line, in `Classical` and `PostQuantum`: A sends 10 messages to E. The first opens the session, the other 9 go as kind `0x03` to conversation tags, and all 10 reach `Delivered`, each delivered once.
+- [x] A seeded test duplicates message 1 and shows the cached message 2 resent byte for byte.
+- [x] A seeded test shows crossed sessions settling on the lower-NodeId initiator on both sides.
+- [x] Virtual-time tests end a session at 21,600 s and at 4,096 frames, and the next message is a first message.
+- [x] A seeded test wipes E's session state and shows A's fallback to a first message with a new `message_id` after the second retry.
+- [x] A seeded test across an epoch change keeps delivery through the e − 1 / e + 1 tag window.
+- [x] T10: a replayed nonce, a nonce below the window, a tampered transport frame and a message 2 for an unknown first message, all sent through the mesh, are dropped without delivery or state change.
+- [x] Gherkin scenarios for secured sessions and secured delivery.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 
