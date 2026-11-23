@@ -34,7 +34,7 @@ Also verify whether SIG Mesh fits phone-to-phone meshes, and explain why or why 
 - [B4] Trail of Bits, "Building secure messaging is hard: a nuanced take on the bitchat security debate", 2025-07-18: <https://blog.trailofbits.com/2025/07/18/building-secure-messaging-is-hard-a-nuanced-take-on-the-bitchat-security-debate>
 - [B5] TechCrunch, 2025-07-09, reporting Alex Radocea's impersonation finding: <https://techcrunch.com/2025/07/09/jack-dorsey-says-his-secure-new-bitchat-app-has-not-been-tested-for-security>
 - [B6] bitchat GitHub issues:
-  - #1618 <https://github.com/permissionlesstech/bitchat/issues/1618>
+  - #1618, removed from GitHub by 2026-11-23; archived copy of 2026-11-03: <https://web.archive.org/web/20261103222508/https://github.com/permissionlesstech/bitchat/issues/1618>
   - #202 <https://github.com/permissionlesstech/bitchat/issues/202>
   - #116 <https://github.com/permissionlesstech/bitchat/issues/116>
   - #1064 <https://github.com/permissionlesstech/bitchat/issues/1064>

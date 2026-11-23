@@ -2,7 +2,8 @@
 # links offline; a weekly job also checks external links.
 include_fragments = "full"
 hidden = true
-exclude_path = ["(^|/)build/", "(^|/)node_modules/"]
+# lychee/ holds the action's own report, which a retry would otherwise rescan.
+exclude_path = ["(^|/)build/", "(^|/)node_modules/", "(^|/)lychee/"]
 # 429 means rate limited: the page exists, but the host throttles bots.
 accept = ["200..=299", "429"]
 # These hosts answer automated clients with 403 (bot protection). On 2026-11-01
