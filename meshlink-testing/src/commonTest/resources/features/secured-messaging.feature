@@ -8,7 +8,7 @@ Feature: Secured messages
   Scenario Outline: A message to a node four hops away waits for its certificate and arrives sealed
     Given Alice to Eve are running in a <profile> line with links only between neighbors
     When Alice sends "Meet at the north gate" to Eve, holding no certificate of Eve
-    Then Alice's message stayed Queued until Alice held Eve's certificate, and was then Sent
+    Then Alice's message stayed Queued until Alice held Eve's certificate, was then Sent, and then Delivered
     And Eve receives "Meet at the north gate" from Alice once
     And Bob, Carol and Dave relayed the message only as <size>-byte frames without its text
 

@@ -115,5 +115,5 @@ class UnsecuredEndTest {
 }
 
 /** Receipts on this test's scheduler that send and hand on nothing. */
-internal fun TestScope.receipts(): Receipts =
-    Receipts(SchedulerClock(testScheduler), backgroundScope, { _, _, _ -> }) { _, _ -> }.also { it.begin() }
+internal fun <K : Any> TestScope.receipts(): Receipts<K> =
+    Receipts<K>(SchedulerClock(testScheduler), backgroundScope, { _, _, _ -> }, { _, _ -> }).also { it.begin() }

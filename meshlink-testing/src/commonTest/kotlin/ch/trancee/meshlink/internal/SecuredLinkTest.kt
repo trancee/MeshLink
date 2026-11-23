@@ -196,7 +196,7 @@ abstract class SecuredLinkTest(
             val nowSeconds = TestClock(testScheduler).wallClockMillis() / 1_000
             val sealed = sealedFrames(end, transport).reassembled().single()
             val opened = assertNotNull(fake.opened(sealed, nowSeconds))
-            assertContentEquals("hello".encodeToByteArray(), opened.payload)
+            assertContentEquals("hello".encodeToByteArray(), opened.message.payload)
             assertTrue(end.open)
         }
 

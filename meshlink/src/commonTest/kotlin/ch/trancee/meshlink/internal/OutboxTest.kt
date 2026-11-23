@@ -70,6 +70,25 @@ class OutboxTest {
         }
 
     @Test
+    fun eachTimedRetryIsCountedButNotANewLinksSend() =
+        runTest {
+            // Arrange
+            val counted = mutableListOf<Int>()
+            val outbox =
+                Outbox(SchedulerClock(testScheduler), backgroundScope, capacity, { density }) { counted += it.retries }
+            outbox.begin()
+
+            // Act
+            outbox.add(entry())
+            advanceTimeBy(6_000)
+            runCurrent()
+            outbox.linked(PEER)
+
+            // Assert
+            assertEquals(listOf(0, 1, 2, 2), counted)
+        }
+
+    @Test
     fun theHighClassRetriesAfterIntervalsDoublingFromFiveToSixtySecondsThenAtSixty() =
         runTest {
             // Arrange

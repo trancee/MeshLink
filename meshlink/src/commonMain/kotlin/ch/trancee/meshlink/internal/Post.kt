@@ -81,9 +81,10 @@ internal enum class Settled {
  * density class.
  *
  * A secured [profile]'s mesh may not carry the unsecured container (spec "End-to-end"): it sends each
- * message as a first message sealed to its destination's certificate (spec "First messages"), which
- * its [lookups] find for nodes it is not linked to (spec "Certificate lookup"); a message waits
- * `Queued` until the certificate arrives. Its broadcasts are signed.
+ * message with its end-to-end session to the destination, else as a first message sealed to the
+ * destination's certificate (spec "First messages" and "Sessions"), which its [lookups] find for nodes
+ * it is not linked to (spec "Certificate lookup"); a message waits `Queued` until the certificate
+ * arrives or the session opens. Its broadcasts are signed.
  *
  * [send] and [awaitCapacity] are thread-safe; everything else runs on [scope]'s serial dispatcher.
  */
@@ -119,7 +120,7 @@ internal class Post(
     private val releases = Releases(outbox, routed, density) { end.destination(it) }
 
     // A delivery receipt goes back on the reverse route its messages came on, else like any unicast.
-    private val receipts: Receipts =
+    private val receipts: Receipts<NodeId> =
         Receipts(clock, scope, { to, tombstones, expiry ->
             val acknowledger = unsecuredEnd.acknowledger
             val receipt = acknowledger.receipt(to, tombstones, expiry)
@@ -129,7 +130,25 @@ internal class Post(
         }, outbox::delivered)
     private val unsecuredEnd: UnsecuredEnd =
         UnsecuredEnd(crypto, clock, inbox, receipts, routed::heard, releases::found)
-    private val securedEnd = SecuredEnd(crypto, clock, inbox, certificates, routed::heard, releases::found)
+
+    // A first message's answer goes alone at once; session receipts are batched like any.
+    private val securedReceipts: Receipts<Reply> =
+        Receipts(clock, scope, { reply, tombstones, expiry ->
+            securedEnd.acknowledger.reply(reply, tombstones, expiry)
+        }, outbox::delivered) { it is Reply.First }
+    private val securedEnd: SecuredEnd =
+        SecuredEnd(
+            crypto,
+            clock,
+            inbox,
+            certificates,
+            securedReceipts,
+            SecuredHooks(routed::heard, releases::found, releases::arrived) { outgoing ->
+                router.originate(outgoing.destination, outgoing.origin, density(), search = false) { hopLimit ->
+                    Parcel(outgoing.messageId, relayed = false, { outgoing.frame(hopLimit) }) {}
+                }
+            },
+        )
     private val end: Origin = if (secured) securedEnd else unsecuredEnd
     private val codec = BroadcastCodec(crypto, secured)
     private val floods = Floods(lanes, codec, Plumtree(lanes, clock, scope, density)) { inbox.offer(it) }
@@ -145,19 +164,22 @@ internal class Post(
         self.value = NodeId(identity.nodeId)
         outbox.begin()
         receipts.begin()
+        securedReceipts.begin()
         broadcasts.begin()
         lookups?.begin(releases::arrived)
     }
 
     /** A secured node's [keys] for a new session, which its first messages are sealed with and to. */
     fun certify(keys: SecuredKeys) {
-        securedEnd.certify(keys)
+        securedEnd.keys.certify(keys)
     }
 
     /** Ends the run: unfinished messages and broadcasts fail with `Stopped`, and no routed peer is listed. */
     suspend fun end() {
         outbox.end()
         receipts.end()
+        securedReceipts.end()
+        securedEnd.sessions.clear()
         broadcasts.end()
         routed.end()
         lookups?.end()
@@ -233,14 +255,21 @@ internal class Post(
         router.received(peer, frame)
     }
 
-    // Each attempt tags the same draft for the epoch it is written in (spec "Origin behavior"). After
-    // its first send on a route, a message is sent once more by a new [search] if it is still
-    // unfinished `resend-base` + `resend-per-hop` × the route's hop count later.
+    // Each attempt tags the same draft for the epoch it is written in (spec "Origin behavior"), until
+    // the draft lapses. After its first send on a route, a message is sent once more by a new
+    // [search] if it is still unfinished `resend-base` + `resend-per-hop` × the route's hop count later.
     private fun transmit(
         entry: Outbox.Entry,
         search: Boolean = false,
     ) {
-        val draft = entry.draft ?: end.draft(entry)?.also { entry.draft = it }
+        // Only a secured draft lapses: an `unsecured` one has no session to end.
+        val lapsed = secured && entry.draft?.let { securedEnd.lapsed(it, entry.retries - entry.draftedAt) } == true
+        if (lapsed) entry.draft = null
+        val draft =
+            entry.draft ?: end.draft(entry)?.also {
+                entry.draft = it
+                entry.draftedAt = entry.retries
+            }
         val reachable = if (entry.directOnly) entry.to in lanes.peers else lanes.peers.isNotEmpty()
         if (!reachable) return entry.hold()
         val sealed = draft ?: return

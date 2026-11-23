@@ -11,19 +11,21 @@ import kotlinx.coroutines.launch
 
 /**
  * This node's delivery receipts (spec "Delivery receipts"; ADR 0013 decisions 1 and 6). Batches one
- * receipt per sender for each message the app took, and again for each later copy of a taken one,
- * and [send]s a batch once it holds `receipt-batch-max` messages or `receipt-batch-delay` after its
- * first. Hands the receipts that arrive for this node's messages to [delivered].
+ * receipt per key, which says whom and how it goes, for each message the app took, and again for
+ * each later copy of a taken one, and [send]s a batch once it holds `receipt-batch-max` messages or
+ * `receipt-batch-delay` after its first; a key that is [prompt] sends each receipt alone at once.
+ * Hands the receipts that arrive for this node's messages to [delivered].
  *
  * Runs on [scope]'s serial dispatcher, except [taken].
  */
-internal class Receipts(
+internal class Receipts<K : Any>(
     private val clock: Clock,
     private val scope: CoroutineScope,
-    private val send: (to: NodeId, tombstones: List<Tombstone>, expiry: UInt) -> Unit,
+    private val send: (key: K, tombstones: List<Tombstone>, expiry: UInt) -> Unit,
     private val delivered: (from: NodeId, messageIds: List<ByteArray>) -> Unit,
+    private val prompt: (key: K) -> Boolean = { false },
 ) {
-    private val batches = mutableMapOf<NodeId, MutableList<Pair<Tombstone, UInt>>>()
+    private val batches = mutableMapOf<K, MutableList<Pair<Tombstone, UInt>>>()
     private var takenIds = MessageIds()
     private lateinit var run: CoroutineScope
 
@@ -39,18 +41,24 @@ internal class Receipts(
         run.coroutineContext.job.cancelAndJoin()
     }
 
-    /** The app took [sender]'s message of [tombstone], expiring at Unix second [expiry]. Thread-safe. */
+    /**
+     * The app took the message of [tombstone], expiring at Unix second [expiry], whose receipt goes by
+     * [sender]. Thread-safe.
+     */
     fun taken(
-        sender: NodeId,
+        sender: K,
         tombstone: Tombstone,
         expiry: UInt,
     ) {
         scope.launch { take(sender, tombstone, expiry) }
     }
 
-    /** A later copy of [sender]'s message of [tombstone] arrived: acknowledged again if it was taken. */
+    /**
+     * A later copy of the message of [tombstone] arrived, whose receipt goes by [sender]: acknowledged
+     * again if it was taken.
+     */
     fun again(
-        sender: NodeId,
+        sender: K,
         tombstone: Tombstone,
         expiry: UInt,
     ) {
@@ -66,7 +74,7 @@ internal class Receipts(
     }
 
     private fun take(
-        sender: NodeId,
+        sender: K,
         tombstone: Tombstone,
         expiry: UInt,
     ) {
@@ -76,10 +84,11 @@ internal class Receipts(
     }
 
     private fun add(
-        sender: NodeId,
+        sender: K,
         tombstone: Tombstone,
         expiry: UInt,
     ) {
+        if (prompt(sender)) return send(sender, listOf(tombstone), expiry)
         val batch =
             batches.getOrPut(sender) {
                 mutableListOf<Pair<Tombstone, UInt>>().also {
@@ -95,7 +104,7 @@ internal class Receipts(
 
     // A batch sent when full is gone by the time its timer fires.
     private fun flush(
-        sender: NodeId,
+        sender: K,
         batch: List<Pair<Tombstone, UInt>>,
     ) {
         if (batches[sender] !== batch) return

@@ -85,8 +85,9 @@ public sealed interface DeliveryStatus {
     /**
      * Final: the destination's delivery receipt arrived; its app took the message. A receipt that
      * arrives after the origin stopped retrying still counts, until the message would turn
-     * [Expired]. Only the `unsecured` profile returns receipts so far; in `classical` and
-     * `post-quantum` a unicast message still ends [Expired].
+     * [Expired]. In `classical` and `post-quantum` the receipt is sealed end to end, in the reply to
+     * a first message or in the conversation's session, so only the destination can produce it; a
+     * relay can't forge one. In `unsecured` any node on the route could forge it.
      */
     public data object Delivered : DeliveryStatus
 

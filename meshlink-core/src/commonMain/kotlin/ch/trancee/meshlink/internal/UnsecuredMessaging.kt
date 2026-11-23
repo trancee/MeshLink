@@ -65,8 +65,7 @@ public class UnsecuredMessaging(
         expiry: UInt,
     ): ReceiptDraft {
         val messageId = crypto.randomBytes(MESSAGE_ID)
-        val ids = Tlv(MESSAGE_IDS, tombstones.fold(ByteArray(0)) { bytes, tombstone -> bytes + tombstone.messageId })
-        val plaintext = ReceiptContent(messageId, expiry, listOf(ids)).encode(secured = false)
+        val plaintext = receiptPlaintext(messageId, expiry, tombstones, secured = false)
         return ReceiptDraft(destination, messageId, expiry, tombstones, Container.Unsecured(nodeId, plaintext))
     }
 
@@ -138,17 +137,9 @@ public class UnsecuredMessaging(
         frame: DeliveryReceipt,
         nowSeconds: Long,
     ): Acknowledgement? {
-        val container = frame.container as? Container.Unsecured
-        val content = container?.let { (ReceiptContent.decode(it.plaintext, secured = false) as? Decoded.Valid)?.value }
-        val ids = frame.tombstones.map { it.messageId }
-        val listed = content?.let { receipt -> receipt.extensions.firstOrNull { it.type == MESSAGE_IDS }?.value }
-        val matches =
-            content != null && listed != null &&
-                content.messageId.contentEquals(frame.header.messageId) &&
-                content.expiry == frame.header.expiry &&
-                listed.contentEquals(ids.fold(ByteArray(0)) { bytes, id -> bytes + id }) &&
-                frame.header.expiry.toLong() in live(nowSeconds)
-        return if (matches) Acknowledgement(container.senderNodeId, ids) else null
+        val container = frame.container as? Container.Unsecured ?: return null
+        val ids = receiptIds(frame, container.plaintext, nowSeconds, secured = false)
+        return ids?.let { Acknowledgement(container.senderNodeId, it) }
     }
 
     private fun window(epoch: UInt): List<ByteArray> {
@@ -174,9 +165,10 @@ public class UnsecuredMessaging(
 
         private const val MESSAGE_ID = 12
         private const val K = 16
-        private const val MESSAGE_IDS = 0x83
     }
 }
+
+private const val MESSAGE_IDS = 0x83
 
 /** The expiries a frame received at Unix second [nowSeconds] may carry, allowing `clock-skew` either way. */
 private fun live(nowSeconds: Long): LongRange {
@@ -200,10 +192,49 @@ internal fun Derivations.bound(
         content.expiry.toLong() in live(nowSeconds)
 
 /**
+ * A receipt plaintext (spec "Plaintext") of [messageId] and [expiry] listing the IDs of [tombstones]
+ * in `MESSAGE_IDS`.
+ */
+internal fun receiptPlaintext(
+    messageId: ByteArray,
+    expiry: UInt,
+    tombstones: List<Tombstone>,
+    secured: Boolean,
+): ByteArray {
+    val ids = Tlv(MESSAGE_IDS, tombstones.fold(ByteArray(0)) { bytes, tombstone -> bytes + tombstone.messageId })
+    return ReceiptContent(messageId, expiry, listOf(ids)).encode(secured)
+}
+
+/**
+ * The IDs [frame] acknowledges if its opened [plaintext] is a receipt for it at Unix second
+ * [nowSeconds] (spec "Delivery receipts"), else `null`: it decodes, padded if [secured], repeats the
+ * header's `message_id` and `expiry`, and lists in `MESSAGE_IDS` the IDs of the tombstones in the same
+ * order; and its expiry lies within `message-lifetime-max` of now, allowing `clock-skew` either way.
+ */
+internal fun receiptIds(
+    frame: DeliveryReceipt,
+    plaintext: ByteArray,
+    nowSeconds: Long,
+    secured: Boolean,
+): List<ByteArray>? {
+    val content = (ReceiptContent.decode(plaintext, secured) as? Decoded.Valid)?.value
+    val ids = frame.tombstones.map { it.messageId }
+    val listed = content?.let { receipt -> receipt.extensions.firstOrNull { it.type == MESSAGE_IDS }?.value }
+    val matches =
+        content != null && listed != null &&
+            content.messageId.contentEquals(frame.header.messageId) &&
+            content.expiry == frame.header.expiry &&
+            listed.contentEquals(ids.fold(ByteArray(0)) { bytes, id -> bytes + id }) &&
+            frame.header.expiry.toLong() in live(nowSeconds)
+    return ids.takeIf { matches }
+}
+
+/**
  * A drafted message to [destination]: everything its frames keep across retries. Each write sets
- * the routing tags for its epoch ([UnsecuredMessaging.frame], [FirstMessages.frame]). A first
- * message's [destination] is the responder's certified X25519 key, and its [conversation] the
- * conversation secret its source tags come from.
+ * the routing tags for its epoch ([UnsecuredMessaging.frame], [FirstMessages.frame],
+ * [Conversation.frame]). A first message's [destination] is the responder's certified X25519 key and
+ * its [sealer] the [Opening] its source tags and session come from; a session frame's [destination]
+ * is the peer's NodeId and its [sealer] the [Conversation] that sealed it. An `unsecured` draft has none.
  */
 public class Draft internal constructor(
     public val destination: ByteArray,
@@ -211,7 +242,7 @@ public class Draft internal constructor(
     public val expiry: UInt,
     public val commitment: ByteArray,
     public val container: Container,
-    internal val conversation: ByteArray = ByteArray(0),
+    public val sealer: Sealer? = null,
 )
 
 /**

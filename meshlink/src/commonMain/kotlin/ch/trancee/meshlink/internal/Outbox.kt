@@ -141,6 +141,7 @@ internal class Outbox(
             transmit(entry)
             delay(retryMillis(density(), doublings))
             doublings = minOf(doublings + 1, DOUBLINGS_MAX)
+            entry.retries++
         }
     }
 
@@ -174,6 +175,12 @@ internal class Outbox(
 
         /** The message drafted for its first send, which every retry sends again; `null` before. */
         var draft: Draft? = null
+
+        /** The timed retries so far: the sends after the first on the retry schedule. */
+        var retries = 0
+
+        /** [retries] when [draft] was drafted. */
+        var draftedAt = 0
 
         var done = false
 

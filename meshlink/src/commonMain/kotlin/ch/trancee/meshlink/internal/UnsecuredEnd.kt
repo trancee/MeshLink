@@ -16,7 +16,7 @@ internal class UnsecuredEnd(
     private val crypto: CryptoProvider,
     private val clock: Clock,
     private val inbox: Inbox,
-    private val receipts: Receipts,
+    private val receipts: Receipts<NodeId>,
     private val heard: (sender: NodeId) -> Unit,
     private val found: (tag: ByteArray) -> Unit,
 ) : Origin {
