@@ -220,9 +220,17 @@ Exit: 0.1.0 is on Maven Central and in `meshlink-swift`, its docs are on Pages, 
 | 63 | [Pass the 15-phone fleet smoke run](issues/63-fleet-smoke-run.md) | HITL | 62 |
 | 64 | [Release 0.1.0](issues/64-release-0-1-0.md) | HITL | 59, 60, 63 |
 
+### After 0.1.0
+
+Exit: background behavior has device evidence, so a later release can claim it.
+
+| # | Ticket | Type | Blocked by |
+|---|---|---|---|
+| 70 | [Prove background-iPhone discovery on phones](issues/70-background-discovery-device-proof.md) | HITL | 33, 57, 64, 69 |
+
 ## Not in this backlog
 
 - Offering HPKE base mode to libsodium upstream (ADR 0004): it waits for our HPKE to pass, and posting needs the owner's approval.
-- Background behavior claims: 0.1.0 marks them unverified (ADR 0017 amendment).
+- Background behavior claims: 0.1.0 marks them unverified (ADR 0017 amendment). Ticket 70 gathers the evidence after 0.1.0.
 - Kotlin 2.5 and other toolchain moves: ADR 0005 holds them until their conditions are met.
 - Extended advertising and the iOS Live Activity hook: deferred beyond 0.1.0 (ADR 0010 and ADR 0011 amendments).
