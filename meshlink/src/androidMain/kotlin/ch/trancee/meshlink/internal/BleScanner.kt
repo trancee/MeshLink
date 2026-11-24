@@ -127,8 +127,8 @@ private const val APPLE = 0x004C
 /**
  * Apple's overflow area: within Apple manufacturer data (`FF 4C 00`), the sub-field type `0x01`
  * followed, with no length byte, by a 16-byte bitmap with one hash bit per overflowed service UUID.
- * Other Apple sub-fields are type, length, data. Undocumented by Apple (ADR 0010); the format and
- * hash are in `docs/research/2026-11-23-ios-overflow-area-android.md` §4.2.
+ * Other Apple sub-fields are type, length, data. Undocumented by Apple; the format and hash are in
+ * ADR 0010's 2026-11-23 amendment and `docs/explanation/background-iphone-discovery.md`.
  */
 private const val MANUFACTURER_DATA = 0xFF
 private const val OVERFLOW_TYPE = 0x01
@@ -152,7 +152,7 @@ private val MESH_OVERFLOW_BIT = overflowBit32((MeshGatt.MESH.mostSignificantBits
 /**
  * The overflow bit of the 32-bit service UUID [uuid]: the CRC over the UUID zero-padded on the
  * right to 16 bytes. iOS zero-pads 32-bit UUIDs but expands 16-bit ones with the Base UUID
- * (research note §4.2.7).
+ * (ADR 0010, 2026-11-23 amendment).
  */
 private fun overflowBit32(uuid: Int): Int {
     val padded = ByteArray(OVERFLOW_BITMAP_SIZE)

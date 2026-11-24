@@ -4,6 +4,7 @@
 - **Builds on:** [`2026-11-02-discovery-advertising.md`](2026-11-02-discovery-advertising.md), cited below as the "discovery note". Its §3.2 ("Q2: iOS background advertising and the overflow area") covers Apple's budget rules and the first lab runs. This note does not repeat them. §2.1 lists where this note confirms or contradicts §3.2.
 - **Lab evidence:** [`docs/evidence/2026-11-discovery/README.md`](../evidence/2026-11-discovery/README.md) (cited as "evidence README") and its `raw/` logs. Also cited: ADR 0010 and `docs/agents/lessons.md`.
 - **Every URL below was accessed on 2026-11-23.**
+- **Outcome:** recommendations 2 and 3 (§7) shipped in [#138](https://github.com/trancee/MeshLink/pull/138) and are recorded in the [ADR 0010](../adr/0010-discovery-and-advertising.md) amendment of 2026-11-23. The iOS scrub in recommendation 5 stays rejected (ADR 0010, Alternatives). [Finding iPhones in the background](../explanation/background-iphone-discovery.md) explains the current behavior; this note is background, not the source of truth.
 
 ## Evidence labels
 
@@ -33,6 +34,7 @@ How does Apple's CoreBluetooth "overflow area" for background advertising work? 
 
 1. **Apple documents only the behavior, not the format [DOC].** In the background, "all service UUIDs are in the overflow area", and they are "discoverable only by an iOS device explicitly scanning for them". The receive-side key is "best effort".
 2. **Format [CODE, LAB]:** one AD structure `14 ff 4c 00 01 <16-byte bitmap>`. That is manufacturer-specific data, company `0x004C`, Apple TLV type `0x01` with **no TLV length byte**, then a 128-bit bitmap with one bit per advertised service UUID.
+   - Every capture so far had the overflow as the first Apple TLV of its own AD structure. Apple data is a TLV list, so a scanner should still walk the TLVs to type `0x01` rather than expect it at a fixed offset (§4.2.1, §7 recommendation 2); MeshLink's scanner does.
 3. **The hash, derived and validated here (new; not found published) [CALC, LAB]:**
    - `bit = CRC-8(poly 0x09, init 0x00, no reflection, xorout 0x00)` over the 16 UUID bytes in big-endian (textual) order, then `& 0x7F`.
    - The bit sits on air at byte `bit >> 3`, mask `1 << (bit & 7)`, so bits are LSB-first within each byte.
