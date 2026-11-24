@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -8,11 +9,37 @@ from pathlib import Path
 WORKFLOW = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "build.yml"
 
 
-def run_gate(status):
+def run_gate(status, code=""):
     lines = WORKFLOW.read_text().splitlines()
     gate = lines.index("      - name: Require all Apple phases")
     command = lines[gate + 1].strip().removeprefix("run: ")
-    return subprocess.run(["bash", "-c", command], env={**os.environ, "APPLE_RESULT": status}, capture_output=True)
+    env = {**os.environ, "APPLE_RESULT": status, "CODE": code}
+    return subprocess.run(["bash", "-c", command], env=env, capture_output=True)
+
+
+def changes_script():
+    lines = WORKFLOW.read_text().splitlines()
+    start = lines.index("      - id: diff") + 2
+    end = next(i for i in range(start, len(lines)) if not lines[i].startswith("          "))
+    return "\n".join(line[10:] for line in lines[start:end])
+
+
+def run_changes(paths, event="pull_request"):
+    """Commits `paths` on top of an empty commit and returns the `code` output the changes step writes."""
+    with tempfile.TemporaryDirectory() as repo:
+        git = ["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com"]
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "base"], check=True)
+        for path in paths:
+            file = Path(repo, path)
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text("x\n")
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "change"], check=True)
+        output = Path(repo, "output")
+        env = {**os.environ, "GITHUB_EVENT_NAME": event, "GITHUB_OUTPUT": str(output)}
+        subprocess.run(["bash", "-c", changes_script()], cwd=repo, env=env, check=True)
+        return output.read_text().strip()
 
 
 class RequireAppleJobsTest(unittest.TestCase):
@@ -40,9 +67,10 @@ class RequireAppleJobsTest(unittest.TestCase):
         self.assertIsNotNone(macos)
         self.assertIn("phase: [simulator, swiftpm, maven]", apple.group(1))
         self.assertIn("fail-fast: false", apple.group(1))
-        self.assertIn("needs: [apple]", macos.group(1))
+        self.assertIn("needs: [changes, apple]", macos.group(1))
         self.assertIn("if: always()\n", macos.group(1))
         self.assertIn("APPLE_RESULT: ${{ needs.apple.result }}", macos.group(1))
+        self.assertIn("CODE: ${{ needs.changes.outputs.code }}", macos.group(1))
 
     def test_same_repository_runs_use_the_self_hosted_mac_and_forks_the_hosted_image(self):
         apple = re.search(r"(?ms)^  apple:\n(.*?)(?=^  macos:)", WORKFLOW.read_text()).group(1)
@@ -112,10 +140,40 @@ class RequireAppleJobsTest(unittest.TestCase):
 
     def test_rejects_non_success_and_missing_results(self):
         for status in ("failure", "cancelled", "skipped", ""):
-            with self.subTest(status=status):
-                result = run_gate(status)
+            for code in ("true", ""):
+                with self.subTest(status=status, code=code):
+                    result = run_gate(status, code)
 
-                self.assertNotEqual(result.returncode, 0)
+                    self.assertNotEqual(result.returncode, 0)
+
+    def test_accepts_skipped_phases_only_without_code_changes(self):
+        self.assertEqual(run_gate("skipped", "false").returncode, 0)
+        for status in ("failure", "cancelled", ""):
+            with self.subTest(status=status):
+                self.assertNotEqual(run_gate(status, "false").returncode, 0)
+
+    def test_linux_and_apple_jobs_skip_only_when_changes_reports_no_code(self):
+        workflow = WORKFLOW.read_text()
+        condition = "    needs: [changes]\n    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}\n"
+
+        for job in ("linux", "apple"):
+            with self.subTest(job=job):
+                body = re.search(rf"(?ms)^  {job}:\n(.*?)(?=^  [a-z]+:\n)", workflow).group(1)
+                self.assertIn(condition, body)
+
+    def test_changes_reports_code_unless_a_pull_request_touches_only_markdown(self):
+        cases = (
+            (["docs/a.md", ".scratch/b/c.md", "README.md"], "pull_request", "code=false"),
+            (["docs/spec/vectors/x.json"], "pull_request", "code=true"),
+            (["docs/a.md", "build.gradle.kts"], "pull_request", "code=true"),
+            ([".github/workflows/build.yml"], "pull_request", "code=true"),
+            (["docs/a.md"], "push", "code=true"),
+            (["docs/a.md"], "workflow_dispatch", "code=true"),
+        )
+
+        for paths, event, expected in cases:
+            with self.subTest(paths=paths, event=event):
+                self.assertEqual(run_changes(paths, event), expected)
 
 
 if __name__ == "__main__":
