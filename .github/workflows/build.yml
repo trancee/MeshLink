@@ -206,9 +206,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Require all Apple phases
-        run: |
-          test "$APPLE_RESULT" = success || { test "$CODE" = false && test "$APPLE_RESULT" = skipped; } ||
-            { echo "::error::Apple phases did not all succeed"; exit 1; }
+        run: test "$APPLE_RESULT" = success || { test "$CODE" = false && test "$APPLE_RESULT" = skipped; } || { echo "::error::Apple phases did not all succeed"; exit 1; }
         env:
           APPLE_RESULT: ${{ needs.apple.result }}
           CODE: ${{ needs.changes.outputs.code }}
