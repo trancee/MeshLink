@@ -1,6 +1,6 @@
 # 0021: Change workflow and merge gates
 
-Status: accepted (2026-11-13; 0.1.0 map ticket "How does an implementation ticket get from the backlog to main?"). Version: 2 (amended 2026-11-13, CI ticket).
+Status: accepted (2026-11-13; 0.1.0 map ticket "How does an implementation ticket get from the backlog to main?"). Version: 3 (amended 2026-11-13, CI ticket; 2026-11-23, Markdown-only pull requests).
 
 ## Context
 
@@ -63,3 +63,7 @@ Status: accepted (2026-11-13; 0.1.0 map ticket "How does an implementation ticke
 2026-11-13, CI ticket (owner decision, 0.1.0 backlog review):
 
 - **Required checks (decision 6):** the ticket that creates the CI workflow, 0.1.0 backlog ticket 05 ("Run the build in CI and make its jobs required on `main`"), adds the Gradle and Xcode jobs to the required checks, not the backlog's first build ticket. Tickets 01–04 come before any CI workflow, so they merge under the existing docs and privacy checks. The ruleset change follows ticket 05's merge and needs the owner's approval (decision 7).
+
+2026-11-23, Markdown-only pull requests (owner decision):
+
+- **Required checks (decision 6):** a pull request that changes only `.md` files skips the "Gradle check and Dokka (Linux)" job and the Apple phases. No Gradle, Dokka or Xcode input is Markdown: the build reads `docs/spec/vectors/*.json`, and `checkChangelog` fails only when an ABI dump changes. A `changes` job in `build.yml` decides from the merge commit's diff. GitHub reports a job skipped by its condition as "Success", so the required checks pass, and "iOS simulator tests and SwiftPM consumer (macOS)" accepts skipped phases only when `changes` reported no code. The docs and privacy checks still run. Pushes to `main` and manual runs always build, and so does a run whose `changes` job fails. CodeQL default setup and automatic dependency submission are repository settings that the workflow cannot filter.

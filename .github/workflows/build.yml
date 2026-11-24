@@ -16,8 +16,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ADR 0021 amendment "Markdown-only pull requests": a pull request that changes only `.md` files
+  # skips the Gradle and Apple jobs; GitHub counts a skipped required check as passed. No build input
+  # is Markdown. Pushes and dispatches always build, and so does any run where this job fails.
+  changes:
+    name: Code changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The pull request's merge commit and its first parent, the base branch.
+          fetch-depth: 2
+      - id: diff
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ] || git diff --name-only HEAD^1 HEAD | grep -qv '\.md$'; then
+            echo code=true
+          else
+            echo code=false
+          fi >> "$GITHUB_OUTPUT"
+
   linux:
     name: Gradle check and Dokka (Linux)
+    needs: [changes]
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","linux-ci"]') }}
     timeout-minutes: 15
     steps:
@@ -73,6 +98,8 @@ jobs:
     # ADR 0017 self-hosted runner amendment: pushes, same-repository PRs and dispatches run on the
     # self-hosted Mac mini with Xcode 27.2; fork PRs never reach it and run on GitHub's macos-26 image
     # with Xcode 26.4.1. One runner runs the phases one after another.
+    needs: [changes]
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'macos-26' || fromJSON('["self-hosted","macOS","ARM64"]') }}
     timeout-minutes: 30
     strategy:
@@ -174,11 +201,14 @@ jobs:
   macos:
     name: iOS simulator tests and SwiftPM consumer (macOS)
     if: always()
-    needs: [apple]
+    needs: [changes, apple]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require all Apple phases
-        run: test "$APPLE_RESULT" = success || { echo "::error::Apple phases did not all succeed"; exit 1; }
+        run: |
+          test "$APPLE_RESULT" = success || { test "$CODE" = false && test "$APPLE_RESULT" = skipped; } ||
+            { echo "::error::Apple phases did not all succeed"; exit 1; }
         env:
           APPLE_RESULT: ${{ needs.apple.result }}
+          CODE: ${{ needs.changes.outputs.code }}
