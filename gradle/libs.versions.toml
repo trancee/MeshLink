@@ -27,6 +27,19 @@ jazzer = "0.30.0"
 compose-bom = "2026.09.00"
 androidx-activity-compose = "1.13.0"
 
+# Security floors (ADR 0005 2026-11-24 amendment): the lowest version build tooling may resolve for a module it pulls
+# in transitively; never a direct dependency. Each is the newest patched release in the line the tooling already uses.
+floor-netty = "4.1.141.Final"
+floor-jackson = "2.22.4"
+floor-guava = "33.8.0-jre"
+floor-bouncycastle = "1.87"
+floor-freemarker = "2.3.35"
+floor-commons-lang3 = "3.22.0"
+floor-httpclient = "4.5.14"
+floor-jose4j = "0.9.7"
+floor-jdom2 = "2.0.6.1"
+floor-opentelemetry = "1.68.0"
+
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
@@ -53,6 +66,24 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+
+floor-netty-codec = { module = "io.netty:netty-codec", version.ref = "floor-netty" }
+floor-netty-codec-http = { module = "io.netty:netty-codec-http", version.ref = "floor-netty" }
+floor-netty-codec-http2 = { module = "io.netty:netty-codec-http2", version.ref = "floor-netty" }
+floor-netty-common = { module = "io.netty:netty-common", version.ref = "floor-netty" }
+floor-netty-handler = { module = "io.netty:netty-handler", version.ref = "floor-netty" }
+floor-netty-handler-proxy = { module = "io.netty:netty-handler-proxy", version.ref = "floor-netty" }
+floor-jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "floor-jackson" }
+floor-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "floor-jackson" }
+floor-guava = { module = "com.google.guava:guava", version.ref = "floor-guava" }
+floor-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "floor-bouncycastle" }
+floor-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "floor-bouncycastle" }
+floor-freemarker = { module = "org.freemarker:freemarker", version.ref = "floor-freemarker" }
+floor-commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "floor-commons-lang3" }
+floor-httpclient = { module = "org.apache.httpcomponents:httpclient", version.ref = "floor-httpclient" }
+floor-jose4j = { module = "org.bitbucket.b_c:jose4j", version.ref = "floor-jose4j" }
+floor-jdom2 = { module = "org.jdom:jdom2", version.ref = "floor-jdom2" }
+floor-opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api", version.ref = "floor-opentelemetry" }
 
 [plugins]
 cucumber-kmp = { id = "io.github.menjoo.cucumberkmp", version.ref = "cucumber-kmp" }
