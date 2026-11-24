@@ -161,13 +161,14 @@ class RequireAppleJobsTest(unittest.TestCase):
                 body = re.search(rf"(?ms)^  {job}:\n(.*?)(?=^  [a-z]+:\n)", workflow).group(1)
                 self.assertIn(condition, body)
 
-    def test_changes_reports_code_unless_a_pull_request_touches_only_markdown(self):
+    def test_changes_reports_code_unless_a_pull_request_or_push_touches_only_markdown(self):
         cases = (
             (["docs/a.md", ".scratch/b/c.md", "README.md"], "pull_request", "code=false"),
             (["docs/spec/vectors/x.json"], "pull_request", "code=true"),
             (["docs/a.md", "build.gradle.kts"], "pull_request", "code=true"),
             ([".github/workflows/build.yml"], "pull_request", "code=true"),
-            (["docs/a.md"], "push", "code=true"),
+            (["docs/a.md", "CHANGELOG.md"], "push", "code=false"),
+            (["docs/a.md", "meshlink/build.gradle.kts"], "push", "code=true"),
             (["docs/a.md"], "workflow_dispatch", "code=true"),
         )
 
