@@ -1,6 +1,6 @@
 # Find a background iPhone's MESH bit wherever iOS packs its overflow area
 
-Status: claimed
+Status: done
 Type: AFK
 
 ## Behavior
@@ -20,6 +20,15 @@ The owner's session did the research, the device tests and the implementation. W
   - 15 markdownlint errors. MD052: adjacent evidence labels such as `[CODE][LAB]` parse as a full reference link (a single `[LAB]` is fine; write combined labels as `[CODE, LAB]`). MD032: lists without a blank line before them (L69, L74, L86, L262, L271, L290, L343). MD028: blank line inside a blockquote (L104, L112).
   - 1 `typos` hit at L254: a misspelling inside a verbatim quote of AOSP's `scan_record_manufacturer_data_merge` description. Paraphrase it or mark it as a quote the way `_typos.toml` already allows.
 - The Gradle and Apple jobs were still running at hand-off; check them before assuming green.
+
+## Outcome
+
+- Shipped in [#138](https://github.com/trancee/MeshLink/pull/138) (`686098c`); all 16 CI jobs passed.
+- `BleScanner.kt` walks every Apple sub-field of each `ff 4c 00` AD structure for type `0x01` and tests the computed MESH bit 123 (CRC-8, poly `0x09`). `AndroidRadioDiscoveryTest`: 40 of 40 pass on the branch. Against `f6f1866`'s scanner the packed case fails, giving 3 sightings instead of 4.
+- ADR 0010 amendment 2026-11-23 "overflow bit anywhere" (Version 13): the walk, the hash and the Android 16 power result. Android 15 and 17 stay unmeasured.
+- The research note got lint fixes only: blank lines before lists and inside blockquotes, combined labels written as `[A, B]`, `re-analyzed`, and the AOSP flag description paraphrased.
+- The hand-off's "rebase merge" was corrected to squash, since ADR 0021 decision 4 rejects rebase merges.
+- Device follow-ups stay in [ticket 69](69-overflow-device-questions.md).
 
 ## Spec and ADR references
 
@@ -45,10 +54,10 @@ The owner's session did the research, the device tests and the implementation. W
 
 ## Acceptance criteria
 
-- [ ] Every CI job on PR #138 passes.
-- [ ] ADR 0010 carries the 2026-11-23 amendment, with the power result, and `tools/check_adrs.py` passes.
-- [ ] PR #138 links this ticket.
-- [ ] The packed-overflow test still fails against `f6f1866`'s `BleScanner.kt` and passes on the branch.
+- [x] Every CI job on PR #138 passes.
+- [x] ADR 0010 carries the 2026-11-23 amendment, with the power result, and `tools/check_adrs.py` passes.
+- [x] PR #138 links this ticket.
+- [x] The packed-overflow test still fails against `f6f1866`'s `BleScanner.kt` and passes on the branch.
 
 ## Proof commands
 
