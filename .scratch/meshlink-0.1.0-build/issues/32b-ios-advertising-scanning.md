@@ -38,7 +38,7 @@ Split from ticket 32 (Q1). The Core Bluetooth radio carries out the ticket 32 po
 
 ## Devices needed
 
-None. Ticket 33 proves rotation and background discovery on phones.
+None. Ticket 33 proves rotation on phones; ticket 70 proves background discovery after 0.1.0. (Corrected 2026-11-23: ticket 33 has no background scenario.)
 
 ## Outcome
 
@@ -48,4 +48,4 @@ None. Ticket 33 proves rotation and background discovery on phones.
 - **RSSI:** `PeripheralCalls.readRssi` calls `CBPeripheral.readRSSI()`, and `peripheral(_:didReadRSSI:error:)` answers through `PeripheralEvents.rssiRead`. A failed read is `RADIO_ERROR`, a closed link `LINK_CLOSED` (`theLinkReadsTheRssiOfItsPeripheral`, `aFailedRssiReadIsARadioError`, `readingTheRssiOfAClosedLinkIsAClosedLink`).
 - **No 2M:** `theRadioClaimsNoLe2MPhy`.
 - **Tests:** the full gate passes with Kover at 100 % line and branch coverage; `:meshlink:compileKotlinIosArm64` compiles the thin layer.
-- **Unverified:** the thin layer's `readRSSI` and overflow discovery run only on phones; ticket 33 proves rotation and background discovery there.
+- **Unverified:** the thin layer's `readRSSI` and overflow discovery run only on phones; ticket 33 proves rotation there, and ticket 70 background discovery.

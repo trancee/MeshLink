@@ -2,6 +2,8 @@
 
 This page explains how an Android node finds an iPhone whose MeshLink app is in the background, why it works that way, and what it can and cannot tell. The decisions are in [ADR 0010](../adr/0010-discovery-and-advertising.md): decision 5, and the 2026-11-18 and 2026-11-23 amendments. The bytes a node reads once it has connected are in the [discovery spec](../spec/discovery.md). Terms follow [`GLOSSARY.md`](../../GLOSSARY.md).
 
+> **Unverified on devices in 0.1.0.** MeshLink 0.1.0 makes no claim about background behavior ([ADR 0017](../adr/0017-testing-architecture.md#amendments), 2026-11-13 amendment). The overflow format, the hash and the discovery rates below come from research runs with prototype apps. The library's own path, from the Android scanner through the anonymous candidate to the GATT vetting, has passed unit tests only. Two more things are still missing. The host app must declare the iOS background modes `bluetooth-peripheral` and `bluetooth-central`, and the lab app does not yet do so. MeshLink also has no CoreBluetooth state restoration.
+
 ## The problem: iOS hides our service UUIDs
 
 In the foreground, an iPhone advertises like any other node: the MESH service UUID and a rotating 16-byte payload that carries its identifier. Once the app goes to the background, iOS stops sending both. Apple's documentation says only that "all service UUIDs are in the overflow area" and that they are "discoverable only by an iOS device explicitly scanning for them". Apple does not document the format.
