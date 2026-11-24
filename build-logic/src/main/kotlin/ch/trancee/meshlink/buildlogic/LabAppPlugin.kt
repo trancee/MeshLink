@@ -21,6 +21,7 @@ class LabAppPlugin : Plugin<Project> {
             apply(DependencyDirectionPlugin::class.java)
             apply("dev.detekt")
         }
+        SecurityFloors.apply(project)
         val versions = project.extensions.getByType(VersionCatalogsExtension::class.java).named("libs")
 
         fun version(alias: String): Int =

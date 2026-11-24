@@ -43,6 +43,23 @@ Facts verified 2026-11-01.
 | minisign | 0.11 or newer (CI: Ubuntu 24.04 `apt` 0.11, Homebrew 0.12) | build (host tool) | Verifies the libsodium tarball's prehashed Ed25519 signature in `verifyLibsodium` | Frank Denis (libsodium's author), stable | ISC | Upstream signs libsodium releases with it | n/a | n/a | The JDK has Ed25519 but no BLAKE2b, which prehashed signatures need; a hand-written BLAKE2b would be more crypto code to prove |
 | Xcode | 27.2 local, 26.4.1 CI | build (host) | iOS SDK and the Swift consumer | Apple | Apple EULA | n/a | n/a | n/a | Required for Apple targets; versions per ADR 0005 v4 |
 
+## Security floors (build tooling transitives)
+
+The lowest version any configuration may resolve for a module that build tooling pulls in transitively; never a direct dependency. A lower request is raised and a higher one is kept. The catalog's `floor-*` entries are the source; the decision and upkeep rule are in [ADR 0005](../adr/0005-toolchain-and-dependency-baseline.md) (2026-11-24, security floors). Facts verified 2026-11-24.
+
+| Dependency | Version | Scope | Need | Maintenance | License | Security | Size | Transitives | Why stdlib or existing fails |
+|---|---|---|---|---|---|---|---|---|---|
+| Netty (`netty-codec`, `-codec-http`, `-codec-http2`, `-common`, `-handler`, `-handler-proxy`) | 4.1.141.Final | build | AGP's test platform (`unified-test-platform-*`) through gRPC | Netty project, 4.1 maintenance line | Apache-2.0 | Fixes the HTTP/2, HTTP codec and handler advisories up to 4.1.137 | n/a | The other Netty 4.1 modules follow it | AGP 9.3.3 requests 4.1.93 and 4.1.110 |
+| Jackson (`jackson-core`, `jackson-databind`) | 2.22.4 | build | Dokka's plugin and generator | FasterXML, 2.22 line | Apache-2.0 | Fixes the 2.22.0–2.22.2 advisories | n/a | `jackson-annotations` 2.22 | Dokka 2.3.0 requests 2.22.2 |
+| Guava | 33.8.0-jre | build, test | AGP, lint and test platform; Robolectric's test runtime | Google, stable | Apache-2.0 | Fixes the advisory up to 33.7.1 | n/a | Its own annotations | AGP requests 33.4.0 and 32.0.1 |
+| BouncyCastle (`bcprov`, `bcpkix`) | 1.87 | build, test | AGP's `sdk-common` and lint; Robolectric's test runtime | Legion of the Bouncy Castle, stable | MIT | Fixes the advisories below 1.85 | n/a | `bcutil` 1.87 | AGP requests 1.79 |
+| FreeMarker | 2.3.35 | build | Kover's report generator | Apache, stable | Apache-2.0 | Fixes the advisory up to 2.3.34 | n/a | None | Kover 0.9.11 requests 2.3.32 |
+| commons-lang3 | 3.22.0 | build | AGP and lint | Apache Commons, stable | Apache-2.0 | Fixes the advisory below 3.18.0 | n/a | None | AGP requests 3.16.0 |
+| httpclient | 4.5.14 | build | AGP and lint | Apache HttpComponents, 4.5 maintenance line | Apache-2.0 | Fixes the advisory below 4.5.13 | n/a | httpcore 4.4 | AGP requests 4.5.6 |
+| jose4j | 0.9.7 | build | AGP | Bitbucket project, active | Apache-2.0 | Fixes the advisory below 0.9.6 | n/a | None | AGP requests 0.9.5 |
+| jdom2 | 2.0.6.1 | build | AGP | JDOM project, maintenance | JDOM (Apache-style) | Fixes the XXE advisory below 2.0.6.1 | n/a | None | AGP requests 2.0.6 |
+| OpenTelemetry API | 1.68.0 | build | KGP's swift-export classpath | OpenTelemetry, stable | Apache-2.0 | Fixes the advisories up to 1.66.0 | n/a | `opentelemetry-context` and `-common` 1.68.0 | KGP 2.4.21 requests 1.41.0 |
+
 ## Test only
 
 | Dependency | Version | Scope | Need | Maintenance | License | Security | Size | Transitives | Why stdlib or existing fails |

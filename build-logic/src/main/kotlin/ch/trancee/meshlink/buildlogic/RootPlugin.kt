@@ -21,6 +21,7 @@ class RootPlugin : Plugin<Project> {
             apply("org.jetbrains.dokka")
             apply("com.diffplug.spotless")
         }
+        SecurityFloors.apply(project)
         MODULES.forEach { project.dependencies.add("kover", project.dependencyFactory.createProjectDependency(it)) }
         PUBLISHED_MODULES.forEach { project.dependencies.add("dokka", project.dependencyFactory.createProjectDependency(it)) }
         project.extensions.configure(KoverProjectExtension::class.java) {

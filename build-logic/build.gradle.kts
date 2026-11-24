@@ -20,6 +20,9 @@ dependencies {
     implementation(libs.skie.gradle.plugin)
     implementation(libs.maven.publish.gradle.plugin)
     implementation(libs.compose.compiler.gradle.plugin)
+    // The plugin classpath of the main build is this runtime classpath; floors raise its vulnerable transitives (ADR 0005).
+    val catalog = versionCatalogs.named("libs")
+    catalog.libraryAliases.filter { it.startsWith("floor.") }.forEach { constraints.implementation(catalog.findLibrary(it).get()) }
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit4)
 }

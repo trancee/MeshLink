@@ -31,6 +31,7 @@ class KmpLibraryPlugin : Plugin<Project> {
             apply("org.jetbrains.kotlinx.kover")
             apply("dev.detekt")
         }
+        SecurityFloors.apply(project)
         val versions = project.extensions.getByType(VersionCatalogsExtension::class.java).named("libs")
 
         fun version(alias: String): Int =
