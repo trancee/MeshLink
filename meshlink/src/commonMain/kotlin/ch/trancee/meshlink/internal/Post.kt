@@ -196,7 +196,10 @@ internal class Post(
         securedEnd.keys.certify(keys)
     }
 
-    /** Ends the run: unfinished messages and broadcasts fail with `Stopped`, and no routed peer is listed. */
+    /**
+     * Ends the run: unfinished messages and broadcasts fail with `Stopped`, no routed peer is listed,
+     * and the frames held for others are dropped.
+     */
     suspend fun end() {
         outbox.end()
         receipts.end()
@@ -205,6 +208,7 @@ internal class Post(
         broadcasts.end()
         routed.end()
         lookups?.end()
+        floods.holding.clear()
     }
 
     /** Accepts or rejects a message of [payload] to [to], sent as [options] say, from a node in [state]. */
@@ -257,7 +261,7 @@ internal class Post(
     override fun linked(peer: NodeId): LinkFrame {
         lanes.open(peer)
         outbox.linked(peer)
-        return floods.linked(peer)
+        return floods.linked(peer, clock.wallClockMillis())
     }
 
     override fun unlinked(peer: NodeId) {
@@ -279,6 +283,7 @@ internal class Post(
         frame: LinkFrame,
     ) {
         floods.plumtree(peer, frame, clock.wallClockMillis())
+        if (frame is LinkFrame.CatchUp) router.handOver.caughtUp(peer, frame.held)
     }
 
     override fun received(
@@ -291,20 +296,16 @@ internal class Post(
     // Each attempt tags the same draft for the epoch it is written in (spec "Origin behavior"), until
     // the draft lapses. After its first send on a route, a message is sent once more by a new
     // [search] if it is still unfinished `resend-base` + `resend-per-hop` × the route's hop count later.
+    // A send that finds no link leaves it `Held`; so does, in the medium and high classes, a flooded
+    // send that finds no route by `resend-base` + `resend-per-hop` × `u6-flood-radius` later.
     private fun transmit(
         entry: Outbox.Entry,
         search: Boolean = false,
     ) {
         // Only a secured draft lapses: an `unsecured` one has no session to end.
-        val lapsed = secured && entry.draft?.let { securedEnd.lapsed(it, entry.retries - entry.draftedAt) } == true
-        if (lapsed) entry.draft = null
-        val draft =
-            entry.draft ?: end.draft(entry)?.also {
-                entry.draft = it
-                entry.draftedAt = entry.retries
-            }
+        val draft = entry.drafted(end) { secured && securedEnd.lapsed(it, entry.retries - entry.draftedAt) }
         val reachable = if (entry.directOnly) entry.to in lanes.peers else lanes.peers.isNotEmpty()
-        if (!reachable) return entry.hold()
+        if (!reachable) return entry.held()
         val sealed = draft ?: return
         val parcel = { hopLimit: Int ->
             Parcel(sealed.messageId, relayed = false, { end.frame(sealed, hopLimit) }) {
@@ -316,8 +317,14 @@ internal class Post(
             lanes.put(entry.to, parcel(1))
             entry.sentMillis = clock.monotonicMillis()
         } else {
-            val hops = router.originate(end.destination(sealed), end.origin(sealed), density(), search, parcel)
+            val destination = end.destination(sealed)
+            val hops = router.originate(destination, end.origin(sealed), density(), search, parcel)
             entry.sentMillis = clock.monotonicMillis()
+            if (hops == null && density() != DensityClass.LOW) {
+                outbox.after(entry, FLOODED_RESEND_MILLIS) {
+                    if (routes.active(destination, clock.monotonicMillis()) == null) entry.held()
+                }
+            }
             if (hops != null && !entry.resent) {
                 entry.resent = true
                 val resend = RESEND_BASE_MILLIS + RESEND_PER_HOP_MILLIS * hops
@@ -329,6 +336,9 @@ internal class Post(
     private companion object {
         // resend-base.
         const val RESEND_BASE_MILLIS = 1_000L
+
+        // How long a flooded send waits for a route before its message is Held.
+        const val FLOODED_RESEND_MILLIS = RESEND_BASE_MILLIS + RESEND_PER_HOP_MILLIS * Router.FLOOD_RADIUS
     }
 }
 
@@ -398,6 +408,20 @@ private const val RESEND_PER_HOP_MILLIS = 200L
 private const val MILLIS_PER_SECOND = 1_000L
 
 // A node blocked on its identity has no run: start couldn't begin one.
+// This entry's draft for this attempt: its current one, or a new one from [end] before its first send
+// and after its draft [lapsed]. A new draft keeps the message's tombstone (D-51).
+private fun Outbox.Entry.drafted(
+    end: Origin,
+    lapsed: (Draft) -> Boolean,
+): Draft? {
+    if (draft?.let(lapsed) == true) draft = null
+    return draft ?: end.draft(this)?.also {
+        draft = it
+        tombstone = it.tombstone
+        draftedAt = retries
+    }
+}
+
 internal fun accepting(state: MeshState): Boolean =
     state == MeshState.Running ||
         (state is MeshState.Blocked && Requirement.IdentityUnavailable !in state.requirements)

@@ -94,8 +94,11 @@ public sealed interface DeliveryStatus {
     public data object Queued : DeliveryStatus
 
     /**
-     * Waiting because this node has no link at all, or, for a direct-only send
-     * ([SendOptions.directOnly]), no link to the destination.
+     * Waiting for a way to the destination: a send found no link at all, or, for a direct-only send
+     * ([SendOptions.directOnly]), no link to the destination. In the medium and high density classes it
+     * is also `Held` when a flooded send found no route within `resend-base` + `resend-per-hop` ×
+     * `u6-flood-radius` (1.6 s). Nodes in range may hold a copy meanwhile and hand it over when the
+     * destination comes back (spec "Holding"); this node keeps retrying until the message expires.
      */
     public data object Held : DeliveryStatus
 

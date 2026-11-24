@@ -132,6 +132,7 @@ How the origin sends depends on its local density class. These are local choices
 - A retry keeps `message_id`, `expiry`, the commitment and the container, but uses the destination's and the origin's tags for the current epoch. Relays cannot re-tag (ADR 0014 decision 7).
 - A direct-only send (ADR 0013 decision 8) uses `hop_limit` 1, so no relay forwards or holds it [D-27].
 - Running out of retries does not fail a message: it expires at `expiry` plus `clock-skew` (ADR 0013 amendment to ADR 0008).
+- A send that finds no link leaves the message `Held`. In the medium and high classes, so does a flooded send that finds no route within `resend-base` + `resend-per-hop` × `u6-flood-radius`. Each later send that goes out moves it back to `Sent` [D-53].
 
 <!-- data: limits.json -->
 
@@ -152,7 +153,7 @@ How the origin sends depends on its local density class. These are local choices
 
 (ADR 0014 decision 4 and amendments; ADR 0015 decision 7; ADR 0008 decision 5.)
 
-A relay MAY hold a small unicast or broadcast frame for others, and forwards it again on a new link or a new route. Holding is local, but a node MUST respect these bounds:
+A relay MAY hold a small unicast or broadcast frame for others. Holding is local, but a node MUST respect these bounds:
 
 <!-- data: limits.json -->
 
@@ -167,6 +168,14 @@ A relay MAY hold a small unicast or broadcast frame for others, and forwards it 
 - At most `hold-messages` frames and `hold-bytes` bytes, and at most 1/`hold-link-share-divisor` of each from one incoming link.
 - Only small frames with at least `hold-min-remaining` of lifetime left that arrived with `hop_limit` 2 or more. `hold-message-max` is the app payload bound that makes a message small (ADR 0015 amendment to ADR 0014).
 - A held message is deleted at its expiry, or when a verified tombstone for it arrives ([end-to-end.md](end-to-end.md#tombstones)).
+- MeshLink holds a relayed `MESSAGE`, `DELIVERY_RECEIPT` or `READ_RECEIPT` only when it has no active route to its destination tag, and every `BROADCAST` it relays. It does not hold its own frames; its outbox keeps them.
+
+A holder runs no timed retries of its own; the origin's retries already cover a reachable destination. It forwards a held unicast again only [D-52]:
+
+- to a peer that claims it with `GRAFT` after `CATCH_UP` ([link.md](link.md#catch-up)); or
+- on a new route to the frame's destination tag, learned from a `ROUTE_REPLY`, from a passing `ROUTE_REQUEST` of the destination, or from a relayed frame whose `source_tag` is that tag.
+
+It sends each held frame at most once on each link and never back on the link it came from, and keeps it until it expires. A route flush needs the destination to use the tag the frame carries; tags rotate every epoch and relays cannot re-tag ([Routing tags](#routing-tags)), so after an epoch change only a claim on `CATCH_UP` hands the frame over.
 
 ## MESSAGE
 

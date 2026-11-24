@@ -21,6 +21,7 @@ import ch.trancee.meshlink.internal.ReceiptContent
 import ch.trancee.meshlink.internal.SecuredKeys
 import ch.trancee.meshlink.internal.StaticKeys
 import ch.trancee.meshlink.internal.Tlv
+import ch.trancee.meshlink.internal.Tombstone
 import ch.trancee.meshlink.internal.UnicastHeader
 import ch.trancee.meshlink.internal.UnsecuredMessaging
 import ch.trancee.meshlink.internal.WireProfile
@@ -149,6 +150,24 @@ class FirstMessagesTest {
     }
 
     @Test
+    fun aDraftSealedAgainWithAMessagesTombstoneKeepsItsMessageIdAndCommitmentForTheResponder() {
+        // Arrange
+        val (alice, bob) = sides(WireProfile.CLASSICAL)
+        val tombstone = Tombstone(ByteArray(ID) { 7 }, ByteArray(K) { 9 })
+
+        // Act
+        val draft = assertNotNull(alice.codec.draft(bob.certificate, PAYLOAD, EXPIRY, readReceipt = false, tombstone))
+        val delivery = assertNotNull(bob.codec.accept(alice.codec.frame(draft, epoch, HOP_LIMIT), NOW))
+
+        // Assert
+        assertContentEquals(tombstone.messageId, draft.tombstone.messageId)
+        assertContentEquals(tombstone.k, draft.tombstone.k)
+        assertContentEquals(Derivations(crypto).tombstoneCommitment(tombstone.k), draft.commitment)
+        assertContentEquals(tombstone.messageId, delivery.message.tombstone.messageId)
+        assertContentEquals(tombstone.k, delivery.message.tombstone.k)
+    }
+
+    @Test
     fun theLargestPostQuantumPayloadWithAReadReceiptMakesASmallFrameAndALargerOneIsRefused() {
         val (alice, bob) = sides(WireProfile.POST_QUANTUM)
         val largest = ByteArray(UnsecuredMessaging.PAYLOAD_MAX)
@@ -178,13 +197,13 @@ class FirstMessagesTest {
     }
 
     @Test
-    fun aNodeOwnsThePublicTagsOfItsKeyForTheAdjacentEpochsOnly() {
+    fun aNodeOwnsThePublicTagsOfItsKeyForTheLastLifetimeAndTheNextEpochOnly() {
         val (alice, bob) = sides(WireProfile.CLASSICAL)
 
-        listOf(epoch - 1u, epoch, epoch + 1u).forEach {
+        (epoch - 12u..epoch + 1u).forEach {
             assertTrue(bob.codec.owns(tags.publicTag(bob.static.publicKey, it), NOW), "epoch $it")
         }
-        listOf(epoch - 2u, epoch + 2u).forEach {
+        listOf(epoch - 13u, epoch + 2u).forEach {
             assertFalse(bob.codec.owns(tags.publicTag(bob.static.publicKey, it), NOW), "epoch $it")
         }
         assertFalse(bob.codec.owns(tags.publicTag(alice.static.publicKey, epoch), NOW))
@@ -464,6 +483,7 @@ class FirstMessagesTest {
         const val TAG = 8
         const val BLOCK = 32
         const val COMMITMENT = 16
+        const val K = 16
         const val TRANSPORT_MIN = 17
         const val KEM_PUBLIC = 1_184
         const val KEM_SECRET = 2_400

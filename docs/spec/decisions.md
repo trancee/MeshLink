@@ -244,7 +244,7 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 ### D-34 Session opening and failure
 
 - **Question:** how are first messages, message 2 and lost session state handled?
-- **Decision:** one outstanding first message per peer; responder answers each message 1 once, caches the message 2 container and resends it for duplicates; initiator matches by receipt message ID. Crossed sessions: keep the one whose initiator has the lower NodeId. No receipt by the second retry of a session frame: end the session and resend as a first message.
+- **Decision:** one outstanding first message per peer; responder answers each message 1 once, caches the message 2 container and resends it for duplicates; initiator matches by receipt message ID. Crossed sessions: keep the one whose initiator has the lower NodeId. No receipt by the second retry of a session frame: end the session and resend as a first message, with the same `message_id` (D-51).
 - **Evidence:** ADR 0002 (IK, LRU cache may evict sessions); ADR 0013 (delivery receipt is always sent).
 - **Alternatives:** every queued message as its own first message (several sessions, more airtime); explicit session-reset frame (unauthenticated or needs keys the peer lost).
 
@@ -359,6 +359,27 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Decision:** no. A relay drops a copy whose `message_id` it forwarded within `unicast-seen-window` before it records a reverse route, so only the first copy, normally over the shortest path, teaches the route to `source_tag`. A copy that passes the window still teaches its route even if its hop limit stops it there. Owner decision 2026-11-20 (ticket 42a).
 - **Evidence:** in seeded `VirtualAir` meshes of 50 static nodes at low density (mean 6 peers in range), learning from every copy let later, longer flood copies overwrite the first copy's reverse route. Two relays then pointed at each other for the destination, and the seen window dropped the frame between them on every retry: 115 of 123 messages arrived within their 30 min lifetime although sender and destination stayed linked over 6–12 hops. With this rule, 123 of 123 arrived, and every 100- and 200-node cell at low, medium and high density delivered every message. Never using routes at relays also delivered every message, but took 5× the wall time because every frame flooded.
 - **Alternatives:** relays never use routes for unicast (floods every frame; loses the point of routes in the medium and high classes); keep the latest copy's route but compare hop counts (the unicast header carries no hop count); a longer seen window (blocks the origin's retries, as D-29 notes).
+
+### D-51 Message ID after a session lapses
+
+- **Question:** when a session frame gets no receipt by its second retry and the sender seals the message again (D-34), does the new frame get a new `message_id`?
+- **Decision:** no. The new frame, in another session or as a first message, keeps the message's `message_id`, tombstone secret `k` and commitment. The destination takes the message once; a later frame with the same `message_id` is acknowledged again through the session that carries it. Owner decision 2026-11-24 (ticket 49).
+- **Evidence:** in a seeded `VirtualAir` test, a relay held both a Classical first message and a later session frame for a destination that was away over an epoch change. The session frame lapsed, so the sender sealed it again as a first message with a new `message_id`; the relay held both copies, and the returning destination delivered the message twice, against ADR 0013 decision 2. With the same `message_id` it delivers the message once. A relay forwards only the first copy of a `message_id` within `unicast-seen-window` (1 s) and holds only one copy, so the cost is one dropped copy on a relay that sees both within that second.
+- **Alternatives:** keep a new `message_id` and accept rare duplicates (breaks ADR 0013 decision 2); deduplicate by payload at the destination (equal payloads may be different messages); purge the lapsed copy with a tombstone (only the destination knows `k`, and it never acknowledged that copy).
+
+### D-52 Holder hand-over triggers
+
+- **Question:** when does a relay forward a frame it holds, and what does `CATCH_UP` offer?
+- **Decision:** a holder runs no timed retries. It forwards a held unicast on a `GRAFT` claim after `CATCH_UP`, or on a new route to its destination tag (from a `ROUTE_REPLY`, the destination's passing `ROUTE_REQUEST`, or a relayed frame whose `source_tag` is that tag); each held frame goes at most once per link and never back where it came from. `CATCH_UP` offers held broadcasts together with those received in the last `catch-up-window`, newest first up to `catch-up-offered-max`, and a `GRAFT` is answered from either. A receiver claims a held unicast at most once per `catch-up-window` and never one it already took. Owner decisions 2026-11-24 (ticket 49).
+- **Evidence:** the origin keeps retrying until expiry (ADR 0014 decision 1), so holder retries would only repeat its airtime while the destination is reachable; a holder matters when the destination comes back and the origin is gone, which a new link or route signals. Seeded `VirtualAir` tests hand held unicasts over in `unsecured` and `classical` through a claim, with the sender gone, and through a passing route request; held broadcasts reach a node that returns after a minute.
+- **Alternatives:** holders keep the origin's retry schedule (ADR 0014 decision 7 as first written: airtime from every holder for no gain while a route exists); offer only the last `catch-up-window` of broadcasts (a returning node misses older held broadcasts).
+
+### D-53 When an origin's message is `Held`
+
+- **Question:** when does an origin report `Held` (ADR 0013 decision 5)?
+- **Decision:** when a send finds no link, and in the medium and high classes when a flooded send finds no route within `resend-base` + `resend-per-hop` × `u6-flood-radius` (1.6 s). The next send that goes out moves it back to `Sent`. In the low class a flood is the route, so a send that went out stays `Sent`. Owner decision 2026-11-24 (ticket 49).
+- **Evidence:** a medium or high class origin waits that long after a flooded send before searching again (Origin behavior), so no route by then means the destination is out of reach for now; a low class origin never searches.
+- **Alternatives:** `Held` only with no link (a medium or high class app never learns its message waits); `Held` after the first retry with no receipt (the retry interval reaches 60 s).
 
 ## Conflicts resolved
 

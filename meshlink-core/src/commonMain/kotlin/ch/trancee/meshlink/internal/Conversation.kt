@@ -83,19 +83,24 @@ public class Conversation(
         private set
 
     /**
-     * A new message of [payload] to [peer] with a fresh `message_id` and tombstone secret, sealed at
-     * the next nonce; `null` once the nonces run out. [readReceipt] asks the peer for a read receipt.
+     * A new message of [payload] to [peer] with [tombstone]'s `message_id` and secret, fresh ones if
+     * `null`, sealed at the next nonce; `null` once the nonces run out. [readReceipt] asks the peer for a
+     * read receipt; [tombstone] is the message's when it is sealed again after another session lapsed
+     * (spec "Sessions").
      */
     public fun draft(
         payload: ByteArray,
         expiry: UInt,
         readReceipt: Boolean = false,
+        tombstone: Tombstone? = null,
     ): Draft? {
-        val messageId = crypto.randomBytes(MESSAGE_ID)
-        val k = crypto.randomBytes(K)
+        val kept = tombstone ?: Tombstone(crypto.randomBytes(MESSAGE_ID), crypto.randomBytes(K))
+        val messageId = kept.messageId
+        val k = kept.k
         val requested = listOfNotNull(Tlv(READ_RECEIPT_REQUESTED, ByteArray(0)).takeIf { readReceipt })
         val sealed = seal(MessageContent(messageId, expiry, k, requested, payload).encode(secured = true))
-        return sealed?.let { Draft(peer, messageId, expiry, derivations.tombstoneCommitment(k), it, this) }
+        val commitment = derivations.tombstoneCommitment(k)
+        return sealed?.let { Draft(peer, kept, expiry, commitment, it, this) }
     }
 
     /**
@@ -134,7 +139,7 @@ public class Conversation(
     public fun source(epoch: UInt): ByteArray = tags.conversationTag(secret, incoming, epoch)
 
     /**
-     * Whether [tag] is the peer's destination tag for epoch e − 1, e or e + 1, where e is the epoch of
+     * Whether [tag] is the peer's destination tag for an epoch [Derivations.recognized] at
      * [nowSeconds].
      */
     public fun owns(
@@ -143,7 +148,7 @@ public class Conversation(
     ): Boolean {
         val epoch = Derivations.epoch(nowSeconds)
         if (epoch != windowEpoch) {
-            window = listOf(epoch - 1u, epoch, epoch + 1u).map { source(it) }
+            window = Derivations.recognized(nowSeconds).map { source(it) }
             windowEpoch = epoch
         }
         return window.any { it.contentEquals(tag) }

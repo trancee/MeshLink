@@ -226,14 +226,16 @@ private fun StepsBuilder.relayThens(scenario: SessionScenario) {
     }
 
     then(
-        "Dave relayed {string} as session frames, then as a first message with a new message ID",
+        "Dave relayed {string} as session frames, then as a first message with the same message ID",
     ) { text: String ->
         line.settle(LAPSED_MILLIS)
         val messages = scenario.since(DAVE)
-        assertEquals(2, messages.size, text)
-        assertKind(Container.TRANSPORT, messages[0])
-        assertTrue(messages[0].size >= 2, "the session frame was retried")
-        assertKind(Container.IK_INITIATOR, messages[1])
+        assertEquals(1, messages.size, text)
+        val (sessions, firsts) = messages.single().partition { it.container.kind == Container.TRANSPORT }
+        assertTrue(sessions.size >= 2, "the session frame was retried")
+        assertTrue(firsts.isNotEmpty(), "no first message")
+        assertKind(Container.IK_INITIATOR, firsts)
+        assertEquals(sessions, messages.single().take(sessions.size), "a session frame after the first message")
     }
 
     then("Alice's message {string} was Delivered, and Eve received it once") { text: String ->

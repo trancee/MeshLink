@@ -174,13 +174,13 @@ class UnsecuredMessagingTest {
     }
 
     @Test
-    fun theDestinationAcceptsTagsOfTheAdjacentEpochsOnly() {
+    fun theDestinationAcceptsTagsOfTheLastLifetimeAndTheNextEpochOnly() {
         val draft = sender.draft(bob, PAYLOAD, EXPIRY)
 
-        listOf(epoch - 1u, epoch, epoch + 1u).forEach {
+        (epoch - 12u..epoch + 1u).forEach {
             assertNotNull(receiver.accept(sender.frame(draft, it, hopLimit = 1), NOW), "epoch $it")
         }
-        listOf(epoch - 2u, epoch + 2u).forEach {
+        listOf(epoch - 13u, epoch + 2u).forEach {
             assertNull(receiver.accept(sender.frame(draft, it, hopLimit = 1), NOW), "epoch $it")
         }
     }
@@ -195,11 +195,11 @@ class UnsecuredMessagingTest {
     }
 
     @Test
-    fun aNodeOwnsItsTagsOfTheAdjacentEpochsOnly() {
-        listOf(epoch - 1u, epoch, epoch + 1u).forEach {
+    fun aNodeOwnsItsTagsOfTheLastLifetimeAndTheNextEpochOnly() {
+        (epoch - 12u..epoch + 1u).forEach {
             assertTrue(receiver.owns(derivations.unsecuredTag(bob, it), NOW), "epoch $it")
         }
-        listOf(epoch - 2u, epoch + 2u).forEach {
+        listOf(epoch - 13u, epoch + 2u).forEach {
             assertFalse(receiver.owns(derivations.unsecuredTag(bob, it), NOW), "epoch $it")
         }
         assertFalse(receiver.owns(derivations.unsecuredTag(alice, epoch), NOW))

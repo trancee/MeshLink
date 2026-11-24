@@ -119,7 +119,12 @@ public class MeshLinkConfig internal constructor(
     /** A copy of the mesh key, or `null` for an open mesh; see [MeshLinkConfigBuilder.meshKey]. */
     public val meshKey: ByteArray? get() = key?.copyOf()
 
-    /** How long a message this node sends stays deliverable, in seconds; from [preset]. */
+    /**
+     * How long a message this node sends stays deliverable, in seconds; from [preset]. Its expiry is
+     * the send time plus this. Until then this node retries it and relays may hold copies of it for an
+     * absent destination; after it, plus 30 s of clock skew, it is [DeliveryStatus.Expired] and every
+     * copy is dropped (ADR 0014 decision 2).
+     */
     public val messageLifetimeSeconds: Int = preset.messageLifetimeSeconds
 
     /** See [MeshLinkConfigBuilder.readReceiptsRequestByDefault]. */

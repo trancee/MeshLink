@@ -50,7 +50,7 @@ Feature: Secured sessions
     And Alice's message "Hello" to Eve was Delivered
     And Eve restarted, forgetting her sessions
     When Alice sends "Are you there?" to Eve
-    Then Dave relayed "Are you there?" as session frames, then as a first message with a new message ID
+    Then Dave relayed "Are you there?" as session frames, then as a first message with the same message ID
     And Alice's message "Are you there?" was Delivered, and Eve received it once
 
   Scenario: Messages keep arriving while the clocks of Alice and Eve are in different epochs

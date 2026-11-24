@@ -391,7 +391,7 @@ When a link comes up, each side sends one `CATCH_UP` frame. It lists what the se
 |---|---|---|---|---|
 | 0 | 1 | type | `u8` | `0x0A` |
 | 1 | 2 | offered_count | `u16` | 0 to 128 |
-| 3 | 12 × n | offered | `bytes[12]` each | Message IDs of broadcasts received in the last `catch-up-window` |
+| 3 | 12 × n | offered | `bytes[12]` each | Message IDs of broadcasts received in the last `catch-up-window` and of held broadcasts |
 | var | 2 | held_count | `u16` | 0 to 100 |
 | var | 20 × n | held | entries | Each: message ID (12 B) then destination tag (8 B) |
 | var | 2 | tombstone_count | `u16` | 0 to 128 |
@@ -399,8 +399,8 @@ When a link comes up, each side sends one `CATCH_UP` frame. It lists what the se
 
 Maximum: 7,127 B, so `CATCH_UP` is always a small frame.
 
-- The receiver requests a missing offered broadcast with `GRAFT` ([routing.md](routing.md#plumtree)).
-- For each held entry whose destination tag is one of the receiver's own tags for any epoch within the last `message-lifetime-max`, or that it has an active route to, the receiver MAY request it with `GRAFT`. The holder then forwards the held frame unchanged except for the hop limit (ADR 0014 decision 7 and amendment).
+- The receiver requests a missing offered broadcast with `GRAFT` ([routing.md](routing.md#plumtree)). The sender answers it from the broadcasts it received recently or from those it holds [D-52].
+- For each held entry whose destination tag is one of the receiver's own tags for any epoch within the last `message-lifetime-max`, or that it has an active route to over another link, the receiver MAY request it with `GRAFT`. MeshLink does not request a message it already took, nor one it requested within the last `catch-up-window`. The holder then forwards the held frame unchanged except for the hop limit (ADR 0014 decision 7 and amendment).
 - Each tombstone lets the receiver verify `H(k)` against a held copy's commitment and delete it ([end-to-end.md](end-to-end.md#tombstones)).
 - If a list would exceed its maximum, the sender keeps the newest entries.
 

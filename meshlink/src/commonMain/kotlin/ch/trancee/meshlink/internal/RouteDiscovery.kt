@@ -5,6 +5,7 @@ import ch.trancee.meshlink.NodeId
 /**
  * Route discovery (spec "Route discovery" and "Flood forwarding"): sends this node's route requests,
  * answers or floods on the requests it receives, and learns the routes replies find into [routes].
+ * Each new route, to a request's origin or a reply's target, goes to [found] with its link.
  * Runs on the node's serial dispatcher.
  */
 internal class RouteDiscovery(
@@ -13,6 +14,7 @@ internal class RouteDiscovery(
     private val routes: Routes,
     private val random: (size: Int) -> ByteArray,
     private val endpoint: Endpoint,
+    private val found: (tag: ByteArray, peer: NodeId) -> Unit,
 ) {
     private val floods = MessageIds()
     private var sequence = 1u
@@ -48,7 +50,7 @@ internal class RouteDiscovery(
         val now = clock.monotonicMillis()
         val back =
             Routes.Route(peer, now + Routes.REVERSE_MILLIS, request.originSequence, hops, clock.wallClockMillis())
-        if (routes.offer(request.originTag, back, now)) endpoint.found(request.originTag)
+        if (routes.offer(request.originTag, back, now)) found(request.originTag, peer)
         val known = routes.active(request.targetTag, now)
         val own = endpoint.tag()
         when {
@@ -100,7 +102,7 @@ internal class RouteDiscovery(
         if (hops > HOPS_MAX) return null
         val now = clock.monotonicMillis()
         val route = Routes.Route(peer, now + Routes.FORWARD_MILLIS, reply.targetSequence, hops, clock.wallClockMillis())
-        if (routes.offer(reply.targetTag, route, now)) endpoint.found(reply.targetTag)
+        if (routes.offer(reply.targetTag, route, now)) found(reply.targetTag, peer)
         return hops
     }
 

@@ -1,6 +1,6 @@
 # 0013: Message lifecycle and receipts
 
-Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 7 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata; 2026-11-23, delivery receipts built and read receipts built).
+Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt semantics?"). Version: 8 (amended 2026-11-03, ADR 0014; 2026-11-08, ADRs 0016 and 0018; 2026-11-13, errata; 2026-11-23, delivery receipts built and read receipts built; 2026-11-24, store-and-forward built).
 
 ## Context
 
@@ -103,3 +103,8 @@ Status: accepted (2026-11-02; ticket "What are the message lifecycle and receipt
 - **Batching (decision 4; D-39):** a recipient lists the messages of one sender that its app marked read and sends their read receipt 2 s after the first, or at once when it lists 64. Batches not yet sent when the node stops are dropped.
 - **Tracking:** a sender watches at most 1,000 delivered messages for their read receipts. Watching one more forgets the oldest, which stays `Delivered`, and emits the link diagnostic `ML7002`.
 - **Secured addressing (amends "Receipt addressing" of 2026-11-08):** a read receipt travels in the current session only if the recipient initiated it or has opened one of the sender's frames with it. Otherwise the sender may never have received message 2, and a read receipt that is never retried would be lost; so it is a first message to the sender's public tag. Nothing answers that first message, so it opens no session.
+
+2026-11-24, store-and-forward built (0.1.0 backlog ticket "Hold messages for absent recipients"):
+
+- **Duplicates after a lapsed session (decision 2; [D-51](../spec/decisions.md#d-51-message-id-after-a-session-lapses)):** a message sealed again after its session lapsed keeps its `message_id`, tombstone secret and commitment. A destination that took an earlier frame of it, perhaps from a relay that held it, acknowledges the new frame instead of delivering the message twice.
+- **`Held` (decision 5; [D-53](../spec/decisions.md#d-53-when-an-origins-message-is-held)):** a unicast is `Held` when a send finds no link, and in the medium and high classes when a flooded send finds no route within 1.6 s. The next send that goes out moves it back to `Sent`.

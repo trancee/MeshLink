@@ -1,0 +1,257 @@
+package ch.trancee.meshlink.internal
+
+import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.InternalMeshLinkApi
+import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshPlatform
+import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.OutgoingMessage
+import ch.trancee.meshlink.Preset
+import ch.trancee.meshlink.ReceivedMessage
+import ch.trancee.meshlink.SecurityProfile
+import ch.trancee.meshlink.SendResult
+import ch.trancee.meshlink.meshLinkConfig
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
+
+/**
+ * Store-and-forward (spec "Holding", ADR 0014) on seeded air: a relay holds a frame for a destination out of
+ * reach and hands it over when the destination returns, through the `CATCH_UP` held list and `GRAFT`, or when a
+ * route to it passes.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class StoreAndForwardTest {
+    @Test
+    fun anUnsecuredRelayHandsAHeldMessageToItsReturningDestinationThroughAGraft() =
+        runTest(timeout = 5.minutes) {
+            handsOver(SecurityProfile.Unsecured)
+        }
+
+    @Test
+    fun aClassicalRelayHandsAHeldMessageToItsReturningDestinationThroughAGraft() =
+        runTest(timeout = 5.minutes) {
+            handsOver(SecurityProfile.Classical)
+        }
+
+    @Test
+    fun theDestinationGetsTheRelaysCopyWithItsSenderGoneAndTheSenderBackClaimsTheHeldReceipt() =
+        runTest(timeout = 5.minutes) {
+            // Arrange
+            val mesh = Mesh(this, SecurityProfile.Unsecured, count = 3).start()
+            val e = mesh.id(E)
+            mesh.leave(E)
+            val message = mesh.send(A, e, "hello")
+            mesh.leave(A)
+
+            // Act
+            mesh.place(E, 2 * SPACING)
+            advanceTimeBy(SETTLE_MILLIS)
+            val statusWhileAway = message.status.value
+            mesh.place(A, 0.0)
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf("hello"), mesh.texts(E))
+            assertTrue(mesh.grafts(E) > 0, "E sent no GRAFT")
+            assertTrue(statusWhileAway !is DeliveryStatus.Delivered, "A was away: $statusWhileAway")
+            assertEquals(DeliveryStatus.Delivered, message.status.value)
+        }
+
+    @Test
+    fun aClassicalRelayHoldsAFirstMessageAndASessionFrameThatTheirDestinationClaimsAfterAnEpochChange() =
+        runTest(timeout = 5.minutes) {
+            // Arrange: A has a conversation with E, B none.
+            val mesh = Mesh(this, SecurityProfile.Classical, count = 4).start()
+            val e = mesh.id(E)
+            mesh.place(B, 0.0)
+            mesh.place(E, 2 * SPACING)
+            advanceTimeBy(SETTLE_MILLIS)
+            mesh.send(A, e, "opening")
+            assertEquals(listOf("opening"), mesh.texts(E))
+            mesh.leave(E)
+            mesh.send(A, e, "in session")
+            mesh.send(B, e, "first")
+            mesh.leave(A)
+            mesh.leave(B)
+
+            // Act
+            advanceTimeBy(EPOCH_MILLIS)
+            mesh.place(E, 2 * SPACING)
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf("first", "in session", "opening"), mesh.texts(E).sorted())
+            assertTrue(mesh.grafts(E) >= 2, "E grafted ${mesh.grafts(E)} frames")
+        }
+
+    @Test
+    fun aRelayHandsAHeldMessageOnAtOnceWhenItsDestinationsRouteRequestPassesInTheSameEpoch() =
+        runTest(timeout = 5.minutes) {
+            // Arrange: E, of the medium class while away, comes back next to Q, which never held the message and is
+            // next to R; all within the first epoch, as a relay can't tell E's tags of two epochs apart.
+            val mesh = Mesh(this, SecurityProfile.Unsecured, count = 4).start()
+            val a = mesh.id(A)
+            val e = mesh.id(E)
+            mesh.leave(E)
+            mesh.leave(Q)
+            val crowd = List(MEDIUM_CROWD) { advertiseFake(mesh.air, capability = null) }
+            crowd.forEach { mesh.air.move(it, AWAY + E * AWAY, CROWD_OFFSET) }
+            mesh.send(A, e, "hello")
+            mesh.leave(A)
+            mesh.place(Q, 2 * SPACING)
+            advanceTimeBy(SETTLE_MILLIS)
+            crowd.forEach { mesh.air.move(it, 3 * SPACING, CROWD_OFFSET) }
+            mesh.place(E, 3 * SPACING)
+            advanceTimeBy(LINK_MILLIS)
+            assertEquals(emptyList(), mesh.texts(E))
+            assertEquals(MEDIUM_OFF, lastGap(mesh.platforms[E]), "E's scan off time")
+
+            // Act
+            mesh.send(E, a, "anyone there?", settleMillis = LINK_MILLIS)
+
+            // Assert
+            assertTrue(testScheduler.currentTime < EPOCH_SECONDS_MILLIS, "past the first epoch")
+            assertEquals(listOf("hello"), mesh.texts(E))
+            assertEquals(0, mesh.grafts(E), "E grafted")
+        }
+
+    @Test
+    fun aRelayThatStopsAndStartsAgainHasNothingToHandOver() =
+        runTest(timeout = 5.minutes) {
+            // Arrange
+            val mesh = Mesh(this, SecurityProfile.Unsecured, count = 3).start()
+            val e = mesh.id(E)
+            mesh.leave(E)
+            mesh.send(A, e, "hello")
+            mesh.leave(A)
+            mesh.nodes[R].stop()
+            mesh.nodes[R].start()
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Act
+            mesh.place(E, 2 * SPACING)
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(emptyList(), mesh.texts(E))
+            assertEquals(0, mesh.grafts(E), "E grafted")
+        }
+
+    // E is away while A sends; R holds the frame; E returns next to R once A's retries have run on.
+    private suspend fun TestScope.handsOver(profile: SecurityProfile) {
+        // Arrange
+        val mesh = Mesh(this, profile, count = 3).start()
+        val e = mesh.id(E)
+        mesh.leave(E)
+        val message = mesh.send(A, e, "hello", settleMillis = RETRIES_MILLIS)
+
+        // Act
+        mesh.place(E, 2 * SPACING)
+        advanceTimeBy(SETTLE_MILLIS)
+
+        // Assert
+        assertEquals(listOf("hello"), mesh.texts(E))
+        assertTrue(mesh.grafts(E) > 0, "E sent no GRAFT")
+        assertEquals(DeliveryStatus.Delivered, message.status.value)
+    }
+
+    /**
+     * [count] chat nodes in [profile] on seeded air, first all in range of each other until they know each other,
+     * then node `i` at `i` × [SPACING] on a line.
+     */
+    @OptIn(InternalMeshLinkApi::class)
+    private class Mesh(
+        private val scope: TestScope,
+        private val profile: SecurityProfile,
+        count: Int,
+    ) {
+        val air = VirtualAir(scope.backgroundScope, TestClock(scope.testScheduler), SeededRandom(SEED))
+        val platforms = List(count) { air.platform(StandardTestDispatcher(scope.testScheduler)) }
+        private val crypto = List(count) { OpenedFrames(SeededCrypto(SEED + it)) }
+        private val config = meshLinkConfig(Preset.OfflineChat, profile) { meshId = MESH }.build()
+        val nodes = platforms.indices.map { MeshLink.create(config, MeshPlatform.of(platforms[it], crypto[it])) }
+        private val inboxes = nodes.map { mutableListOf<ReceivedMessage>() }
+
+        suspend fun start(): Mesh {
+            nodes.forEachIndexed { index, node ->
+                node.start()
+                scope.backgroundScope.launch { node.messages.collect { inboxes[index] += it } }
+            }
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+            platforms.indices.forEach { place(it, it * SPACING) }
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+            return this
+        }
+
+        fun id(index: Int): NodeId =
+            nodes.firstNotNullOf { node ->
+                node.peers.value
+                    .firstOrNull { it.nodeId.toByteArray().contentEquals(nodeId(platforms[index])) }
+                    ?.nodeId
+            }
+
+        fun place(
+            index: Int,
+            x: Double,
+        ) = air.move(platforms[index].radio, x, 0.0)
+
+        /** Moves node [index] out of everyone's range. */
+        fun leave(index: Int) = air.move(platforms[index].radio, AWAY + index * AWAY, 0.0)
+
+        /** Node [from] sends [text] to [to]; then [settleMillis] pass. */
+        fun send(
+            from: Int,
+            to: NodeId,
+            text: String,
+            settleMillis: Long = SETTLE_MILLIS,
+        ): OutgoingMessage =
+            assertIs<SendResult.Accepted>(nodes[from].send(to, text.encodeToByteArray())).message.also {
+                scope.testScheduler.advanceTimeBy(settleMillis)
+            }
+
+        fun texts(index: Int): List<String> = inboxes[index].map { it.payload.decodeToString() }
+
+        /** The `GRAFT`s node [index] sent. */
+        fun grafts(index: Int): Int =
+            if (profile == SecurityProfile.Unsecured) {
+                platforms[index].radio.ends.sumOf { end -> clearFrames(end).count { it[0] == GRAFT } }
+            } else {
+                crypto.filterIndexed { other, _ -> other != index }.sumOf { opened ->
+                    opened.frames().count { it[0] == GRAFT }
+                }
+            }
+    }
+
+    private companion object {
+        const val SEED = 49L
+        const val A = 0
+        const val R = 1
+        const val E = 2
+        const val B = 3
+        const val Q = 3
+        const val SPACING = 25.0
+        const val AWAY = 1_000.0
+        const val SETTLE_MILLIS = 60_000L
+
+        // Past A's backoff retries at 2, 6, 14 and 30 s.
+        const val RETRIES_MILLIS = 31_000L
+
+        // Past the next epoch: the tags E claims are no longer its current ones.
+        const val EPOCH_MILLIS = 400_000L
+        const val EPOCH_SECONDS_MILLIS = 300_000L
+        const val LINK_MILLIS = 10_000L
+        const val MEDIUM_CROWD = 13
+        const val MEDIUM_OFF = 12_000L
+        const val CROWD_OFFSET = 20.0
+        const val GRAFT: Byte = 0x0C
+    }
+}

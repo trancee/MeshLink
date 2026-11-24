@@ -104,6 +104,52 @@ class RoutedUnicastTest {
         }
 
     @Test
+    fun aSentMessageIsHeldWhenARetryFindsNoLinkAndSentAgainOnTheNext() =
+        runTest(timeout = 5.minutes) {
+            // Arrange: A sends to C, away, through B; then B leaves too.
+            val (air, platforms, nodes) = trio()
+            val c = nodes[0].peerOn(platforms[2])
+            air.move(platforms[2].radio, AWAY, 0.0)
+            advanceTimeBy(SETTLE_MILLIS)
+            val inbox = inbox(nodes[2])
+            val status = statuses(nodes[0].send(c, PAYLOAD))
+            advanceTimeBy(RETRY_MILLIS)
+            air.move(platforms[1].radio, -AWAY, 0.0)
+            advanceTimeBy(SETTLE_MILLIS)
+            val held = status.toList()
+
+            // Act
+            air.move(platforms[2].radio, 0.0, 0.0)
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf(DeliveryStatus.Queued, DeliveryStatus.Sent, DeliveryStatus.Held), held)
+            assertEquals(1, inbox.size)
+            assertEquals(held + listOf(DeliveryStatus.Sent, DeliveryStatus.Delivered), status)
+        }
+
+    @Test
+    fun aMediumClassMessageFloodedWithNoRouteFoundByItsResendTimeIsHeld() =
+        runTest(timeout = 5.minutes) {
+            // Arrange: thirteen advertisers heard by A move it up to medium; C, away, answers no route request.
+            val (air, platforms, nodes) = trio()
+            val c = nodes[0].peerOn(platforms[2])
+            air.move(platforms[2].radio, AWAY, 0.0)
+            repeat(MEDIUM_UP_HEARD) { air.move(advertiseFake(air, capability = null), -FAKE_DISTANCE, 0.0) }
+            advanceTimeBy(SWITCH_MILLIS)
+            val status = statuses(nodes[0].send(c, PAYLOAD))
+            advanceTimeBy(FLOODED_RESEND_MILLIS)
+            val sent = status.toList()
+
+            // Act: the check due at FLOODED_RESEND_MILLIS runs once time passes it.
+            advanceTimeBy(1)
+
+            // Assert
+            assertEquals(listOf(DeliveryStatus.Queued, DeliveryStatus.Sent), sent)
+            assertEquals(sent + DeliveryStatus.Held, status)
+        }
+
+    @Test
     fun aDirectOnlyMessageGoesWithHopLimitOneOnlyOverALinkToItsDestination() =
         runTest(timeout = 5.minutes) {
             // Arrange: C, apart from A, is reachable only through B.
@@ -209,6 +255,15 @@ class RoutedUnicastTest {
         return Apart(air, platforms, nodes, c)
     }
 
+    /** Three started long-lived nodes A, B and C side by side and linked. */
+    private suspend fun TestScope.trio(): Triple<VirtualAir, List<VirtualPlatform>, List<MeshLink>> {
+        val air = air()
+        val platforms = List(3) { air.platform(StandardTestDispatcher(testScheduler)) }
+        val nodes = platforms.map(::node).onEach { it.start() }
+        advanceTimeBy(SETTLE_MILLIS)
+        return Triple(air, platforms, nodes)
+    }
+
     /** The [nodes] on [platforms] in a line, and C's NodeId [c] as A knows it. */
     private class Apart(
         private val air: VirtualAir,
@@ -271,6 +326,12 @@ class RoutedUnicastTest {
         const val SWITCH_MILLIS = 120_000L
         const val MEDIUM_UP_HEARD = 13
         const val MEDIUM_OFF_MILLIS = 12_000L
+
+        /** Past the first send, before the first retry gap of the low class ends. */
+        const val RETRY_MILLIS = 1_000L
+
+        /** `resend-base` + `resend-per-hop` × `u6-flood-radius`. */
+        const val FLOODED_RESEND_MILLIS = 1_600L
 
         /** Past the 120-second lifetime and the 30-second skew allowance. */
         const val EXPIRED_MILLIS = 151_000L

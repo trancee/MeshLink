@@ -76,14 +76,18 @@ internal class Plumtree(
         if (peer in lanes.peers) lazy += peer
     }
 
-    /** [peer] sent `GRAFT` for [id]: its link is eager, and it gets the frame if this node holds it. */
+    /**
+     * [peer] sent `GRAFT` for [id]: its link is eager, and it gets the frame if this node holds it.
+     * Returns whether it did.
+     */
     fun grafted(
         peer: NodeId,
         id: ByteArray,
-    ) {
+    ): Boolean {
         lazy -= peer
-        val frame = held[id.toHexString()] ?: return
-        if (frame.untilMillis > clock.wallClockMillis()) lanes.put(peer, frame.parcel)
+        val frame = held[id.toHexString()]?.takeIf { it.untilMillis > clock.wallClockMillis() } ?: return false
+        lanes.put(peer, frame.parcel)
+        return true
     }
 
     /** [peer] announced [id], a broadcast this node has not seen. */
