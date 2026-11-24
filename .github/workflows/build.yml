@@ -16,9 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ADR 0021 amendment "Markdown-only pull requests": a pull request that changes only `.md` files
-  # skips the Gradle and Apple jobs; GitHub counts a skipped required check as passed. No build input
-  # is Markdown. Pushes and dispatches always build, and so does any run where this job fails.
+  # ADR 0021 amendments "Markdown-only pull requests" and "Markdown-only pushes": a pull request, or a
+  # push to main, that changes only `.md` files skips the Gradle and Apple jobs; GitHub counts a
+  # skipped required check as passed. No build input is Markdown. Manual runs always build, and so
+  # does any run where this job fails.
   changes:
     name: Code changes
     runs-on: ubuntu-24.04
@@ -29,11 +30,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # The pull request's merge commit and its first parent, the base branch.
+          # A pull request's merge commit and its first parent, the base branch; on main, the squash
+          # commit and its parent (the ruleset allows only squash merges).
           fetch-depth: 2
       - id: diff
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ] || git diff --name-only HEAD^1 HEAD | grep -qv '\.md$'; then
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || git diff --name-only HEAD^1 HEAD | grep -qv '\.md$'; then
             echo code=true
           else
             echo code=false
