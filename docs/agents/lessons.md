@@ -78,6 +78,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - **`AdvertisingSet.getOwnAddress()` is not callable** by apps on Android 17 (`NoSuchMethodException`); measure addresses from a scanner instead.
 - **Pixel 6 system updates install during runs.** Disable automatic updates before multi-hour runs.
 - **Android 15 and later concatenate a company's manufacturer data** in `ScanRecord` (AOSP `android-15.0.0_r1`); Android 14 and earlier keep the last entry. Every `ScanFilter` is re-checked in software against that array, so a fixed-offset data mask misses a background iPhone whose Nearby Info precedes the overflow area. Filter on the company ID with empty (not null) data and parse the raw AD structures (ADR 0010, 2026-11-18 amendment). The field run's filtering phone ran Android 9 and could not show this.
+- **The overflow bit is a CRC, not a constant:** `CRC-8(poly 0x09)` over the 16 UUID bytes `& 0x7F`; iOS expands 16-bit UUIDs with the Base UUID and zero-pads 32-bit ones, so MESH is bit 123 (last byte `0x08`). Walk Apple TLVs to type `0x01` (no length byte) instead of assuming offset 0. A set bit is a hint: collisions (1/128 per foreign UUID) and stale scan responses happen, so vet over GATT. See [Finding iPhones in the background](../explanation/background-iphone-discovery.md).
 
 **Rejected ideas:**
 
