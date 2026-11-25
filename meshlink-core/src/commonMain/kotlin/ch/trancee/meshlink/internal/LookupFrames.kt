@@ -93,10 +93,10 @@ public class LookupReply(
         public const val TYPE: Int = 0x44
 
         /** The frame's size with a sealed classical certificate. */
-        public const val CLASSICAL_LENGTH: Int = 222
+        public const val CLASSICAL_LENGTH: Int = 223
 
         /** The frame's size with a sealed post-quantum certificate. */
-        public const val POST_QUANTUM_LENGTH: Int = 1_438
+        public const val POST_QUANTUM_LENGTH: Int = 1_439
 
         private const val KEY_AT = UnicastHeader.LENGTH
         private const val SEALED_LENGTH_AT = KEY_AT + KEY

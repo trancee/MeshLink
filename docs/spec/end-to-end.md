@@ -213,9 +213,9 @@ Vectors: `derivations.json`, derivations `conversation-secret` and `conversation
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
-| 0 | 34 | header | unicast header | Type `0x41` |
-| 34 | 1 | count | `u8` | 1 to 32 |
-| 35 | 28 × count | tombstones | entries | Each: message ID (12 B) then `k` (16 B), in clear |
+| 0 | 35 | header | unicast header | Type `0x41` |
+| 35 | 1 | count | `u8` | 1 to 32 |
+| 36 | 28 × count | tombstones | entries | Each: message ID (12 B) then `k` (16 B), in clear |
 | var | var | container | container | Kind `0x02`, `0x03` or `0x04` |
 
 - The destination sends a delivery receipt for every unicast `MESSAGE` once its app takes it, and again for every later copy. It never delivers a message twice.
@@ -236,8 +236,8 @@ Vectors: `derivations.json`, derivations `conversation-secret` and `conversation
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
-| 0 | 34 | header | unicast header | Type `0x42` |
-| 34 | var | container | container | Kind `0x01`, `0x03` or `0x04` |
+| 0 | 35 | header | unicast header | Type `0x42` |
+| 35 | var | container | container | Kind `0x01`, `0x03` or `0x04` |
 
 - Sent only for messages that carried `READ_RECEIPT_REQUESTED`, and only if the recipient allows read receipts and its app marked the message read.
 - One read receipt lists up to `read-receipt-batch-max` IDs in `MESSAGE_IDS`. A recipient waits at most `read-receipt-batch-delay` to fill a batch.

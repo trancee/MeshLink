@@ -139,7 +139,8 @@ internal class Post(
             { to, tombstones, expiry ->
                 val acknowledger = unsecuredEnd.acknowledger
                 val receipt = acknowledger.receipt(to, tombstones, expiry)
-                router.originate(acknowledger.destination(receipt), unsecuredEnd.tag(), Reach.of(density()), false) {
+                val reach = Reach.receipt(density())
+                router.originate(acknowledger.destination(receipt), unsecuredEnd.tag(), reach, false) {
                     acknowledger.parcel(receipt, it)
                 }
             },
@@ -456,9 +457,9 @@ private class Releases(
     }
 
     private companion object {
-        // A message sent on a route just found waits until relays forget its earlier copies: the
-        // unicast seen window, and one hop's allowance for their later forwarding.
-        const val FLUSH_GAP_MILLIS = Router.SEEN_WINDOW_MILLIS + RESEND_PER_HOP_MILLIS
+        // route-flush-gap: a message sent on a route just found waits until its earlier flooded copy
+        // has settled (D-61).
+        const val FLUSH_GAP_MILLIS = 1_200L
     }
 }
 

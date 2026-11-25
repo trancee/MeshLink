@@ -86,6 +86,7 @@ internal class Router(
     private val floods = handoff.floods
     private val lookups = handoff.lookups
     private val seen = MessageIds()
+    private val attempts = Attempts()
     private val delivered = MessageIds()
 
     /** This node's hand-over of the unicasts it holds for others. */
@@ -122,10 +123,11 @@ internal class Router(
      * Places this node's [parcel] for the destination whose current tag is [tag] as [reach] says: on
      * an active route unless [search] or [Reach.FLOOD], a large message's only one found by route
      * request. Without one, a [Reach.ROUTE_OR_FLOOD] frame floods to every link within the flood
-     * radius and a [Reach.FLOOD] one with the maximum hop limit, while a [Reach.ROUTE] frame does not
-     * go; a route request from [origin] goes alongside unless [Reach.FLOOD], and none without an
-     * [origin]. [parcel] makes the frame for a hop limit. Returns the hop count of the route it went
-     * on, 0 for a route without one, or `null` if it did not go on a route.
+     * radius, a [Reach.FLOOD] or [Reach.ROUTE_OR_WIDE] one with the maximum hop limit, while a
+     * [Reach.ROUTE] frame does not go; a route request from [origin] goes alongside unless
+     * [Reach.FLOOD] or [Reach.ROUTE_OR_WIDE], and none without an [origin]. [parcel] makes the frame
+     * for a hop limit; each send of a `message_id` carries the next `attempt` (D-61). Returns the hop
+     * count of the route it went on, 0 for a route without one, or `null` if it did not go on a route.
      */
     fun originate(
         tag: ByteArray,
@@ -137,14 +139,18 @@ internal class Router(
         val now = clock.monotonicMillis()
         val flood = reach == Reach.FLOOD
         val route = if (flood || search) null else routes.use(tag, now, discovered = reach == Reach.ROUTE)
-        if (!flood && route == null && origin != null) {
+        val broadcast = flood || reach == Reach.ROUTE_OR_WIDE
+        if (!broadcast && route == null && origin != null) {
             discovery.search(tag, origin, clock.wallClockMillis() / MILLIS_PER_SECOND)
         }
         if (reach == Reach.ROUTE && route == null) return null
-        val made = parcel(if (flood || route != null) HOP_LIMIT_MAX else FLOOD_RADIUS)
-        seen.put(made.messageId, now + SEEN_WINDOW_MILLIS)
+        val made = parcel(if (broadcast || route != null) HOP_LIMIT_MAX else FLOOD_RADIUS)
+        val attempt = attempts.next(made.messageId)
+        seen.put(made.messageId + attempt.toByte(), now + SEEN_WINDOW_MILLIS)
+        val render = { UnicastHeader.attempted(made.render(), attempt) }
+        val sent = Parcel(made.messageId, made.relayed, render, made.wanted, made.settle)
         val targets = if (route != null) listOf(route.peer) else lanes.peers
-        targets.forEach { lanes.put(it, made) }
+        targets.forEach { lanes.put(it, sent) }
         return route?.hops
     }
 
@@ -205,7 +211,8 @@ internal class Router(
         bytes: ByteArray,
     ) {
         val now = clock.monotonicMillis()
-        if (seen.has(frame.header.messageId, now)) return
+        val sighting = frame.header.messageId + frame.header.attempt.toByte()
+        if (seen.has(sighting, now)) return
         routes.learn(frame.header.sourceTag, peer, now)
         handOver.flush(frame.header.sourceTag, peer)
         if (frame.type == DeliveryReceipt.TYPE) {
@@ -215,7 +222,7 @@ internal class Router(
         val relayed = if (frame.header.hopLimit > 1) relayed(peer, frame, bytes) else null
         val targets = relayed?.let { targets(peer, frame, bytes.size, now) }
         if (relayed == null || targets == null) return
-        seen.put(frame.header.messageId, now + SEEN_WINDOW_MILLIS)
+        seen.put(sighting, now + SEEN_WINDOW_MILLIS)
         targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }) {}) }
         handOver.relayed(peer, frame, relayed)
     }
@@ -326,7 +333,8 @@ internal class Router(
     ): ByteArray? {
         val header = frame.header
         val hopLimit = header.hopLimit - 1
-        val next = UnicastHeader(hopLimit, header.messageId, header.expiry, header.destinationTag, header.sourceTag)
+        val (destination, source) = header.destinationTag to header.sourceTag
+        val next = UnicastHeader(hopLimit, header.messageId, header.expiry, destination, source, header.attempt)
         if (frame.type != RouteReply.TYPE) return UnicastFrame(frame.type, next, frame.body).encode()
         return discovery.relaying(peer, reply(bytes))?.let {
             RouteReply(next, it.targetTag, it.targetSequence, it.hopCount).encode()
@@ -340,8 +348,8 @@ internal class Router(
         /** `u6-flood-radius`: the hop limit of a frame a medium- or high-class origin floods. */
         const val FLOOD_RADIUS: Int = 3
 
-        /** `unicast-seen-window`. */
-        const val SEEN_WINDOW_MILLIS: Long = 1_000
+        /** `unicast-seen-window`: how long a `(message_id, attempt)` pair is remembered (D-61). */
+        const val SEEN_WINDOW_MILLIS: Long = 30_000
 
         // Flood frames have types 0x80 to 0xBF (spec "Routing").
         private const val FLOOD_MASK = 0xc0
@@ -382,6 +390,9 @@ internal enum class Reach {
 
     /** Only on an active route found by route request, else a route request alone: a large message. */
     ROUTE,
+
+    /** On an active route, else flooded to every link with the maximum hop limit; never a route request (D-61). */
+    ROUTE_OR_WIDE,
     ;
 
     companion object {
@@ -395,5 +406,8 @@ internal enum class Reach {
                 density == DensityClass.LOW -> FLOOD
                 else -> ROUTE_OR_FLOOD
             }
+
+        /** The reach of a receipt from a node of class [density]: a low-class one never asks for a route (D-61). */
+        fun receipt(density: DensityClass): Reach = if (density == DensityClass.LOW) ROUTE_OR_WIDE else of(density)
     }
 }

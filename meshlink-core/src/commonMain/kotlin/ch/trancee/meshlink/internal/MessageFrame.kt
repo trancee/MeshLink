@@ -2,7 +2,8 @@ package ch.trancee.meshlink.internal
 
 /**
  * The unicast routing header that starts every frame of types `0x40`–`0x7F` (spec "Routing
- * headers"), without its type byte.
+ * headers"), without its type byte. [attempt] counts the origin's sends of [messageId], from 0,
+ * modulo 256 [D-61].
  */
 public class UnicastHeader(
     public val hopLimit: Int,
@@ -10,25 +11,29 @@ public class UnicastHeader(
     public val expiry: UInt,
     public val destinationTag: ByteArray,
     public val sourceTag: ByteArray,
+    public val attempt: Int = 0,
 ) {
     init {
         require(hopLimit in 1..BYTE_MASK) { "hop_limit must be in 1..255, not $hopLimit" }
+        require(attempt in 0..BYTE_MASK) { "attempt must be in 0..255, not $attempt" }
         require(messageId.size == MESSAGE_ID) { "message_id must be $MESSAGE_ID bytes" }
         require(destinationTag.size == TAG && sourceTag.size == TAG) { "tags must be $TAG bytes" }
     }
 
     /** The header's bytes, starting with [type]. */
     public fun encode(type: Int): ByteArray =
-        byteArrayOf(type.toByte(), hopLimit.toByte()) + messageId + u32(expiry) + destinationTag + sourceTag
+        byteArrayOf(type.toByte(), hopLimit.toByte(), attempt.toByte()) + messageId + u32(expiry) + destinationTag +
+            sourceTag
 
     public companion object {
         /** The header's size, including the type byte. */
-        public const val LENGTH: Int = 34
+        public const val LENGTH: Int = 35
 
         private const val MESSAGE_ID = 12
         private const val TAG = 8
         private const val HOP_LIMIT = 1
-        private const val MESSAGE_ID_AT = 2
+        private const val ATTEMPT_AT = 2
+        private const val MESSAGE_ID_AT = 3
         private const val EXPIRY_AT = MESSAGE_ID_AT + MESSAGE_ID
         private const val DESTINATION_AT = EXPIRY_AT + 4
         private const val SOURCE_AT = DESTINATION_AT + TAG
@@ -44,7 +49,14 @@ public class UnicastHeader(
                 bytes.u32(EXPIRY_AT),
                 bytes.copyOfRange(DESTINATION_AT, SOURCE_AT),
                 bytes.copyOfRange(SOURCE_AT, LENGTH),
+                bytes.u8(ATTEMPT_AT),
             )
+
+        /** A copy of unicast [frame] whose `attempt` is [attempt] modulo 256. */
+        public fun attempted(
+            frame: ByteArray,
+            attempt: Int,
+        ): ByteArray = frame.copyOf().also { it[ATTEMPT_AT] = attempt.toByte() }
     }
 }
 
@@ -68,8 +80,8 @@ public class MessageFrame(
         /** The frame type, `0x40`. */
         public const val TYPE: Int = 0x40
 
-        /** The bytes before the container: the 34 B unicast header and the 16 B commitment. */
-        public const val OVERHEAD: Int = 50
+        /** The bytes before the container: the 35 B unicast header and the 16 B commitment. */
+        public const val OVERHEAD: Int = 51
 
         private const val COMMITMENT = 16
         private val KINDS = setOf(Container.IK_INITIATOR, Container.TRANSPORT, Container.UNSECURED)

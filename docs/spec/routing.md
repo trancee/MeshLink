@@ -38,12 +38,13 @@ Unicast header, at the start of every frame of types `0x40`–`0x7F`:
 |---|---|---|---|---|
 | 0 | 1 | type | `u8` | `0x40`–`0x7F` |
 | 1 | 1 | hop_limit | `u8` | 1 to 255 |
-| 2 | 12 | message_id | `bytes[12]` | Random, chosen by the origin |
-| 14 | 4 | expiry | `u32` | Unix seconds |
-| 18 | 8 | destination_tag | `bytes[8]` | |
-| 26 | 8 | source_tag | `bytes[8]` | |
+| 2 | 1 | attempt | `u8` | The origin's send of this `message_id`: 0 first, then +1 per send, modulo 256 [D-61] |
+| 3 | 12 | message_id | `bytes[12]` | Random, chosen by the origin |
+| 15 | 4 | expiry | `u32` | Unix seconds |
+| 19 | 8 | destination_tag | `bytes[8]` | |
+| 27 | 8 | source_tag | `bytes[8]` | |
 
-Total: 34 B.
+Total: 35 B.
 
 Flood header, at the start of every frame of types `0x80`–`0xBF`:
 
@@ -57,6 +58,7 @@ Flood header, at the start of every frame of types `0x80`–`0xBF`:
 Total: 18 B.
 
 - The origin sets `hop_limit` (default 255) and `expiry`. A frame with `hop_limit` 0 is malformed.
+- The origin sets a unicast frame's `attempt` to 0 on its first send of a `message_id` and adds 1, modulo 256, on each later send of it: a retry, a resend or a flush [D-61]. Like `hop_limit`, `attempt` is outside every container and authenticated by none.
 - Before forwarding, a relay decrements `hop_limit`. It forwards the frame only if the result is at least 1. The hop limit is the only header field a relay changes.
 - A node MUST NOT forward or hold a frame whose `expiry` has passed, allowing `clock-skew`. It MUST drop a frame whose `expiry` is more than `message-lifetime-max` plus `clock-skew` in the future.
 - The origin of a message sets `expiry` between `message-lifetime-min` and `message-lifetime-max` after the current time.
@@ -87,24 +89,24 @@ Total: 18 B.
 
 ## Unicast forwarding
 
-(ADR 0008 decisions 3 to 5 and amendments; ADR 0013 amendment to ADR 0008; [D-29]; [D-50].)
+(ADR 0008 decisions 3 to 5 and amendments; ADR 0013 amendment to ADR 0008; [D-29]; [D-50]; [D-61].)
 
 When a node receives a unicast frame:
 
 1. If `destination_tag` is one of its own tags, it processes the frame. It does not forward it.
-2. Otherwise, if it forwarded the same `message_id` within the last `unicast-seen-window`, it drops the frame. A dropped copy teaches no route.
+2. Otherwise, if it forwarded the same `message_id` with the same `attempt` within the last `unicast-seen-window`, it drops the frame. A dropped copy teaches no route.
 3. Otherwise, it records or refreshes a route to `source_tag` through the incoming link (a reverse route, `reverse-route-timeout`).
 4. If it has an active route to `destination_tag`, it forwards on that link only, and refreshes that route.
 5. Otherwise, if the frame is small, it forwards on every other link (flooding, bounded by the hop limit). It MAY also hold the frame ([Holding](#holding)).
 6. A large frame without a route is dropped.
 
-The origin's retries reuse the `message_id`, so a retry passes relays once the seen window has elapsed. A destination processes each `message_id` once until its `expiry` plus `clock-skew`, the last moment a copy can still arrive, but answers every copy with a delivery receipt (ADR 0013 decision 3).
+The origin's retries reuse the `message_id` with a new `attempt`, so a retry passes relays at once, while the echoes of each send, which arrive over longer paths for seconds after it, are dropped [D-61]. A destination processes each `message_id` once until its `expiry` plus `clock-skew`, the last moment a copy can still arrive, but answers every copy with a delivery receipt (ADR 0013 decision 3).
 
 <!-- data: limits.json -->
 
 | Name | Value | Unit | Decision |
 |---|---|---|---|
-| unicast-seen-window | 1,000 | ms | D-29 |
+| unicast-seen-window | 30,000 | ms | D-61 |
 | route-active-timeout | 30 | s | - |
 | forward-route-timeout | 60 | s | - |
 | reverse-route-timeout | 6 | s | - |
@@ -113,10 +115,10 @@ The origin's retries reuse the `message_id`, so a retry passes relays once the s
 | routes-max | 4,096 | entries | - |
 
 - An active route expires `route-active-timeout` after it was last used. A route learned from a route reply first holds `forward-route-timeout`. A reverse route holds `reverse-route-timeout` unless used.
-- A node keeps at most `seen-ids-max` `message_id`s it forwarded, and as many it processed, and at most `routes-max` routes. Past that, it forgets the oldest.
+- A node keeps at most `seen-ids-max` pairs of `message_id` and `attempt` it forwarded, and as many `message_id`s it processed, and at most `routes-max` routes. Past that, it forgets the oldest.
 - Each link queues at most `relay-queue-max` relayed frames; a frame that arrives at a full queue is dropped. A newer copy of a queued `message_id` replaces the queued one. The origin's own frames don't count toward this bound: the send-queue cap bounds them (ADR 0007).
 - A frame whose write fails because its link closed goes back to the front of that peer's queue, so another link to the same peer, if one is kept, writes it first. A frame the peer refuses with `BUSY` is not sent again on that hop by a relay; the origin's next retry carries the message again.
-- The delivery receipt travels the reverse route and refreshes the route on every hop (ADR 0008 amendment, "K2 delivery ack").
+- The delivery receipt travels the reverse route and refreshes the route on every hop (ADR 0008 amendment, "K2 delivery ack"). A low class destination sends it with `hop_limit` 255 on its active route to the sender, normally the reverse route the message left, and floods it with `hop_limit` 255 only without one. It sends no `ROUTE_REQUEST` for a receipt [D-61].
 
 ### Origin behavior
 
@@ -127,7 +129,7 @@ How the origin sends depends on its local density class. These are local choices
 - **Low class:** send with `hop_limit` 255 (flood).
 - **Medium and high class:** with an active route, send on it. Without one, send with `hop_limit` `u6-flood-radius` and at once send a `ROUTE_REQUEST` with `hop_limit` `route-request-radius`.
 - After its first send on a route, if no delivery receipt arrives within `resend-base` + `resend-per-hop` × the route's hop count, send the message once more by a new search. A route learned from a frame's source tag has no hop count and counts as 0.
-- When a route to a destination is found, a medium or high class origin sends each message waiting for that destination on it, once that message's last send is at least `route-flush-gap` old, so relays have forgotten the earlier copy (`unicast-seen-window` and one hop). A low class origin floods and does not use found routes.
+- When a route to a destination is found, a medium or high class origin sends each message waiting for that destination on it, once that message's last send is at least `route-flush-gap` old, so the earlier flooded copy has settled. A low class origin floods and does not use found routes.
 - Then retry with doubling intervals: from `retry-min-low` to `retry-max-low` in the low and medium classes, from `retry-min-high` to `retry-max-high` in the high class. Retries at the maximum interval go on until the message expires. Low and medium also retry on each new link, at most once per destination within `link-retry-gap`.
 - A retry keeps `message_id`, `expiry`, the commitment and the container, but uses the destination's and the origin's tags for the current epoch. Relays cannot re-tag (ADR 0014 decision 7).
 - A direct-only send (ADR 0013 decision 8) uses `hop_limit` 1, so no relay forwards or holds it [D-27].
@@ -191,9 +193,9 @@ It sends each held frame at most once on each link and never back on the link it
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
-| 0 | 34 | header | unicast header | Type `0x40` |
-| 34 | 16 | commitment | `bytes[16]` | `H(k)`, see [Tombstones](end-to-end.md#tombstones) |
-| 50 | var | container | container | Kinds `0x01`–`0x04`; see [end-to-end.md](end-to-end.md#containers) |
+| 0 | 35 | header | unicast header | Type `0x40` |
+| 35 | 16 | commitment | `bytes[16]` | `H(k)`, see [Tombstones](end-to-end.md#tombstones) |
+| 51 | var | container | container | Kinds `0x01`–`0x04`; see [end-to-end.md](end-to-end.md#containers) |
 
 Relays use only the header and the commitment.
 
@@ -222,12 +224,12 @@ Total: 43 B.
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
-| 0 | 34 | header | unicast header | Type `0x43`. Destination: `origin_tag`. Source: the replier's tag for this route |
-| 34 | 8 | target_tag | `bytes[8]` | |
-| 42 | 4 | target_sequence | `u32` | ≥ 1 |
-| 46 | 1 | hop_count | `u8` | Hops from the replier's side to the target; the target sends 0 |
+| 0 | 35 | header | unicast header | Type `0x43`. Destination: `origin_tag`. Source: the replier's tag for this route |
+| 35 | 8 | target_tag | `bytes[8]` | |
+| 43 | 4 | target_sequence | `u32` | ≥ 1 |
+| 47 | 1 | hop_count | `u8` | Hops from the replier's side to the target; the target sends 0 |
 
-Total: 47 B.
+Total: 48 B.
 
 ### Rules
 
@@ -345,12 +347,12 @@ lookup_tag = trunc_8(H("lookup-tag", salt ‖ NodeId))
 
 | Offset | Size | Name | Encoding | Notes |
 |---|---|---|---|---|
-| 0 | 34 | header | unicast header | Type `0x44`. Destination: the request's `salt`. Source: 8 random bytes |
-| 34 | 32 | ephemeral_key | `bytes[32]` | Responder's fresh X25519 public key |
-| 66 | 2 | sealed_length | `u16` | 154 or 1,370 |
-| 68 | var | sealed_certificate | `bytes` | Certificate sealed as below, with a 16 B tag |
+| 0 | 35 | header | unicast header | Type `0x44`. Destination: the request's `salt`. Source: 8 random bytes |
+| 35 | 32 | ephemeral_key | `bytes[32]` | Responder's fresh X25519 public key |
+| 67 | 2 | sealed_length | `u16` | 154 or 1,370 |
+| 69 | var | sealed_certificate | `bytes` | Certificate sealed as below, with a 16 B tag |
 
-Total: 222 B classical, 1,438 B post-quantum ([conflict C-02](decisions.md#c-02)).
+Total: 223 B classical, 1,439 B post-quantum ([conflict C-02](decisions.md#c-02)).
 
 The responder seals the certificate with the latest `not_after` it holds for the NodeId:
 
@@ -381,8 +383,8 @@ Vectors: `routed-frames.json` (placeholder sealed bytes), `derivations.json` der
 | `0x40` | `MESSAGE` | ≥ 56 B | [MESSAGE](#message) |
 | `0x41` | `DELIVERY_RECEIPT` | ≥ 69 B | [end-to-end.md](end-to-end.md#delivery-receipts) |
 | `0x42` | `READ_RECEIPT` | ≥ 40 B | [end-to-end.md](end-to-end.md#read-receipts) |
-| `0x43` | `ROUTE_REPLY` | 47 B | [ROUTE_REPLY](#route_reply) |
-| `0x44` | `LOOKUP_REPLY` | 222 or 1,438 B | [LOOKUP_REPLY](#lookup_reply) |
+| `0x43` | `ROUTE_REPLY` | 48 B | [ROUTE_REPLY](#route_reply) |
+| `0x44` | `LOOKUP_REPLY` | 223 or 1,439 B | [LOOKUP_REPLY](#lookup_reply) |
 | `0x80` | `BROADCAST` | ≥ 55 B | [BROADCAST](#broadcast) |
 | `0x81` | `ROUTE_REQUEST` | 43 B | [ROUTE_REQUEST](#route_request) |
 | `0x82` | `LOOKUP_REQUEST` | 66 B | [LOOKUP_REQUEST](#lookup_request) |

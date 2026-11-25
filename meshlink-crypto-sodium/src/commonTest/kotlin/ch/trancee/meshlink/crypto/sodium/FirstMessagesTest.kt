@@ -502,7 +502,7 @@ class FirstMessagesTest {
         const val HOP_LIMIT = 255
 
         // The pinned size of the largest PostQuantum first message, with a read receipt requested.
-        const val LARGEST_POST_QUANTUM_FRAME = 134_999
+        const val LARGEST_POST_QUANTUM_FRAME = 135_000
         const val SENDER_CERTIFICATE = 0x01
         const val CONVERSATION_SEED = 0x82
         const val MESSAGE_IDS = 0x83

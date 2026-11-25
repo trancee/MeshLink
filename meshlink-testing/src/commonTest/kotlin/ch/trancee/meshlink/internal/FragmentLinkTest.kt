@@ -239,7 +239,7 @@ class FragmentLinkTest {
             val streams = streams(end)
             assertEquals(DeliveryStatus.Sent, sentFirst)
             assertEquals(listOf(0, 1), streams.keys.toList())
-            assertContentEquals(join(streams.getValue(0)), join(streams.getValue(1)))
+            assertContentEquals(UnicastHeader.attempted(join(streams.getValue(0)), 1), join(streams.getValue(1)))
             assertEquals(DeliveryStatus.Sent, status.value)
             assertTrue(end.open)
         }

@@ -209,9 +209,9 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 ### D-29 Duplicate suppression
 
 - **Question:** how do relays suppress duplicates?
-- **Decision:** floods by message ID until expiry. Unicast: drop a copy if the same ID was forwarded in the last 1,000 ms. Retries reuse the ID.
-- **Evidence:** routing simulation SeenCache (suppresses by ID until expiry for floods); ADR 0013 amendment (duplicates acknowledged again). A short unicast window lets retries pass.
-- **Alternatives:** suppress unicast by ID until expiry (blocks retries); include a retry counter in the header.
+- **Decision:** floods by message ID until expiry. Unicast: drop a copy if the same `(message_id, attempt)` pair was forwarded within `unicast-seen-window`. Retries reuse the ID and carry the next `attempt`. Changed by D-61 on 2026-11-25: the window was 1,000 ms and keyed by ID alone.
+- **Evidence:** routing simulation SeenCache (suppresses by ID until expiry for floods); ADR 0013 amendment (duplicates acknowledged again). A short unicast window let retries pass; D-61 found that it also let late echoes of one send flood again.
+- **Alternatives:** suppress unicast by ID until expiry (blocks retries); include a retry counter in the header (adopted by D-61).
 
 ### D-30 Container kinds
 
@@ -356,7 +356,7 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 ### D-50 Reverse routes from duplicate copies
 
 - **Question:** may a relay learn a reverse route from a unicast copy it drops as a duplicate?
-- **Decision:** no. A relay drops a copy whose `message_id` it forwarded within `unicast-seen-window` before it records a reverse route, so only the first copy, normally over the shortest path, teaches the route to `source_tag`. A copy that passes the window still teaches its route even if its hop limit stops it there. Owner decision 2026-11-20 (ticket 42a).
+- **Decision:** no. A relay drops a copy whose `message_id` (since D-61, whose `(message_id, attempt)` pair) it forwarded within `unicast-seen-window` before it records a reverse route, so only the first copy, normally over the shortest path, teaches the route to `source_tag`. A copy that passes the window still teaches its route even if its hop limit stops it there. Owner decision 2026-11-20 (ticket 42a).
 - **Evidence:** in seeded `VirtualAir` meshes of 50 static nodes at low density (mean 6 peers in range), learning from every copy let later, longer flood copies overwrite the first copy's reverse route. Two relays then pointed at each other for the destination, and the seen window dropped the frame between them on every retry: 115 of 123 messages arrived within their 30 min lifetime although sender and destination stayed linked over 6–12 hops. With this rule, 123 of 123 arrived, and every 100- and 200-node cell at low, medium and high density delivered every message. Never using routes at relays also delivered every message, but took 5× the wall time because every frame flooded.
 - **Alternatives:** relays never use routes for unicast (floods every frame; loses the point of routes in the medium and high classes); keep the latest copy's route but compare hop counts (the unicast header carries no hop count); a longer seen window (blocks the origin's retries, as D-29 notes).
 
@@ -364,7 +364,7 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 
 - **Question:** when a session frame gets no receipt by its second retry and the sender seals the message again (D-34), does the new frame get a new `message_id`?
 - **Decision:** no. The new frame, in another session or as a first message, keeps the message's `message_id`, tombstone secret `k` and commitment. The destination takes the message once; a later frame with the same `message_id` is acknowledged again through the session that carries it. Owner decision 2026-11-24 (ticket 49).
-- **Evidence:** in a seeded `VirtualAir` test, a relay held both a Classical first message and a later session frame for a destination that was away over an epoch change. The session frame lapsed, so the sender sealed it again as a first message with a new `message_id`; the relay held both copies, and the returning destination delivered the message twice, against ADR 0013 decision 2. With the same `message_id` it delivers the message once. A relay forwards only the first copy of a `message_id` within `unicast-seen-window` (1 s) and holds only one copy, so the cost is one dropped copy on a relay that sees both within that second.
+- **Evidence:** in a seeded `VirtualAir` test, a relay held both a Classical first message and a later session frame for a destination that was away over an epoch change. The session frame lapsed, so the sender sealed it again as a first message with a new `message_id`; the relay held both copies, and the returning destination delivered the message twice, against ADR 0013 decision 2. With the same `message_id` it delivers the message once. A relay forwards only the first copy of a `message_id` within `unicast-seen-window` (1 s) and holds only one copy, so the cost is one dropped copy on a relay that sees both within that second. Since D-61 each send carries its own `attempt` and the window is 30 s per `(message_id, attempt)` pair, so the new frame, a later send, passes relays that forwarded the earlier one.
 - **Alternatives:** keep a new `message_id` and accept rare duplicates (breaks ADR 0013 decision 2); deduplicate by payload at the destination (equal payloads may be different messages); purge the lapsed copy with a tombstone (only the destination knows `k`, and it never acknowledged that copy).
 
 ### D-52 Holder hand-over triggers
@@ -399,7 +399,7 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 
 - **Question:** Noise revision 34 §3 limits every Noise message to 65,535 B. A large message carries up to 131,072 B of payload in one `IK` or `IKhfs` message 1 or one transport message. Is that allowed?
 - **Decision:** yes, as a documented deviation, end to end only. An end-to-end Noise message is bounded by `frame-max` (139,264 B), not 65,535 B; the containers already carry `u32` lengths (D-30). Link handshake messages keep their 4,096 B bound. ADR 0002 amendment 2026-11-25. Owner decision 2026-11-25 (ticket 50).
-- **Evidence:** the limit exists for transports with 16-bit length prefixes; MeshLink frames its own lengths. ChaCha20-Poly1305 (RFC 8439) is safe for messages up to about 256 GiB. MeshLink has no third-party Noise peers whose buffers assume the limit. The largest `post-quantum` first message with a 131,072 B payload is 134,999 B (pinned by a test).
+- **Evidence:** the limit exists for transports with 16-bit length prefixes; MeshLink frames its own lengths. ChaCha20-Poly1305 (RFC 8439) is safe for messages up to about 256 GiB. MeshLink has no third-party Noise peers whose buffers assume the limit. The largest `post-quantum` first message with a 131,072 B payload is 135,000 B with the D-61 attempt byte (pinned by a test).
 - **Alternatives:** split a large message into several Noise messages (a new chunked container with its own ordering and replay rules); cap the unicast payload below 64 KiB (fails ADR 0015's profile-picture requirement).
 
 ### D-57 One copy of a large message at a time
@@ -430,6 +430,25 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** `StaticKeyRotationTest`: an `IK` reply carries the current certificate only once the sender's copy is past half its validity, and session receipts carry it both ways; the sender's cache then holds the newer certificate. Removing the refresh from receipt handling fails both session tests; caching an unvalidated refresh fails `LookupsTest`.
 - **Alternatives:** attach the refresh once per session (a lost receipt would lose it until the next session); check the refresh's `x25519_key` against the session (impossible after rotation); refresh in read receipts too (they need not be confirmed, so the refresh would have no authenticated session behind it when sent as a first message).
 
+### D-61 Unicast retry attempt
+
+- **Question:** the busiest node of every low-density cell wrote more than the 4,700 B/s band (ticket 42b). A frame flooded or routed with `hop_limit` 255 kept echoing: a relay's copy that arrived more than 1,000 ms after the first, delayed in a queue, passed `unicast-seen-window` and was flooded again. How should relays suppress unicast duplicates without blocking the origin's retries?
+- **Decision:** the unicast header carries a `u8` `attempt` after `hop_limit`, so it grows from 34 B to 35 B. The origin sets 0 on the first send of a `message_id` and adds 1 (modulo 256) on each later send: timed retry, retry on a new link, route resend or flush. Relays copy it unchanged; like `hop_limit` it is not authenticated. A relay drops a copy whose `(message_id, attempt)` pair it forwarded within `unicast-seen-window`, now 30,000 ms. The destination still deduplicates by `message_id`. `route-flush-gap` stays 1,200 ms, now justified as letting the flooded copy settle rather than as the seen window plus one hop. A low-class node's delivery receipt goes on an active route, else floods to every link with `hop_limit` 255; it never sends a `ROUTE_REQUEST`. Owner decision 2026-11-25 (ticket 42b).
+- **Evidence:** seeded `VirtualAir` n50-low, seed 1, 1 s window keyed by ID: relays forwarded 17,002 first copies and 312,149 re-forwards of IDs whose window had lapsed. Prototypes, seed 1, busiest node in B/s (band 4,700), every message delivered unless noted:
+
+  | Variant | n50-low | n200-low |
+  |---|---|---|
+  | 1 s window by ID (before) | 5,088 | — |
+  | A: 5 s window by ID | not recorded | 11,851 (406/407) |
+  | E: `attempt`, 30 s window by pair | 1,833 | 5,719 |
+  | E + low-class receipts on route or wide flood (adopted) | 1,554 | 5,362 |
+  | E + receipts clamped to the flood radius at relays | — | 4,751 (406/407) |
+  | Implemented, seeds 1–5, worst seed | 1,605 | 5,187 |
+
+  A also delayed every medium and high message on a found route by 5.2 s, because `route-flush-gap` followed the window, and its relays dropped the origin's routed retry. With E, each retry passes because it carries a new `attempt`. The rest of n200-low's load is low-class message retries, each flooding the whole mesh; ticket 73 tracks it.
+- **Consequences:** a holder's flush of a frame within 30 s of the origin's send of the same attempt is dropped by relays that forwarded it. 30 s × 4,096 remembered pairs bounds the window at about 136 sends per second per relay before eviction shortens it.
+- **Alternatives:** A, a longer window keyed by ID (blocks retries and delays found-route flushes); B, relays clamp flooded unicast to the flood radius (breaks the low class's network-wide flood); F, a 5 s window for flooded copies only (failed n200-low at 12,818 B/s, 406/407); clamp receipts at relays (cut receipt writes but lost one message and raised message retries to 682,000 relay writes).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.
@@ -442,7 +461,7 @@ Each entry names the ADR text and the problem found while writing the specificat
 
 ### C-02
 
-**Lookup reply size.** ADR 0018 decision 5 says sealing adds "a 16 B tag". The responder also needs a fresh 32 B X25519 key on the wire for the requester to compute the shared secret, and the variable certificate needs a 2 B length. The reply is 222 B (classical) or 1,438 B (post-quantum) including the 34 B header ([routing.md](routing.md#lookup_reply)).
+**Lookup reply size.** ADR 0018 decision 5 says sealing adds "a 16 B tag". The responder also needs a fresh 32 B X25519 key on the wire for the requester to compute the shared secret, and the variable certificate needs a 2 B length. The reply is 222 B (classical) or 1,438 B (post-quantum) including the 34 B header; 223 B and 1,439 B since D-61 added `attempt` to the unicast header ([routing.md](routing.md#lookup_reply)).
 
 **Resolved:** ADR 0018 amended: the reply carries the responder's ephemeral key, a length and the sealed certificate.
 

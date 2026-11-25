@@ -101,7 +101,7 @@ class RouteFramesTest {
         // routed-frames.json tcIds 13 and 8.
         const val REQUEST = "814057fac0f41ce4572c65194c2e6b36eed879a787df599f4a22a48619f7a310a8b3000000010000000000"
         const val REPLY =
-            "43ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f79a787df599f4a220000001103"
+            "43ff008f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f79a787df599f4a220000001103"
         const val HOP_LIMIT_REQUEST = 64
         const val HOP_LIMIT_REPLY = 255
         const val EXPIRY = 1_798_762_200u
@@ -109,7 +109,7 @@ class RouteFramesTest {
         const val HOPS_REPLY = 3
         const val BROADCAST: Byte = -0x80
         const val ORIGIN_SEQUENCE_LAST = 37
-        const val TARGET_SEQUENCE_LAST = 45
+        const val TARGET_SEQUENCE_LAST = 46
         const val BYTE = 256
     }
 }

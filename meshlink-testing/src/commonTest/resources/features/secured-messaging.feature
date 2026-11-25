@@ -14,8 +14,8 @@ Feature: Secured messages
 
     Examples:
       | profile      | size |
-      | classical    | 407  |
-      | post-quantum | 3959 |
+      | classical    | 408  |
+      | post-quantum | 3960 |
 
   Scenario: A message to a node whose certificate nobody holds expires
     Given Alice to Eve are running in a classical line with links only between neighbors

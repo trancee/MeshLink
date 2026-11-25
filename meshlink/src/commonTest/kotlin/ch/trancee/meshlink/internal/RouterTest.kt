@@ -54,7 +54,7 @@ class RouterTest {
         id: Int,
         salt: ByteArray = SALT,
         key: ByteArray = ByteArray(32) { 9 },
-        sealed: ByteArray = ByteArray(LookupReply.CLASSICAL_LENGTH - 68),
+        sealed: ByteArray = ByteArray(LookupReply.CLASSICAL_LENGTH - 69),
     ) = LookupReply(UnicastHeader(5, messageId(id), (nowSeconds() + 60).toUInt(), salt, tag(id)), key, sealed).encode()
 
     private fun TestScope.nowSeconds() = SchedulerClock(testScheduler).wallClockMillis() / 1_000
@@ -66,6 +66,7 @@ class RouterTest {
         source: ByteArray = tag(8),
         container: Container = Container.Unsecured(ByteArray(32), byteArrayOf()),
         commitment: ByteArray = ByteArray(16),
+        attempt: Int = 0,
     ) = unicast(
         MessageFrame.TYPE,
         hopLimit,
@@ -74,6 +75,7 @@ class RouterTest {
         destination,
         source,
         messageBody(container, commitment),
+        attempt,
     )
 
     private fun TestScope.receipt(
@@ -95,12 +97,12 @@ class RouterTest {
         return ReadReceipt(header, container).encode()
     }
 
-    // Originates message [id], flooded, whose frame is its hop limit.
+    // Originates message [id], flooded, whose frame is its hop limit, then room for the attempt at byte 2.
     private fun Router.send(
         id: Int,
         tag: ByteArray,
     ) = originate(tag, OWN, Reach.FLOOD, search = false) {
-        Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {}
+        Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte(), 0, 0) }) {}
     }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
@@ -159,7 +161,7 @@ class RouterTest {
         }
 
     @Test
-    fun aMessageIdForwardedWithinTheSeenWindowIsDroppedAndPassesAfterIt() =
+    fun anAttemptForwardedWithinTheSeenWindowIsDroppedAndPassesAfterIt() =
         runTest {
             // Arrange
             val router = router()
@@ -176,6 +178,40 @@ class RouterTest {
             // Assert
             assertTrue(within.values.all { it.isEmpty() })
             assertEquals(1, waiting().getValue(a).size)
+        }
+
+    @Test
+    fun aNewAttemptOfAForwardedMessageIdPassesAtOnceAndKeepsItsAttempt() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.received(a, message(attempt = 0))
+            waiting()
+
+            // Act
+            router.received(c, message(attempt = 1))
+
+            // Assert
+            val waiting = waiting()
+            assertEquals(emptyList(), waiting.getValue(c))
+            listOf(a, b).forEach { assertEquals(1, waiting.getValue(it).single()[2].toInt()) }
+        }
+
+    @Test
+    fun eachSendOfAMessageIdCarriesTheNextAttemptModulo256() =
+        runTest {
+            // Arrange
+            val router = router()
+
+            // Act
+            val attempts =
+                (0..256).map {
+                    router.send(1, tag(9))
+                    waiting().getValue(a).single()[2].toInt() and 0xFF
+                }
+
+            // Assert
+            assertEquals((0..255).toList() + 0, attempts)
         }
 
     @Test

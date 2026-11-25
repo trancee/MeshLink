@@ -817,9 +817,9 @@ class ClassicalLinkTest : SecuredLinkTest(SecurityProfile.Classical, WireProfile
     private companion object {
         // A first message's plaintext is padded to 32 B, so its frame grows in steps of 32 B.
         const val FITTING_PAYLOAD = 592
-        const val FITTING_FRAME = 983
+        const val FITTING_FRAME = 984
         const val OVER_PAYLOAD = 624
-        const val OVER_FRAME = 1_015
+        const val OVER_FRAME = 1_016
         const val MILLIS_PER_SECOND = 1_000L
     }
 }

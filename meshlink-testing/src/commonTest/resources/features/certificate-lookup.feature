@@ -13,8 +13,8 @@ Feature: Certificate lookup
 
     Examples:
       | profile      | size  |
-      | classical    | 222   |
-      | post-quantum | 1438  |
+      | classical    | 223   |
+      | post-quantum | 1439  |
 
   Scenario: A middle node that looked the certificate up answers and the request stops there
     Given Alice to Frank are running in a classical line with links only between neighbors

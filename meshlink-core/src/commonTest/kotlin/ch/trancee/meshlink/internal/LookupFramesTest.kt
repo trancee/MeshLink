@@ -108,7 +108,7 @@ class LookupFramesTest {
             "824057fac0f41ce4572c65194c2e6b36eed8d1a81eaa5b83263e29d269005a5cf1ce" +
                 "d6bd89e77c6a308c887853dc64084b1c639f93ab6d9649e4be4bf40f72d842af"
         const val REPLY =
-            "44ff8f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f" +
+            "44ff008f024f5d07235072ec8b12a46b36eed8d1a81eaa5b83263e05514919d593747f" +
                 "0a6e4271427fee04f7cf1799b294197d4c58c432a6dbd06865ddc5fe3608d391009a" +
                 "8af5c4292aad2cb6e496cd1e592686a54d98ccdc0a7c6fe94ec103cd6a04922c0fdae18880baf912ddd7542d6039801c" +
                 "e70fb973e71c8a131ddd9b70c908da358a1b842a797a1c4dd358e68fef1a83ec474d231e8fd417bbc48e5156b7b9baa9" +
@@ -119,8 +119,8 @@ class LookupFramesTest {
         const val HOP_LIMIT_REPLY = 255
         const val EXPIRY = 1_798_762_200u
         const val KEY = 32
-        const val KEY_AT = 34
-        const val SEALED_LENGTH_AT = 66
-        const val SEALED_AT = 68
+        const val KEY_AT = 35
+        const val SEALED_LENGTH_AT = 67
+        const val SEALED_AT = 69
     }
 }

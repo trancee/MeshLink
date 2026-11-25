@@ -173,7 +173,8 @@ private fun StepsBuilder.sessionThens(scenario: SessionScenario) {
 
     then("Alice and Eve each sent a first message, and all four messages were Delivered") {
         listOf(ALICE, EVE).forEach { node ->
-            assertEquals(1, line.messages(node).count { it.container is Container.IkInitiator }, NAMES[node])
+            val firsts = line.messages(node).filter { it.container is Container.IkInitiator }
+            assertEquals(1, firsts.distinctBy { it.header.messageId.toHexString() }.size, NAMES[node])
         }
         assertEquals(4, line.history.size)
         line.history.keys.forEach(scenario::delivered)
@@ -191,7 +192,7 @@ private fun StepsBuilder.sessionThens(scenario: SessionScenario) {
         fun replyTag(of: Int) =
             line
                 .messages(if (of == ALICE) EVE else ALICE)
-                .single { it.container is Container.IkInitiator }
+                .first { it.container is Container.IkInitiator }
                 .header.sourceTag
         val toLower = scenario.since(lower).flatten().filter { it.container is Container.Transport }
         val toHigher = scenario.since(higher).flatten().filter { it.container is Container.Transport }
@@ -350,7 +351,10 @@ private fun assertKind(
 
 private fun MessageFrame.renamed() = MessageFrame(header.renamed(), commitment, container)
 
-private fun UnicastHeader.renamed() = UnicastHeader(hopLimit, messageId.renamed(), expiry, destinationTag, sourceTag)
+private fun UnicastHeader.renamed(): UnicastHeader {
+    val renamed = messageId.renamed()
+    return UnicastHeader(hopLimit, renamed, expiry, destinationTag, sourceTag, attempt)
+}
 
 private fun ByteArray.renamed() = copyOf().also { it[0] = (it[0].toInt() xor 1).toByte() }
 
@@ -362,8 +366,8 @@ private const val EVE = 4
 private const val MILLIS_PER_SECOND = 1_000L
 
 // The message_id in a routed frame: after the type and hop_limit bytes.
-private const val MESSAGE_ID_AT = 2
-private const val MESSAGE_ID_END = 14
+private const val MESSAGE_ID_AT = 3
+private const val MESSAGE_ID_END = 15
 private const val BEFORE_MILLIS = 21_540_000L
 private const val AFTER_MILLIS = 21_660_000L
 private const val DELIVERED_MILLIS = 5_000L
