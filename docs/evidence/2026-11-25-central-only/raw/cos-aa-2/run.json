@@ -1,0 +1,40 @@
+{
+  "run": "cos-aa-2",
+  "scenario": "direct-message",
+  "profile": "unsecured",
+  "duration_s": 40,
+  "commit": "6612ff5b35d72f47d1250eeff54d293137283a7a",
+  "date": "2026-11-25T22:24:31+01:00",
+  "method": "python3 tools/lab/lab.py run --scenario direct-message --devices p10lite,pixel6 --profile unsecured --roles any,peripheral --run-id cos-aa-2",
+  "xcode": null,
+  "devices": {
+    "p10lite": {
+      "platform": "android",
+      "model": "WAS-LX1A",
+      "os": "Android 8.0.0 (API 26)",
+      "args": [
+        "scenario=direct-message",
+        "role=any",
+        "peer=pixel6",
+        "mesh=lab-cos-aa-2",
+        "profile=unsecured",
+        "run=cos-aa-2",
+        "duration=40"
+      ]
+    },
+    "pixel6": {
+      "platform": "android",
+      "model": "Pixel 6",
+      "os": "Android 17 (API 37)",
+      "args": [
+        "scenario=direct-message",
+        "role=peripheral",
+        "peer=p10lite",
+        "mesh=lab-cos-aa-2",
+        "profile=unsecured",
+        "run=cos-aa-2",
+        "duration=40"
+      ]
+    }
+  }
+}

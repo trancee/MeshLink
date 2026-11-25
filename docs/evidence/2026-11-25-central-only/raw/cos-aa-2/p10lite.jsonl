@@ -1,0 +1,10 @@
+{"t_ms":3,"event":"start","scenario":"direct-message","run":"cos-aa-2","role":"any","peer":"pixel6","mesh":"lab-cos-aa-2","profile":"unsecured","duration_s":40}
+{"t_ms":38,"event":"state","state":"Starting","role":null}
+{"t_ms":119,"event":"state","state":"Running(limitations=[CentralOnly(reason=LegacyUuidBug)])","role":null}
+{"t_ms":5251,"event":"link","peer_node":"4568b8b286e5f544","role":"central"}
+{"t_ms":5259,"event":"send","to":"4568b8b286e5f544","bytes":82,"sha256":"3d2aba1f1e21625fd571bd5c1aa3e38dbf4e9dadd6fb42ce50009f70dbbf2f0a","role":"central"}
+{"t_ms":5264,"event":"status","status":"Queued","role":"central"}
+{"t_ms":5279,"event":"status","status":"Sent","role":"central"}
+{"t_ms":5346,"event":"received","from":"4568b8b286e5f544","bytes":83,"sha256":"cf92ecc4fc8172c9b3d2a5263d76eb66c555df61915dbcd9a842b69652ef0196","intact":true,"role":"central"}
+{"t_ms":5892,"event":"status","status":"Delivered","role":"central"}
+{"t_ms":40250,"event":"done","result":"pass","failures":[]}
