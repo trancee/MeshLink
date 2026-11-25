@@ -1,6 +1,6 @@
 # Rotate static keys and drop expired certificates
 
-Status: ready-for-agent
+Status: in-progress
 Type: AFK
 Blocked by: 44, 49
 
@@ -23,14 +23,14 @@ In `Classical` and `PostQuantum`, a node rotates its static keys so that a stole
 
 ## Acceptance criteria
 
-- [ ] Virtual-time unit tests: a new certificate every 12 h, valid 24 h; static private keys deleted exactly at `not_after` + 3,630 s and not before.
-- [ ] Seeded `VirtualAir` test, `Classical` and `PostQuantum`: a first message sealed to the older valid certificate opens after rotation; a held message tagged with the old public tag is claimed and opened before the keys are deleted.
-- [ ] A test past `not_after` + 3,630 s: a message to the deleted keys does not open and fails as the spec says.
-- [ ] A test lets the peer's copy pass half its validity: the next `IK` reply and receipt carry `SENDER_CERTIFICATE`, and the sender's cache updates.
-- [ ] A test with an expired cached certificate: `send` returns `Accepted`, stays `Queued`, a lookup runs, and the message is sealed to the fresh certificate and delivered; without an answer it reaches `Expired`.
-- [ ] T10: a certificate valid for more than 86,400 s, an expired one or one with a bad signature is never cached or sealed to.
-- [ ] The guarantees row on exposure after key theft (about the last 25 h) matches the code.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] Virtual-time unit tests: a new certificate every 12 h, valid 24 h; static private keys deleted exactly at `not_after` + 3,630 s and not before.
+- [x] Seeded `VirtualAir` test, `Classical` and `PostQuantum`: a first message sealed to the older valid certificate opens after rotation; a held message tagged with the old public tag is claimed and opened before the keys are deleted.
+- [x] A test past `not_after` + 3,630 s: a message to the deleted keys does not open and fails as the spec says.
+- [x] A test lets the peer's copy pass half its validity: the next `IK` reply and receipt carry `SENDER_CERTIFICATE`, and the sender's cache updates.
+- [x] A test with an expired cached certificate: `send` returns `Accepted`, stays `Queued`, a lookup runs, and the message is sealed to the fresh certificate and delivered; without an answer it reaches `Expired`.
+- [x] T10: a certificate valid for more than 86,400 s, an expired one or one with a bad signature is never cached or sealed to.
+- [x] The guarantees row on exposure after key theft (about the last 25 h) matches the code.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 

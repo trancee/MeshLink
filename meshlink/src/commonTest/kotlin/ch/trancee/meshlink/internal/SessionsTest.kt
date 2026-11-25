@@ -28,7 +28,8 @@ class SessionsTest {
         val secret = crypto.randomBytes(KEY)
         val end = { sending: ByteArray, receiving: ByteArray, isInitiator: Boolean ->
             val session = EndToEndSession(ByteArray(KEY), ByteArray(KEY), cipher(sending), cipher(receiving))
-            Conversation(crypto, session, secret, initiator.toByteArray(), responder.toByteArray(), isInitiator)
+            val (local, peer) = if (isInitiator) initiator to responder else responder to initiator
+            Conversation(crypto, session, secret, CERTIFICATES.getValue(local), peer.toByteArray(), isInitiator)
         }
         return Ends(end(forth, back, true), end(back, forth, false))
     }
@@ -284,9 +285,26 @@ class SessionsTest {
         const val MAX_FRAMES = 4_096
         val EXPIRY = (NOW + 300).toUInt()
         val PAYLOAD = "hello".encodeToByteArray()
-        val ALICE = nodeId(1)
-        val BOB = nodeId(2)
-        val CAROL = nodeId(3)
-        val DAVE = nodeId(4)
+
+        // Four nodes' certificates by NodeId; ALICE to DAVE name them in ascending NodeId order.
+        val CERTIFICATES =
+            (1..4).associate { seed ->
+                val identity = identityKey(seed)
+                val keys = StaticKeys(ByteArray(KEY) { seed.toByte() }, null)
+                val certificate = IdentityCertificate.issue(SodiumCryptoProvider, Fixed, identity, keys)
+                NodeId(Derivations(SodiumCryptoProvider).nodeId(identity.publicKey)) to certificate
+            }
+        private val ORDERED =
+            CERTIFICATES.keys.sortedWith { a, b -> LinkPolicy.compareNodeIds(a.toByteArray(), b.toByteArray()) }
+        val ALICE = ORDERED[0]
+        val BOB = ORDERED[1]
+        val CAROL = ORDERED[2]
+        val DAVE = ORDERED[3]
+    }
+
+    private object Fixed : Clock {
+        override fun monotonicMillis(): Long = 0
+
+        override fun wallClockMillis(): Long = NOW * 1_000
     }
 }

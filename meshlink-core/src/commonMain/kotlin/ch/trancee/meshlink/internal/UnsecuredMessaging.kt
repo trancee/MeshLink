@@ -204,6 +204,7 @@ public class UnsecuredMessaging(
 }
 
 private const val MESSAGE_IDS = 0x83
+private const val SENDER_CERTIFICATE = 0x01
 private const val ID = 12
 
 /** The zero-length plaintext TLV asking the recipient for a read receipt (spec "Plaintext"). */
@@ -236,23 +237,23 @@ internal fun Derivations.bound(
 
 /**
  * A receipt plaintext (spec "Plaintext") of [messageId] and [expiry] listing the IDs of [tombstones]
- * in `MESSAGE_IDS`.
+ * in `MESSAGE_IDS`, after [certificate] in `SENDER_CERTIFICATE` if one is attached (spec "Plaintext extensions").
  */
 internal fun receiptPlaintext(
     messageId: ByteArray,
     expiry: UInt,
     tombstones: List<Tombstone>,
     secured: Boolean,
+    certificate: IdentityCertificate? = null,
 ): ByteArray {
     val ids = Tlv(MESSAGE_IDS, tombstones.fold(ByteArray(0)) { bytes, tombstone -> bytes + tombstone.messageId })
-    return ReceiptContent(messageId, expiry, listOf(ids)).encode(secured)
+    val sender = certificate?.let { Tlv(SENDER_CERTIFICATE, it.encode()) }
+    return ReceiptContent(messageId, expiry, listOfNotNull(sender, ids)).encode(secured)
 }
 
 /**
  * The IDs [frame] acknowledges if its opened [plaintext] is a receipt for it at Unix second
- * [nowSeconds] (spec "Delivery receipts"), else `null`: it decodes, padded if [secured], repeats the
- * header's `message_id` and `expiry`, and lists in `MESSAGE_IDS` the IDs of the tombstones in the same
- * order; and its expiry lies within `message-lifetime-max` of now, allowing `clock-skew` either way.
+ * [nowSeconds] (spec "Delivery receipts"), else `null`, as [receiptChecked] checks.
  */
 internal fun receiptIds(
     frame: DeliveryReceipt,
@@ -260,6 +261,22 @@ internal fun receiptIds(
     nowSeconds: Long,
     secured: Boolean,
 ): List<ByteArray>? {
+    val content = receiptChecked(frame, plaintext, nowSeconds, secured)
+    return content?.let { _ -> frame.tombstones.map { it.messageId } }
+}
+
+/**
+ * The receipt content of [frame]'s opened [plaintext] if it is a receipt for it at Unix second [nowSeconds] (spec
+ * "Delivery receipts"), else `null`: it decodes, padded if [secured], repeats the header's `message_id` and
+ * `expiry`, and lists in `MESSAGE_IDS` the IDs of the tombstones in the same order; and its expiry lies within
+ * `message-lifetime-max` of now, allowing `clock-skew` either way.
+ */
+internal fun receiptChecked(
+    frame: DeliveryReceipt,
+    plaintext: ByteArray,
+    nowSeconds: Long,
+    secured: Boolean,
+): ReceiptContent? {
     val content = (ReceiptContent.decode(plaintext, secured) as? Decoded.Valid)?.value
     val ids = frame.tombstones.map { it.messageId }
     val listed = content?.let { receipt -> receipt.extensions.firstOrNull { it.type == MESSAGE_IDS }?.value }
@@ -269,8 +286,12 @@ internal fun receiptIds(
             content.expiry == frame.header.expiry &&
             listed.contentEquals(ids.fold(ByteArray(0)) { bytes, id -> bytes + id }) &&
             frame.header.expiry.toLong() in live(nowSeconds)
-    return ids.takeIf { matches }
+    return content.takeIf { matches }
 }
+
+/** The `SENDER_CERTIFICATE` bytes in a receipt's [content], unvalidated, or `null`. */
+internal fun senderCertificate(content: ReceiptContent): ByteArray? =
+    content.extensions.firstOrNull { it.type == SENDER_CERTIFICATE }?.value
 
 /**
  * A read receipt plaintext (spec "Plaintext") of [messageId] and [expiry]: [extensions], then the

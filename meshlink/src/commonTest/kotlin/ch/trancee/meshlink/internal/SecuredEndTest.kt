@@ -32,92 +32,16 @@ class SecuredEndTest {
     private val tags = EndToEndTags(Derivations(crypto))
     private val neighbor = nodeId(1)
 
-    // A secured node of identity seed [seed]: its end, the lanes and inbox it uses, whom it heard from,
-    // the peers it opened sessions with, the receipts it sent, and the delivery and read receipts that
-    // arrived for its messages.
-    private class Node(
-        val keys: SecuredKeys,
-    ) {
-        lateinit var end: SecuredEnd
-        lateinit var lookups: Lookups
-        val lanes = Lanes()
-        val inbox = Inbox()
-        val heard = mutableListOf<NodeId>()
-        val opened = mutableListOf<NodeId>()
-        val replies = mutableListOf<Outgoing>()
-        val arrived = mutableListOf<Pair<NodeId, List<List<Byte>>>>()
-        val read = mutableListOf<Pair<NodeId, List<List<Byte>>>>()
-        val nodeId = NodeId(keys.nodeId)
-    }
-
     private fun TestScope.node(
         seed: Int,
         certified: Boolean = true,
-    ): Node {
-        val clock = SchedulerClock(testScheduler)
-        val node = Node(securedKeys(clock, seed))
-        node.lanes.open(neighbor)
-        node.lookups =
-            Lookups(crypto, clock, backgroundScope, WireProfile.CLASSICAL, node.lanes) { DensityClass.MEDIUM }
-        node.lookups.begin {}
-        val receipts =
-            Receipts<Reply>(clock, backgroundScope, { reply, tombstones, expiry ->
-                node.end.acknowledger.reply(reply, tombstones, expiry)
-            }, { from, ids -> node.arrived += from to ids.map { it.toList() } }, readsOf(node)) { it is Reply.First }
-        receipts.begin()
-        val hooks = SecuredHooks({ node.heard += it }, {}, { node.opened += it }) { node.replies += it }
-        node.end = SecuredEnd(crypto, clock, node.inbox, node.lookups, receipts, hooks)
-        if (certified) node.end.keys.certify(node.keys)
-        return node
-    }
-
-    private fun TestScope.readsOf(node: Node): Reads {
-        val arrived = { from: NodeId, ids: List<ByteArray> -> node.read += from to ids.map { it.toList() } }
-        return reads(arrived = arrived)
-    }
+    ): SecuredNode = securedNode(securedKeys(SchedulerClock(testScheduler), seed), neighbor, certified)
 
     private fun TestScope.expiry() = (nowSeconds() + LIFETIME).toUInt()
-
-    // [from] sends [to] a first message, which [to] opens and its app takes: [to]'s answer goes.
-    private suspend fun TestScope.firstTaken(
-        from: Node,
-        to: Node,
-    ): Pair<Draft, Outgoing> {
-        knows(from, to)
-        val draft = assertNotNull(from.end.draft(entry(to.nodeId)))
-        assertTrue(to.end.deliver(from.end.frame(draft, hopLimit = 5), nowSeconds()))
-        to.inbox.messages.first()
-        runCurrent()
-        return draft to to.replies.last()
-    }
-
-    // [from] and [to] open a session: [to] answers [from]'s first message and [from] adopts the answer.
-    private suspend fun TestScope.session(
-        from: Node,
-        to: Node,
-    ) {
-        val (_, answer) = firstTaken(from, to)
-        from.end.acknowledger.acknowledged(answer.frame(5), nowSeconds())
-    }
-
-    private fun TestScope.entry(
-        to: NodeId,
-        payload: ByteArray = PAYLOAD,
-    ): Outbox.Entry {
-        val now = SchedulerClock(testScheduler).wallClockMillis()
-        val status = MutableStateFlow<DeliveryStatus>(DeliveryStatus.Queued)
-        return Outbox.Entry(to, payload, now / 1_000 + LIFETIME, status, now + 600_000, SendOptions())
-    }
 
     private fun TestScope.nowSeconds() = SchedulerClock(testScheduler).wallClockMillis() / 1_000
 
     private fun TestScope.epoch() = Derivations.epoch(nowSeconds())
-
-    // [from] knows [to]'s certificate, as a link or lookup taught it.
-    private fun knows(
-        from: Node,
-        to: Node,
-    ) = from.lookups.linked(to.nodeId, to.keys.certificate)
 
     @Test
     fun aNodeWithoutKeysDraftsNothing() =
@@ -596,7 +520,8 @@ class SecuredEndTest {
             knows(alice, bob)
             val key = ByteArray(KEY) { 1 }
             val spent = EndToEndSession(key, key, CipherState(crypto, key, ULong.MAX_VALUE), CipherState(crypto, key))
-            val conversation = Conversation(crypto, spent, key, alice.keys.nodeId, bob.keys.nodeId, initiator = true)
+            val conversation =
+                Conversation(crypto, spent, key, alice.keys.certificate, bob.keys.nodeId, initiator = true)
             alice.end.sessions.open(conversation, nowSeconds())
 
             // Act

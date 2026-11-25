@@ -94,17 +94,39 @@ internal fun lowTree(
 ): Plumtree = Plumtree(lanes, clock, scope) { DensityClass.LOW }
 
 /**
- * The Classical first-message keys of the node with [identityKey] [seed]: a fresh static key under a
- * certificate valid for [validity] from [clock]'s now.
+ * The first-message keys of the node with [identityKey] [seed]: a fresh static key, and an X-Wing key if
+ * [postQuantum], under a certificate valid for [validity] from [clock]'s now.
  */
 internal fun securedKeys(
     clock: Clock,
     seed: Int,
     validity: kotlin.time.Duration = kotlin.time.Duration.parse("24h"),
+    postQuantum: Boolean = false,
 ): SecuredKeys {
     val crypto = SodiumCryptoProvider
     val identity = identityKey(seed)
     val static = crypto.x25519KeyPair()
-    val certificate = IdentityCertificate.issue(crypto, clock, identity, StaticKeys(static.publicKey, null), validity)
-    return SecuredKeys(Derivations(crypto).nodeId(identity.publicKey), static, null, certificate)
+    val xWing = if (postQuantum) crypto.xWingKeyPair() else null
+    val keys = StaticKeys(static.publicKey, xWing?.publicKey)
+    val certificate = IdentityCertificate.issue(crypto, clock, identity, keys, validity)
+    return SecuredKeys(Derivations(crypto).nodeId(identity.publicKey), static, xWing, certificate)
 }
+
+/**
+ * [certificate], issued by [identity], re-signed with `not_after` one second past `certificate-validity-max`
+ * (86,400 s) after its `not_before`: a certificate every validation must reject.
+ */
+internal fun overlong(
+    certificate: IdentityCertificate,
+    identity: Ed25519KeyPair,
+): ByteArray {
+    val bytes = certificate.encode()
+    val body = bytes.copyOf(bytes.size - SIGNATURE_LENGTH)
+    val notAfter = certificate.notBefore + VALIDITY_MAX_SECONDS + 1u
+    val width = UInt.SIZE_BYTES
+    ByteArray(width) { (notAfter shr (Byte.SIZE_BITS * (width - 1 - it))).toByte() }.copyInto(body, body.size - width)
+    return body + SodiumCryptoProvider.ed25519Sign(identity.seed, IdentityCertificate.signingInput(body))
+}
+
+private const val SIGNATURE_LENGTH = 64
+private const val VALIDITY_MAX_SECONDS = 86_400u

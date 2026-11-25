@@ -79,6 +79,18 @@ class IdentityCertificateTest {
     }
 
     @Test
+    fun aPeerHoldingThisCertificateIsRefreshedOnlyPastHalfItsValidityAndOnlyToANewerOne() {
+        val held = classical()
+        val newer =
+            IdentityCertificate.issue(crypto, FixedClock.atSeconds(NOT_BEFORE + 1), identity, classicalKeys)
+        val half = NOT_BEFORE + 12 * 3_600
+
+        assertNull(held.refresh(newer, half - 1))
+        assertNull(held.refresh(held, half))
+        assertEquals(newer, held.refresh(newer, half))
+    }
+
+    @Test
     fun theValidityWindowIsHalfOpenWithThirtySecondsOfSkewOnBothEdges() {
         val bytes = classical().encode()
         val notAfter = NOT_BEFORE + 86_400

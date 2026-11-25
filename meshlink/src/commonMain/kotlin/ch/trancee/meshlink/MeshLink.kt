@@ -348,19 +348,21 @@ public class MeshLink private constructor(
     private suspend fun session() =
         coroutineScope {
             val digest = Derivations(crypto).meshIdDigest(meshId, profile)
-            // Only a secured node has lookups; they answer with this run's certificate.
-            val lookups = post.lookups
-            val handshakes =
-                if (lookups != null) {
-                    val credentials = LinkCredentials.issue(crypto, port.clock, identity.keyPair, profile, digest)
-                    lookups.certify(credentials.certificate)
-                    val keys =
-                        SecuredKeys(identity.nodeId, credentials.static, credentials.xWing, credentials.certificate)
-                    post.certify(keys)
-                    Handshakes(crypto, port.clock, credentials, meshKey, diagnostics, lookups::linked)
-                } else {
-                    null
+            val identity = identity
+            // Only a secured node has lookups. Its handshakes, and its rotation, which gives them, its lookups
+            // and its first messages each new key set.
+            val secured =
+                post.lookups?.let { lookups ->
+                    val issue = {
+                        LinkCredentials.issue(crypto, port.clock, identity.keyPair, profile, digest).also {
+                            lookups.certify(it.certificate)
+                            post.keys.certify(SecuredKeys(identity.nodeId, it.static, it.xWing, it.certificate))
+                        }
+                    }
+                    val handshakes = Handshakes(crypto, port.clock, issue(), meshKey, diagnostics, lookups::linked)
+                    handshakes to suspend { post.keys.rotate { handshakes.rotate(issue()) } }
                 }
+            val handshakes = secured?.first
             val policy = LinkPolicy(digest, identity.nodeId)
             val admission = LinkAdmission(policy, handshakes, coc) { diagnostics.tryEmit(it) }
             val session = Links(port, admission, this, post.roster, post) { scanner.density.links }
@@ -376,10 +378,13 @@ public class MeshLink private constructor(
                             session.announce(keys.announce(port.clock.wallClockMillis()))
                         }
                     }
+                // Rotates the static keys every 12 h (spec "Static-key rotation").
+                val rotating = launch { secured?.let { (_, rotation) -> rotation() } }
                 val recognition = Recognition(keys, session.neighbors) { session.handles }
                 scanner.run(restrictedLinkRole, recognition, coc, session::accept, session.proximities::sighted)
                 linking.cancel()
                 announcing.cancel()
+                rotating.cancel()
             } finally {
                 links.value = null
             }
