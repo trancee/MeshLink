@@ -75,7 +75,10 @@ internal fun unicast(
     source: ByteArray,
     body: ByteArray = byteArrayOf(),
     attempt: Int = 0,
-): ByteArray = UnicastFrame(type, UnicastHeader(hopLimit, id, expiry.toUInt(), destination, source, attempt), body).encode()
+): ByteArray {
+    val header = UnicastHeader(hopLimit, id, expiry.toUInt(), destination, source, attempt)
+    return UnicastFrame(type, header, body).encode()
+}
 
 /** The body of a `MESSAGE` frame with [container]: a zero commitment, then the container. */
 internal fun messageBody(

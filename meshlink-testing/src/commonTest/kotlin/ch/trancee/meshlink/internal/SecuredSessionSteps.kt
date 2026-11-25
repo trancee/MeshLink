@@ -351,7 +351,10 @@ private fun assertKind(
 
 private fun MessageFrame.renamed() = MessageFrame(header.renamed(), commitment, container)
 
-private fun UnicastHeader.renamed() = UnicastHeader(hopLimit, messageId.renamed(), expiry, destinationTag, sourceTag, attempt)
+private fun UnicastHeader.renamed(): UnicastHeader {
+    val renamed = messageId.renamed()
+    return UnicastHeader(hopLimit, renamed, expiry, destinationTag, sourceTag, attempt)
+}
 
 private fun ByteArray.renamed() = copyOf().also { it[0] = (it[0].toInt() xor 1).toByte() }
 

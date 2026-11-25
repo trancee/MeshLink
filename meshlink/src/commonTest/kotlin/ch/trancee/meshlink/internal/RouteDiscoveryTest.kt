@@ -84,7 +84,10 @@ class RouteDiscoveryTest {
     private fun decodedReply(bytes: ByteArray) = valid(RouteReply.decode(bytes))
 
     // The peers whose lanes got exactly one frame, a message of hop limit 255.
-    private suspend fun routedTo(): List<NodeId> = waiting().filterValues { it.singleOrNull()?.first() == (-1).toByte() }.keys.toList()
+    private suspend fun routedTo(): List<NodeId> {
+        val routed = waiting().filterValues { it.singleOrNull()?.first() == (-1).toByte() }
+        return routed.keys.toList()
+    }
 
     @Test
     fun aRequestFloodsOnToEveryOtherLinkWithOneHopLessAndOneMoreAndTeachesTheWayBackToItsOrigin() =
