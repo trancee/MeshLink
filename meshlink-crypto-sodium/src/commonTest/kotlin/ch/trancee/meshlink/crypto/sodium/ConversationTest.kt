@@ -420,7 +420,8 @@ class ConversationTest {
         val key = ByteArray(KEY) { 1 }
         val spent = CipherState(crypto, key, ULong.MAX_VALUE)
         val session = EndToEndSession(ByteArray(KEY), ByteArray(KEY), spent, CipherState(crypto, key))
-        val conversation = Conversation(crypto, session, key, ByteArray(NODE_ID), ByteArray(NODE_ID) { 1 }, true)
+        val local = Side(WireProfile.CLASSICAL, 1).certificate
+        val conversation = Conversation(crypto, session, key, local, ByteArray(NODE_ID) { 1 }, true)
 
         assertNull(conversation.draft(SECOND, EXPIRY))
         assertNull(conversation.receipt(listOf(Tombstone(ByteArray(ID), ByteArray(K))), EXPIRY))

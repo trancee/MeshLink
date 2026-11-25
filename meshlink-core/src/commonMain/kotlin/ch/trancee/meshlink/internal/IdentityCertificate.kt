@@ -16,6 +16,19 @@ public class IdentityCertificate private constructor(
     /** `Classical` or `PostQuantum`. */
     public val profile: WireProfile = WireProfile.entries.single { it.code == bytes.u8(1) }
 
+    /**
+     * [current] if a peer that holds this certificate, one of this node's, should get [current] at Unix second
+     * [nowSeconds] (spec "Plaintext extensions"; ADR 0014 decision 10): this certificate is past half its
+     * validity and [current] is newer. Otherwise `null`.
+     */
+    public fun refresh(
+        current: IdentityCertificate,
+        nowSeconds: Long,
+    ): IdentityCertificate? {
+        val half = notBefore.toLong() + (notAfter - notBefore).toLong() / 2
+        return current.takeIf { nowSeconds >= half && it.notBefore > notBefore }
+    }
+
     /** The 32-byte Ed25519 identity key; the NodeId is its hash. */
     public val ed25519Key: ByteArray get() = bytes.copyOfRange(HEADER_LENGTH, X25519_OFFSET)
 

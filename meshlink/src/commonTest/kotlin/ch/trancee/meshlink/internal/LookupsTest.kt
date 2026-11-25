@@ -340,6 +340,38 @@ class LookupsTest {
         }
 
     @Test
+    fun aRefreshIsHeldOnlyIfItIsAValidCertificateOfThePeer() =
+        runTest {
+            // Arrange: each flawed refresh is what a session peer might attach to a receipt.
+            val node = node(1)
+            val peer = NodeId(derivations.nodeId(identityKey(9).publicKey))
+            val brief = certificate(9, validity = 1.seconds).encode()
+            advanceTimeBy(EXPIRED_MILLIS)
+            val issued = certificate(9)
+            val valid = issued.encode()
+            val signature = valid.size - SIGNATURE
+            val flawed =
+                listOf(
+                    certificate(8).encode(),
+                    brief,
+                    valid.copyOf().also { it[signature] = (it[signature] + 1).toByte() },
+                    overlong(issued, identityKey(9)),
+                    certificate(9, WireProfile.POST_QUANTUM).encode(),
+                )
+
+            // Act
+            node.lookups.refreshed(peer, null)
+            flawed.forEach { node.lookups.refreshed(peer, it) }
+            val held = node.lookups.certificate(peer)
+            node.lookups.refreshed(peer, valid)
+
+            // Assert: none, another NodeId, expired, bad signature, over 86,400 s, other profile; then a valid one.
+            assertNull(held)
+            assertContentEquals(valid, assertNotNull(node.lookups.certificate(peer)).encode())
+            assertEquals(listOf(peer), node.arrived)
+        }
+
+    @Test
     fun aReplyToAnEarlierAttemptOfAnOutstandingLookupIsTaken() =
         runTest {
             // Arrange
@@ -383,13 +415,15 @@ class LookupsTest {
             val request = requester.lanes.requests(a).single()
             val brief = certificate(9, validity = 1.seconds).encode()
             advanceTimeBy(EXPIRED_MILLIS)
-            val valid = certificate(9).encode()
+            val issued = certificate(9)
+            val valid = issued.encode()
             val signature = valid.size - 1
             val forged =
                 listOf(
                     sealed(request, certificate(8).encode()),
                     sealed(request, brief),
                     sealed(request, valid.copyOf().also { it[signature] = (it[signature] + 1).toByte() }),
+                    sealed(request, overlong(issued, identityKey(9))),
                     sealed(request, certificate(9, WireProfile.POST_QUANTUM).encode()),
                     sealed(request, valid).let { it.copy(sealed = it.sealedCertificate.flipped()) },
                     sealed(request, valid).copy(key = ByteArray(32)),
@@ -401,7 +435,7 @@ class LookupsTest {
             val cached = requester.lookups.certificate(NodeId(target))
             advanceTimeBy(EXPIRED_MILLIS)
 
-            // Assert: another NodeId, expired, bad signature, other profile, failed AEAD, low-order key.
+            // Assert: another NodeId, expired, bad signature, over 86,400 s, other profile, failed AEAD, low-order key.
             assertEquals(forged.map { true }, taken)
             assertNull(cached)
             assertTrue(requester.lanes.requests(a).isNotEmpty())
@@ -514,5 +548,6 @@ class LookupsTest {
     private companion object {
         // Past a 1-second certificate's not_after and the 30-second clock skew.
         const val EXPIRED_MILLIS = 31_000L
+        const val SIGNATURE = 64
     }
 }

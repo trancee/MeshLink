@@ -177,6 +177,8 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - A forged frame from a hostile neighbor still teaches relays a reverse route to its `source_tag` for `reverse-route-timeout` (6 s): accepted threat A3, v1 has no routing defense. A scenario that forges and then expects delivery must wait past it (`SecuredLine.Hostile.write` waits 10 s) (ticket 46b, 2026-11-23).
 - A forgery test must assert that the forged frame reached the node next to its target before asserting that nothing changed. A burst of 1,100 frames outlived the 120 s `ProximityDiscovery` lifetime and was dropped by relays, so the "dropped" assertion passed for the wrong reason (ticket 46b, 2026-11-23).
 - cucumber-kmp 0.2.1 step lambdas take at most 3 parameters; write fixed values into the step text instead. Each feature runs as a generated class: `./gradlew :meshlink-testing:testAndroidHostTest --tests '*SecuredSessionsFeatureTest'` (2026-11-23).
+- `static-key-grace` (3,630 s) is `message-lifetime-max` plus `clock-skew`, so a message sealed to an earlier certificate expires exactly when its keys are deleted. A test of deleted keys must seal the message with a lifetime that outlasts the grace end, or it tests expiry instead (ticket 52, 2026-11-25).
+- `KeyRing.rotate` sleeps until the next renewal or grace end. A mutant that stops `prune` from deleting keys leaves a grace end in the past, so `rotate` loops with a zero delay and the test run hangs; mutate the callers of `prune` instead (ticket 52, 2026-11-25).
 
 ## Apple packaging
 

@@ -6,14 +6,14 @@ public sealed interface Sealer
 /**
  * A first message's open handshake (spec "Sessions", "Adopting"): [replay] gives the initiator's `IK`
  * or `IKhfs` state after message 1 of [messageId] afresh, so a message 2 that fails leaves it for the
- * real one; and the conversation [secret] between [initiatorNodeId] and [responderNodeId]. It adopts
- * one message 2.
+ * real one; and the conversation [secret] between this node, which sent [local] in message 1, and
+ * [responderNodeId]. It adopts one message 2.
  */
 public class Opening internal constructor(
     private val crypto: CryptoProvider,
     private val replay: () -> NoiseHandshake,
     internal val secret: ByteArray,
-    private val initiatorNodeId: ByteArray,
+    private val local: IdentityCertificate,
     private val responderNodeId: ByteArray,
     private val messageId: ByteArray,
 ) : Sealer {
@@ -22,8 +22,9 @@ public class Opening internal constructor(
     /**
      * The initiator's session from the message 2 in [bytes], or `null` to ignore it. It must decode
      * as a `DELIVERY_RECEIPT` with an `IK_RESPONDER` container whose only tombstone is this first
-     * message's, read as message 2, and hold a receipt plaintext as [receiptIds] checks at
-     * [nowSeconds]. Only the first message 2 that reads is adopted.
+     * message's, read as message 2, and hold a receipt plaintext as [receiptChecked] checks at
+     * [nowSeconds]. Only the first message 2 that reads is adopted; its `SENDER_CERTIFICATE`, if any, is the
+     * session's [Conversation.refreshed].
      */
     public fun adopt(
         bytes: ByteArray,
@@ -34,25 +35,28 @@ public class Opening internal constructor(
         val tombstone = frame?.let { it.tombstones.singleOrNull() }
         val mine = tombstone != null && tombstone.messageId.contentEquals(messageId)
         val read =
-            container?.takeIf { mine && !adopted }?.let {
+            container?.takeIf { mine && !adopted }?.let { ik ->
                 val handshake = replay()
-                val plaintext = (handshake.readMessage(it.noiseMessage) as? NoiseResult.Ok)?.value
-                plaintext?.let { handshake to plaintext }
+                val plaintext = (handshake.readMessage(ik.noiseMessage) as? NoiseResult.Ok)?.value
+                val content = plaintext?.let { receiptChecked(frame, it, nowSeconds, secured = true) }
+                content?.let { handshake to it }
             }
-        val checked = read?.takeIf { receiptIds(frame, it.second, nowSeconds, secured = true) != null }
-        val (handshake, _) = checked ?: return null
+        val (handshake, content) = read ?: return null
         adopted = true
         val session = (handshake.session() as NoiseResult.Ok).value
-        return Conversation(crypto, session, secret, initiatorNodeId, responderNodeId, initiator = true)
+        return Conversation(crypto, session, secret, local, responderNodeId, initiator = true).also {
+            it.refreshed = senderCertificate(content)
+        }
     }
 }
 
 /**
  * One end of an end-to-end session (spec "Sessions", "Conversation tags"): seals this node's
  * messages and receipts to the [peer] as kind `0x03` frames, tags them for the conversation [secret]'s
- * direction away from this end, and opens the peer's frames to the other direction. [initiator] says
- * whether this end sent the first message; [initiatorNodeId] is that end's NodeId. [sent] and
- * [received] count its frames.
+ * direction away from this end, and opens the peer's frames to the other direction. [local] is this end's
+ * certificate the peer holds: the one it sealed the first message to, or the one this end sent in it.
+ * [initiator] says whether this end sent the first message; [initiatorNodeId] is that end's NodeId.
+ * [sent] and [received] count its frames.
  *
  * Not thread-safe: [owns] caches the incoming tags. A node calls it from its own dispatcher.
  */
@@ -60,19 +64,27 @@ public class Conversation(
     private val crypto: CryptoProvider,
     private val session: EndToEndSession,
     private val secret: ByteArray,
-    public val initiatorNodeId: ByteArray,
-    responderNodeId: ByteArray,
+    public val local: IdentityCertificate,
+    public val peer: ByteArray,
     public val initiator: Boolean,
 ) : Sealer {
     private val derivations = Derivations(crypto)
+
+    /** The NodeId of the end that sent the first message. */
+    public val initiatorNodeId: ByteArray = if (initiator) derivations.nodeId(local.ed25519Key) else peer
+
+    /**
+     * The `SENDER_CERTIFICATE` the peer attached to the last receipt this end opened, the message 2 that opened
+     * the session or a later receipt (spec "Plaintext extensions"): unvalidated, `null` if it attached none.
+     */
+    public var refreshed: ByteArray? = null
+        internal set
+
     private val tags = EndToEndTags(derivations)
     private val outgoing = if (initiator) INITIATOR_TO_RESPONDER else RESPONDER_TO_INITIATOR
     private val incoming = if (initiator) RESPONDER_TO_INITIATOR else INITIATOR_TO_RESPONDER
     private var windowEpoch: UInt? = null
     private var window: List<ByteArray> = emptyList()
-
-    /** The other end's NodeId. */
-    public val peer: ByteArray = if (initiator) responderNodeId else initiatorNodeId
 
     /** The frames this end sealed. */
     public var sent: Int = 0
@@ -105,15 +117,16 @@ public class Conversation(
 
     /**
      * A `DELIVERY_RECEIPT` to [peer] for [tombstones], oldest first, with a fresh `message_id`, the
-     * latest [expiry] of the acknowledged messages, and their IDs in `MESSAGE_IDS`; `null` once the
-     * nonces run out.
+     * latest [expiry] of the acknowledged messages, their IDs in `MESSAGE_IDS` and [refresh], this node's
+     * current certificate, in `SENDER_CERTIFICATE` if given; `null` once the nonces run out.
      */
     public fun receipt(
         tombstones: List<Tombstone>,
         expiry: UInt,
+        refresh: IdentityCertificate? = null,
     ): ReceiptDraft? {
         val messageId = crypto.randomBytes(MESSAGE_ID)
-        val sealed = seal(receiptPlaintext(messageId, expiry, tombstones, secured = true))
+        val sealed = seal(receiptPlaintext(messageId, expiry, tombstones, secured = true, refresh))
         return sealed?.let { ReceiptDraft(peer, messageId, expiry, tombstones, it) }
     }
 
@@ -191,7 +204,7 @@ public class Conversation(
     /**
      * The IDs the peer's `DELIVERY_RECEIPT` in [bytes] acknowledges, or `null` to ignore it. It must
      * decode, carry one of the tags [owns] at [nowSeconds], open as a kind `0x03` frame, and hold a
-     * receipt plaintext as [receiptIds] checks.
+     * receipt plaintext as [receiptChecked] checks. Its `SENDER_CERTIFICATE`, if any, becomes [refreshed].
      */
     public fun acknowledged(
         bytes: ByteArray,
@@ -200,7 +213,9 @@ public class Conversation(
         val frame = (DeliveryReceipt.decode(bytes) as? Decoded.Valid)?.value
         val owned = frame?.takeIf { owns(it.header.destinationTag, nowSeconds) }
         val plaintext = owned?.let { open(it.container) }
-        return plaintext?.let { receiptIds(owned, it, nowSeconds, secured = true) }
+        val content = plaintext?.let { receiptChecked(owned, it, nowSeconds, secured = true) } ?: return null
+        refreshed = senderCertificate(content)
+        return owned.tombstones.map { it.messageId }
     }
 
     private fun seal(plaintext: ByteArray): Container.Transport? = session.seal(plaintext)?.also { sent++ }

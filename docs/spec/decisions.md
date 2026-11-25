@@ -423,6 +423,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** seeded `VirtualAir` hub with airtime limited to 50,000 B/s: 5 senders each send a 131,072 B message to the hub at once; it answers `BUSY` with `LARGE_BUDGET` only, and all 5 messages arrive and are delivered. At 1 MiB the hub never answers `BUSY`.
 - **Alternatives:** keep 1 MiB (the busy reply for the budget could never be sent, so the rule would be untested); lower to 256 KiB (only one near-full large frame at a time, which serializes a hub).
 
+### D-60 Certificate refresh in sessions
+
+- **Question:** ADR 0014 decision 10 has a node attach its current certificate to `IK` replies and receipts when the peer's copy is past half its validity. The receiver checks that a `SENDER_CERTIFICATE`'s `x25519_key` equals the Noise remote static key, but a rotated certificate carries new static keys, so a refresh would never pass that check. Which check applies to a refresh, and when is it attached?
+- **Decision:** the key check applies only to `IK_INITIATOR` plaintexts. A refresh, in an `IK` reply or a session's delivery receipt, is taken if it validates (identity.md "Validation") for the NodeId of the session's authenticated peer; the cache keeps it if its `not_after` is later than the one held. A node attaches its current certificate to every `IK` reply and delivery receipt it seals while the peer's copy (the certificate the peer sealed the first message to, or the one this node sent in it) is past half its validity and the current one is newer. Read receipts carry no refresh; a read receipt sent as a first message already carries the current certificate. Owner decision 2026-11-25 (ticket 52).
+- **Evidence:** `StaticKeyRotationTest`: an `IK` reply carries the current certificate only once the sender's copy is past half its validity, and session receipts carry it both ways; the sender's cache then holds the newer certificate. Removing the refresh from receipt handling fails both session tests; caching an unvalidated refresh fails `LookupsTest`.
+- **Alternatives:** attach the refresh once per session (a lost receipt would lose it until the next session); check the refresh's `x25519_key` against the session (impossible after rotation); refresh in read receipts too (they need not be confirmed, so the refresh would have no authenticated session behind it when sent as a first message).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

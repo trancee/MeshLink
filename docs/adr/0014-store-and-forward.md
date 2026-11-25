@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 9 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec; 2026-11-13, errata; 2026-11-24, store-and-forward built; 2026-11-25, tombstones built).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 10 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec; 2026-11-13, errata; 2026-11-24, store-and-forward built; 2026-11-25, tombstones built; 2026-11-25, static-key rotation built).
 
 ## Context
 
@@ -101,3 +101,7 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 2026-11-25, tombstones built (0.1.0 backlog ticket "Delete messages with tombstones"):
 
 - **Tombstones (decision 8; [D-54](../spec/decisions.md#d-54-tombstones-that-fail-to-verify-and-held-copies-of-delivered-messages)):** relays verify and store the tombstones of the delivery receipts they relay, and `CATCH_UP` offers the stored ones. A tombstone that fails to open a held copy is not stored, and the store tells tombstones with the same message ID apart by `k`. A relay does not hold a message that a stored tombstone opens. The 2026-11-24 note that `CATCH_UP` sends an empty tombstone list no longer applies.
+
+2026-11-25, static-key rotation built (0.1.0 backlog ticket "Rotate static keys and drop expired certificates"):
+
+- **Refresh (decision 10; [D-60](../spec/decisions.md#d-60-certificate-refresh-in-sessions)):** a refresh is attached to every `IK` reply and delivery receipt while the peer's copy is past half its validity and a newer certificate exists, and to no read receipt. The receiver validates it for the session peer's NodeId without the static-key check that `IK` message 1 gets, since a rotated certificate binds new static keys.

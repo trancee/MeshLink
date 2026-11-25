@@ -88,8 +88,8 @@ public class OutgoingMessage internal constructor(
 public sealed interface DeliveryStatus {
     /**
      * Accepted; nothing is on air yet. In `Classical` and `PostQuantum` a message also waits here
-     * while MeshLink looks up its destination's certificate, or while an earlier message to that
-     * destination opens the conversation.
+     * while MeshLink looks up its destination's certificate, none being held or the one held having
+     * expired, or while an earlier message to that destination opens the conversation.
      */
     public data object Queued : DeliveryStatus
 

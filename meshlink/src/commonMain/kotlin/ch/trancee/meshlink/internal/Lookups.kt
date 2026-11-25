@@ -43,7 +43,7 @@ internal class Lookups(
 
     /**
      * Starts a run; [arrived] hears the NodeId of each certificate it comes to hold from a link, a
-     * lookup or a first message.
+     * lookup, a first message or a refresh.
      */
     fun begin(arrived: (NodeId) -> Unit) {
         this.arrived = arrived
@@ -68,6 +68,18 @@ internal class Lookups(
     ) {
         certificates.put(peer.toByteArray(), certificate, clock.nowSeconds())
         arrived(peer)
+    }
+
+    /**
+     * [peer] refreshed its certificate with [bytes] in a receipt of an authenticated session (spec "Plaintext
+     * extensions"), or sent none if `null`. A valid certificate of [peer]'s is held, if it lasts longer.
+     */
+    fun refreshed(
+        peer: NodeId,
+        bytes: ByteArray?,
+    ) {
+        val check = bytes?.let { IdentityCertificate.validate(crypto, it, profile, peer.toByteArray(), clock) }
+        if (check is CertificateCheck.Valid) linked(peer, check.certificate)
     }
 
     /** The certificate this node holds for [peer], or `null`. */

@@ -200,10 +200,8 @@ internal class Post(
         lookups?.begin(releases::arrived)
     }
 
-    /** A secured node's [keys] for a new session, which its first messages are sealed with and to. */
-    fun certify(keys: SecuredKeys) {
-        securedEnd.keys.certify(keys)
-    }
+    /** A secured node's static keys, which its first messages are sealed with and to, and their rotation. */
+    val keys: KeyRing get() = securedEnd.keys
 
     /**
      * Ends the run: unfinished messages and broadcasts fail with `Stopped`, no routed peer is listed,

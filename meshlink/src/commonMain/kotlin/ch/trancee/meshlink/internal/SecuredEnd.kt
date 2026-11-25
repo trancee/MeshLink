@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.NodeId
+import kotlinx.coroutines.delay
 
 /**
  * What a secured end tells its node: whom it [heard] from, each route a route discovery [found], each
@@ -195,6 +196,7 @@ internal class SecuredEnd(
             sessions.open(conversation, nowSeconds)
             sessions.answered(listOf(waiting.second.messageId))
             val peer = NodeId(conversation.peer)
+            lookups.refreshed(peer, conversation.refreshed)
             receipts.arrived(peer, listOf(waiting.second.messageId))
             hooks.opened(peer)
         }
@@ -247,8 +249,10 @@ internal class SecuredEnd(
             if (receipt.container is Container.IkResponder) return firsts.adopt(frame, receipt, nowSeconds)
             val conversation = sessions.owner(receipt.header.destinationTag, nowSeconds)
             conversation?.acknowledged(frame, nowSeconds)?.let { messageIds ->
+                val peer = NodeId(conversation.peer)
+                lookups.refreshed(peer, conversation.refreshed)
                 sessions.answered(messageIds)
-                receipts.arrived(NodeId(conversation.peer), messageIds)
+                receipts.arrived(peer, messageIds)
             }
         }
 
@@ -286,7 +290,8 @@ internal class SecuredEnd(
         /**
          * Sends the delivery receipt that goes as [reply] for [tombstones] with the latest [expiry]: a
          * first message's answer, whose session opens as it first goes, or a receipt sealed in the
-         * session; none once the session's nonces run out.
+         * session, with this node's current certificate when the peer's copy is due a refresh; none once
+         * the session's nonces run out.
          */
         fun reply(
             reply: Reply,
@@ -296,8 +301,14 @@ internal class SecuredEnd(
             val conversation = reply.conversation
             val receipt =
                 when (reply) {
-                    is Reply.First -> reply.answer.also { if (!reply.answered) open(reply) }
-                    is Reply.Session -> conversation.receipt(tombstones, expiry)
+                    is Reply.First -> {
+                        reply.answer.also { if (!reply.answered) open(reply) }
+                    }
+
+                    is Reply.Session -> {
+                        val refresh = conversation.local.refresh(keys.certificate, clock.seconds())
+                        conversation.receipt(tombstones, expiry, refresh)
+                    }
                 }
             val epoch = clock.epoch()
             receipt?.let {
@@ -361,8 +372,9 @@ internal class SecuredEnd(
 }
 
 /**
- * This node's static keys for first messages (spec "Static-key rotation"): the current session's, and
- * earlier sessions' through their grace.
+ * This node's static keys for first messages (spec "Static-key rotation"): the current keys, and earlier
+ * keys until their certificate's `not_after` plus the grace. Keys are deleted, their secret bytes
+ * overwritten with zeros, at the first use at or after that second, or when [prune] runs then.
  */
 internal class KeyRing(
     private val crypto: CryptoProvider,
@@ -375,10 +387,12 @@ internal class KeyRing(
 
     /** This node's [keys] for a new session; those of earlier sessions stay while their grace lasts. */
     fun certify(keys: SecuredKeys) {
-        val now = clock.seconds()
-        this.keys.removeAll { it.until <= now }
-        this.keys.add(0, Held(FirstMessages(crypto, clock, keys), keys.certificate.notAfter.toLong() + GRACE_SECONDS))
+        prune(clock.seconds())
+        this.keys.add(0, Held(keys, keys.certificate.notAfter.toLong() + GRACE_SECONDS))
     }
+
+    /** The current keys' certificate. */
+    val certificate: IdentityCertificate get() = keys.first().keys.certificate
 
     /** The current keys' first messages, or `null` before the first keys. */
     fun current(): FirstMessages? = keys.firstOrNull()?.codec
@@ -387,29 +401,79 @@ internal class KeyRing(
     fun owns(
         tag: ByteArray,
         nowSeconds: Long,
-    ): Boolean = keys.any { it.codec.owns(tag, nowSeconds) }
+    ): Boolean {
+        prune(nowSeconds)
+        return keys.any { it.codec.owns(tag, nowSeconds) }
+    }
 
-    /** The first message for this node in [frame], opened with any keys held. */
+    /**
+     * The first message for this node in [frame], opened with any keys held; its answer carries the current
+     * certificate when the sender's copy is due a refresh.
+     */
     fun accept(
         frame: ByteArray,
         nowSeconds: Long,
-    ): FirstDelivery? = keys.firstNotNullOfOrNull { it.codec.accept(frame, nowSeconds) }
+    ): FirstDelivery? {
+        prune(nowSeconds)
+        return keys.firstNotNullOfOrNull { it.codec.accept(frame, nowSeconds, certificate) }
+    }
 
     /** What the read receipt sent as a first message for this node in [frame] reports, opened with any keys held. */
     fun read(
         frame: ByteArray,
         nowSeconds: Long,
-    ): Acknowledgement? = keys.firstNotNullOfOrNull { it.codec.read(frame, nowSeconds) }
+    ): Acknowledgement? {
+        prune(nowSeconds)
+        return keys.firstNotNullOfOrNull { it.codec.read(frame, nowSeconds) }
+    }
 
-    // A session's first-message [codec], whose keys are kept until Unix second [until].
-    private class Held(
-        val codec: FirstMessages,
+    /**
+     * Rotates this node's keys until cancelled: once the current certificate's `not_before` is
+     * `certificate-renewal-interval` old, [issue] certifies new keys here; each held key is deleted at
+     * the end of its grace. Needs certified keys.
+     */
+    suspend fun rotate(issue: () -> Unit): Nothing {
+        while (true) {
+            val now = clock.seconds()
+            if (now >= renewal()) issue()
+            prune(now)
+            val wake = (keys.map { it.until } + renewal()).min()
+            delay(wake * MILLIS_PER_SECOND - clock.wallClockMillis())
+        }
+    }
+
+    private fun renewal(): Long =
+        keys
+            .first()
+            .keys.certificate.notBefore
+            .toLong() + RENEWAL_SECONDS
+
+    /** Deletes the keys whose grace ended by Unix second [nowSeconds]. */
+    fun prune(nowSeconds: Long) {
+        val ended = keys.filter { it.until <= nowSeconds }
+        keys -= ended.toSet()
+        ended.forEach { it.wipe() }
+    }
+
+    // The first-message [codec] of [keys], which are kept until Unix second [until].
+    private inner class Held(
+        val keys: SecuredKeys,
         val until: Long,
-    )
+    ) {
+        val codec = FirstMessages(crypto, clock, keys)
+
+        fun wipe() {
+            keys.static.secretKey.fill(0)
+            keys.xWing?.let { it.secretKey.fill(0) }
+        }
+    }
 
     private companion object {
         /** `static-key-grace`: how long after its certificate's `not_after` a node keeps a static key. */
         const val GRACE_SECONDS = 3_630L
+
+        /** `certificate-renewal-interval`. */
+        const val RENEWAL_SECONDS = 43_200L
     }
 }
 

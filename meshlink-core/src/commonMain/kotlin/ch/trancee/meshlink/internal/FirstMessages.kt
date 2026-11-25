@@ -52,7 +52,7 @@ public class FirstMessages(
         val (message, replay) = one.write(responder, plaintext) ?: return null
         val responderNodeId = derivations.nodeId(responder.ed25519Key)
         val secret = tags.conversationSecret(seed, keys.nodeId, responderNodeId)
-        val opening = Opening(crypto, replay, secret, keys.nodeId, responderNodeId, messageId)
+        val opening = Opening(crypto, replay, secret, keys.certificate, responderNodeId, messageId)
         val commitment = derivations.tombstoneCommitment(k)
         return Draft(responder.x25519Key, kept, expiry, commitment, Container.IkInitiator(message), opening)
     }
@@ -100,18 +100,22 @@ public class FirstMessages(
      * padding, the header's `message_id` and `expiry`, the commitment to its `k`, an unexpired
      * `expiry`, a `CONVERSATION_SEED`, and a valid `SENDER_CERTIFICATE` whose X25519 key is the
      * Noise remote static key. Its answer, message 2, is written and the responder's session split
-     * (spec "Answering"); `null` if message 2 can't be written.
+     * (spec "Answering"); `null` if message 2 can't be written. The answer carries [current], this node's
+     * newest certificate, when the sender's copy of [keys]' is due a [refresh][IdentityCertificate.refresh].
      */
     public fun accept(
         bytes: ByteArray,
         nowSeconds: Long,
+        current: IdentityCertificate = keys.certificate,
     ): FirstDelivery? {
         val frame = (MessageFrame.decode(bytes) as? Decoded.Valid)?.value
         val owned = frame?.takeIf { owns(it.header.destinationTag, nowSeconds) } ?: return null
         val opened = (owned.container as? Container.IkInitiator)?.let { one.read(it) }
         return opened?.let { message ->
             val content = (MessageContent.decode(message.plaintext, secured = true) as? Decoded.Valid)?.value
-            content?.takeIf { derivations.bound(owned, it, nowSeconds) }?.let { delivery(message, it) }
+            content?.takeIf { derivations.bound(owned, it, nowSeconds) }?.let {
+                delivery(message, it, keys.certificate.refresh(current, nowSeconds))
+            }
         }
     }
 
@@ -170,15 +174,16 @@ public class FirstMessages(
     }
 
     // The delivery of [content], opened from [opened], if it carries a seed and a valid sender
-    // certificate for its static key.
+    // certificate for its static key; its answer carries [refresh] if given.
     private fun delivery(
         opened: MessageOne.Opened,
         content: MessageContent,
+        refresh: IdentityCertificate?,
     ): FirstDelivery? {
         val types = content.extensions.associateBy { it.type }
         return sender(opened, types)?.let {
             val seed = types.getValue(CONVERSATION_SEED).value
-            answered(opened.handshake, content, it, seed, content.readReceiptRequested)
+            answered(opened.handshake, content, it, seed, refresh)
         }
     }
 
@@ -192,25 +197,26 @@ public class FirstMessages(
         }
 
     // [content] from the holder of [sender] with its answer: a receipt for it as message 2, written
-    // with [handshake], after which the responder's session splits. `null` if message 2 can't be written.
+    // with [handshake] and carrying [refresh] if given, after which the responder's session splits.
+    // `null` if message 2 can't be written.
     private fun answered(
         handshake: NoiseHandshake,
         content: MessageContent,
         sender: IdentityCertificate,
         seed: ByteArray,
-        readReceipt: Boolean,
+        refresh: IdentityCertificate?,
     ): FirstDelivery? {
         val senderNodeId = derivations.nodeId(sender.ed25519Key)
         val tombstone = Tombstone(content.messageId, content.k)
         val receiptId = crypto.randomBytes(MESSAGE_ID)
-        val plaintext = receiptPlaintext(receiptId, content.expiry, listOf(tombstone), secured = true)
+        val plaintext = receiptPlaintext(receiptId, content.expiry, listOf(tombstone), secured = true, refresh)
         val written = handshake.writeMessage(plaintext) as? NoiseResult.Ok ?: return null
         val session = (handshake.session() as NoiseResult.Ok).value
         val secret = tags.conversationSecret(seed, senderNodeId, keys.nodeId)
-        val conversation = Conversation(crypto, session, secret, senderNodeId, keys.nodeId, initiator = false)
+        val conversation = Conversation(crypto, session, secret, keys.certificate, senderNodeId, initiator = false)
         val container = Container.IkResponder(written.value)
         val answer = ReceiptDraft(senderNodeId, receiptId, content.expiry, listOf(tombstone), container)
-        val message = Delivery(senderNodeId, content.payload, tombstone, content.expiry, readReceipt)
+        val message = Delivery(senderNodeId, content.payload, tombstone, content.expiry, content.readReceiptRequested)
         return FirstDelivery(sender, message, conversation, answer)
     }
 

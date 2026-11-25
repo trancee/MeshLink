@@ -95,7 +95,8 @@ Vectors: `certificate.json` (layout only; signatures are placeholders) and `deri
 
 - A node issues a new certificate with fresh X25519 (and X-Wing) static keys every 12 h. Each certificate is valid for 24 h, so two are valid at once.
 - A node MUST keep the static private keys of a certificate until its `not_after` plus 3,630 s (the 1 h maximum message lifetime plus 30 s of skew), then delete them. It accepts `IK` messages and public tags for every certificate whose keys it still holds.
-- A node attaches its current certificate to `IK` replies and receipts whenever the peer's copy is past half its validity (ADR 0014 decision 10); see [end-to-end.md](end-to-end.md#plaintext-extensions).
+- A node attaches its current certificate to `IK` replies and delivery receipts whenever the peer's copy is past half its validity and the current one is newer (ADR 0014 decision 10, [D-60](decisions.md#d-60-certificate-refresh-in-sessions)); see [end-to-end.md](end-to-end.md#plaintext-extensions).
+- A sender never seals to an expired certificate: the cache drops a certificate at its `not_after`, and a message to a peer whose certificate it no longer holds waits `Queued` for a lookup ([routing.md](routing.md#certificate-lookup)).
 - The certificate is also sent in every link handshake ([link.md](link.md#handshake-payload)).
 
 Certificate acquisition by lookup is in [routing.md](routing.md#certificate-lookup).

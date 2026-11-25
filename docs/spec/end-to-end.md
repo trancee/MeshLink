@@ -116,7 +116,7 @@ Vectors: `inner-plaintext.json`.
 
 ### Plaintext extensions
 
-(ADR 0012 decision 7; ADR 0014 decision 10; ADR 0013 decision 3; ADR 0016 decision 2; [D-31].)
+(ADR 0012 decision 7; ADR 0014 decision 10; ADR 0013 decision 3; ADR 0016 decision 2; [D-31], [D-60].)
 
 <!-- data: tlv-types.json context=e2e -->
 
@@ -127,7 +127,7 @@ Vectors: `inner-plaintext.json`.
 | 0x82 | CONVERSATION_SEED | yes | 32 |
 | 0x83 | MESSAGE_IDS | yes | variable |
 
-- `SENDER_CERTIFICATE`: the sender's current certificate. REQUIRED in every `IK_INITIATOR` plaintext, because the responder may not know the sender. Otherwise sent when the peer's copy is past half its validity (ADR 0014 decision 10). The receiver MUST validate it and check that its `x25519_key` equals the Noise remote static key.
+- `SENDER_CERTIFICATE`: the sender's current certificate. REQUIRED in every `IK_INITIATOR` plaintext, because the responder may not know the sender; the receiver MUST validate it and check that its `x25519_key` equals the Noise remote static key. Otherwise it is a refresh (ADR 0014 decision 10, [D-60]): a node MUST attach it to every `IK` reply and delivery receipt it seals while the peer's copy of its certificate is past half its validity and the current one is newer, and never to read receipts. The receiver MUST validate a refresh for the NodeId of the session's peer; it does not check the key against the session, because a rotated certificate binds new static keys. A valid refresh replaces the cached certificate if its `not_after` is later.
 - `READ_RECEIPT_REQUESTED`: the sender asks for a read receipt (ADR 0013 decision 3). Messages only.
 - `CONVERSATION_SEED`: 32 random bytes. REQUIRED in every `IK_INITIATOR` plaintext of the secured profiles, and only there.
 - `MESSAGE_IDS`: a list of 12 B message IDs (length a non-zero multiple of 12). REQUIRED in receipts, and only there.

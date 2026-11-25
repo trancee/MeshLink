@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
  * credentials for this run, the D-20 bounds across all its links, and the [diagnostics] they emit.
  * Not thread-safe; the node calls it on its serial dispatcher.
  *
- * [credentials] are this run's static key and certificate; [meshKey] gates the mesh with `XXpsk3`.
+ * [credentials] are this node's current static key and certificate, which [rotate] replaces for every
+ * later handshake (spec "Static-key rotation"); [meshKey] gates the mesh with `XXpsk3`.
  * A gated mesh also has resolving [keys]: each payload carries this node's current key, and each
  * verified peer's key is learned (spec "Handshake payload"). An open mesh sends none and ignores the
  * peer's. Each certificate a payload proves goes to [certified].
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 internal class Handshakes(
     private val crypto: CryptoProvider,
     private val clock: Clock,
-    private val credentials: LinkCredentials,
+    private var credentials: LinkCredentials,
     meshKey: ByteArray?,
     private val diagnostics: MutableSharedFlow<LinkDiagnostic>,
     private val certified: (NodeId, IdentityCertificate) -> Unit = { _, _ -> },
@@ -25,11 +26,17 @@ internal class Handshakes(
     val keys: ResolvingKeys? = meshKey?.let { ResolvingKeys(crypto, clock.wallClockMillis()) }
 
     private val psk = meshKey?.let { Derivations(crypto).meshPsk(it, credentials.meshIdDigest) }
-    private val certificate = credentials.certificate.encode()
+    private var certificate = credentials.certificate.encode()
     private var halfOpen = 0
 
     // When each remote address last started a handshake this node answered, monotonic milliseconds.
     private val recent = mutableMapOf<PeerHandle, Long>()
+
+    /** Uses [credentials], of the same profile and mesh, for every later handshake. */
+    fun rotate(credentials: LinkCredentials) {
+        this.credentials = credentials
+        certificate = credentials.certificate.encode()
+    }
 
     /** The handshake of a new link with [handle], binding the peripheral's capability record [versions]. */
     fun link(
