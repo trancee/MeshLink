@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
+import ch.trancee.meshlink.MeshLinkConfig
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.OutgoingMessage
@@ -23,8 +24,9 @@ import kotlinx.coroutines.launch
  * This node's broadcasts (spec "BROADCAST", "Flood forwarding"): each is written once to every
  * current link, or to the first link that opens if there is none, through [floods], which drops its
  * echoes. [codec] writes its frame: kind `0x04` in `unsecured`, signed kind `0x05` in a secured
- * profile. A broadcast is `Sent` at its first written copy and `Expired` at its expiry plus clock
- * skew; it holds its payload in [capacity] until then.
+ * profile. A broadcast is `Sent` at its first written copy and `Expired` at its expiry, [config]'s
+ * message lifetime after it was sent, plus clock skew; it holds its payload in [capacity] until then.
+ * A payload above [config]'s `limits.maxBroadcastPayload` is `TooLarge`.
  *
  * [send] is thread-safe; everything else runs on [scope]'s serial dispatcher.
  */
@@ -34,7 +36,7 @@ internal class Broadcasts(
     private val capacity: Capacity,
     private val floods: Floods,
     private val codec: BroadcastCodec,
-    private val lifetimeSeconds: Int,
+    private val config: MeshLinkConfig,
 ) {
     private lateinit var run: CoroutineScope
 
@@ -58,12 +60,12 @@ internal class Broadcasts(
             when {
                 !accepting(state) -> RejectionReason.NotRunning
                 hopLimit !in 1..Router.HOP_LIMIT_MAX -> RejectionReason.InvalidHopLimit
-                payload.size > BroadcastFrame.PAYLOAD_MAX -> RejectionReason.TooLarge
+                payload.size > config.limits.maxBroadcastPayload -> RejectionReason.TooLarge
                 !capacity.reserve(payload.size) -> RejectionReason.QueueFull
                 else -> null
             }
         if (reason != null) return SendResult.Rejected(reason)
-        val expiry = clock.wallClockMillis() / MILLIS_PER_SECOND + lifetimeSeconds
+        val expiry = clock.wallClockMillis() / MILLIS_PER_SECOND + config.messageLifetimeSeconds
         val status = MutableStateFlow<DeliveryStatus>(DeliveryStatus.Queued)
         val bytes = payload.copyOf()
         // A node that closes before the broadcast reaches its run cancels this before it runs.

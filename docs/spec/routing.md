@@ -83,7 +83,7 @@ Total: 18 B.
 
 - An app payload of at most 4 KiB is a small message; up to 128 KiB is a large message. Broadcast payloads are at most 1 KiB.
 - Relays see only frame sizes. A routed frame longer than `frame-small-max` ([link.md](link.md#link-records)) is a large frame. A relay MUST NOT flood or hold a large frame; it forwards it only on an active route and drops it otherwise. Only the origin retries large messages.
-- An origin sends a large message only on a direct link or on a route found by route request.
+- An origin sends a large message only on a direct link to its destination or on a route found by route request ([Origin behavior](#origin-behavior)).
 
 ## Unicast forwarding
 
@@ -133,6 +133,14 @@ How the origin sends depends on its local density class. These are local choices
 - A direct-only send (ADR 0013 decision 8) uses `hop_limit` 1, so no relay forwards or holds it [D-27].
 - Running out of retries does not fail a message: it expires at `expiry` plus `clock-skew` (ADR 0013 amendment to ADR 0008).
 - A send that finds no link leaves the message `Held`. In the medium and high classes, so does a flooded send that finds no route within `resend-base` + `resend-per-hop` × `u6-flood-radius`. Each later send that goes out moves it back to `Sent` [D-53].
+
+A large message never floods, in any class:
+
+- When its destination is linked, it goes on that link only, with `hop_limit` 1. In the high class, which does not retry on new links, a large message to a newly linked destination waits for its next retry.
+- Otherwise it goes only on an active route found by route request within the last `route-active-timeout`, however long use has kept the route active since [D-58]. Without one, the origin sends a `ROUTE_REQUEST` with `hop_limit` `route-request-radius` and no frame; when the route is found, the message goes on it as above, in the low class too.
+- The message stays `Queued` while its route request searches, and turns `Held` if no such route is active `resend-base` + `resend-per-hop` × `u6-flood-radius` after the send [D-55].
+- Each timed retry searches anew: it sends a `ROUTE_REQUEST` and goes on the route that answers [D-58]. Relays do not report a broken route, so the retry finds a working one.
+- The origin makes no new copy while one of the message's copies is being written; a copy waiting in a link's queue is replaced in place. A link skips a queued frame whose message has finished or passed its `expiry` [D-57].
 
 <!-- data: limits.json -->
 

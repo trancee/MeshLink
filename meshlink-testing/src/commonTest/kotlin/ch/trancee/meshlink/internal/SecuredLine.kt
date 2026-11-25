@@ -138,14 +138,27 @@ internal class SecuredLine(
             .nodeId
     }
 
-    /** Thirteen advertisers beside the first node alone move it up to the medium class. */
-    fun medium() {
-        val profile = WireProfile.CLASSICAL
+    /** Thirteen advertisers of the line's profile beside node [index] alone move it up to the medium class. */
+    fun medium(index: Int = 0) {
         repeat(MEDIUM_UP_HEARD) {
-            air.move(advertiseFake(air, capability = null, profile = profile), -FAKE_DISTANCE, 0.0)
+            val fake = advertiseFake(air, capability = null, profile = wire(profile))
+            air.move(fake, index * SPACING, -FAKE_DISTANCE)
         }
         scope.testScheduler.advanceTimeBy(SWITCH_MILLIS)
     }
+
+    /** How many bytes node [from] wrote on its links to node [to] since the wall-clock [sinceMillis]. */
+    fun written(
+        from: Int,
+        to: Int,
+        sinceMillis: Long,
+    ): Int =
+        platforms[from]
+            .radio.ends
+            .filter { it.remote == platforms[to].radio }
+            .flatMap { it.writes }
+            .filter { (at, _) -> at >= sinceMillis }
+            .sumOf { (_, bytes) -> bytes.size }
 
     /** The NodeId of node [index], as a linked neighbor knows it. */
     fun id(index: Int): NodeId =
@@ -264,5 +277,13 @@ internal class SecuredLine(
         const val ELSEWHERE = "Elsewhere"
     }
 }
+
+// The wire code of [profile], which the library keeps internal.
+private fun wire(profile: SecurityProfile): WireProfile =
+    when (profile) {
+        SecurityProfile.Unsecured -> WireProfile.UNSECURED
+        SecurityProfile.Classical -> WireProfile.CLASSICAL
+        SecurityProfile.PostQuantum -> WireProfile.POST_QUANTUM
+    }
 
 private val ByteArray.type: Int get() = if (isEmpty()) -1 else this[0].toInt() and 0xFF

@@ -193,7 +193,9 @@ class ReassemblyTest {
         const val SOME = 5_000
         const val LARGE = 20_000
         const val LIMIT = 4_099
-        const val LINKS = 8
+
+        /** Links enough that their largest streams, one each, pass the budget only at the last. */
+        const val LINKS = ReassemblyBudget.BYTES / Reassembly.FRAME_MAX + 1
         const val TYPE: Byte = 0x40
     }
 }

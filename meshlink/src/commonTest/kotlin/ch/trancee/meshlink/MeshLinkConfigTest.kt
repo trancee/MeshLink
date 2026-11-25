@@ -87,9 +87,53 @@ class MeshLinkConfigTest {
             messageLifetimeSeconds = 1800
             readReceiptsRequestByDefault = false
             readReceiptsSend = false
+            limits.maxUnicastPayload = 131072
+            limits.maxBroadcastPayload = 1024
             """.trimIndent(),
             description,
         )
+    }
+
+    @Test
+    fun limitsDefaultToTheProtocolCapsAndKeepEveryValueWithinThem() {
+        // ADR 0015 decision 8: unicast 4 KiB to 128 KiB, broadcast at most 1 KiB.
+        val defaults = configWith("Festival").limits
+        val edges =
+            listOf(4_096 to 1, 131_072 to 1_024).map { (unicast, broadcast) ->
+                meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
+                    meshId = "Festival"
+                    limits.maxUnicastPayload = unicast
+                    limits.maxBroadcastPayload = broadcast
+                }.build().limits
+            }
+
+        assertEquals(listOf(131_072, 1_024), listOf(defaults.maxUnicastPayload, defaults.maxBroadcastPayload))
+        assertEquals(listOf(4_096 to 1, 131_072 to 1_024), edges.map { it.maxUnicastPayload to it.maxBroadcastPayload })
+    }
+
+    @Test
+    fun limitsOutsideTheProtocolCapsAreRejected() {
+        val unicast =
+            listOf(4_095, 131_073).map { value ->
+                assertFailsWith<MeshLinkException.InvalidConfig> {
+                    meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
+                        meshId = "Festival"
+                        limits.maxUnicastPayload = value
+                    }.build()
+                }.setting
+            }
+        val broadcast =
+            listOf(0, 1_025).map { value ->
+                assertFailsWith<MeshLinkException.InvalidConfig> {
+                    meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
+                        meshId = "Festival"
+                        limits.maxBroadcastPayload = value
+                    }.build()
+                }.setting
+            }
+
+        assertEquals(List(2) { "limits.maxUnicastPayload" }, unicast)
+        assertEquals(List(2) { "limits.maxBroadcastPayload" }, broadcast)
     }
 
     @OptIn(InternalMeshLinkApi::class)

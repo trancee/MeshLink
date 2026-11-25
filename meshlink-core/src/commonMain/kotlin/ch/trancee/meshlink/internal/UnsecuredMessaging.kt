@@ -19,7 +19,8 @@ public class UnsecuredMessaging(
      * A new message from this node to [destination] with a fresh random `message_id` and tombstone
      * secret `k`.
      *
-     * @param payload at most [PAYLOAD_MAX] bytes, so the frame is a small frame.
+     * @param payload at most [MessageContent.PAYLOAD_MAX] bytes; above [MessageContent.PAYLOAD_SMALL_MAX] the
+     *   frame is a large frame.
      * @param expiry Unix seconds; the caller adds the message lifetime to the current time.
      * @param readReceipt whether the plaintext asks for a read receipt (`READ_RECEIPT_REQUESTED`).
      */
@@ -29,7 +30,6 @@ public class UnsecuredMessaging(
         expiry: UInt,
         readReceipt: Boolean = false,
     ): Draft {
-        require(payload.size <= PAYLOAD_MAX) { "payload must be at most $PAYLOAD_MAX bytes, not ${payload.size}" }
         val messageId = crypto.randomBytes(MESSAGE_ID)
         val k = crypto.randomBytes(K)
         val requested = listOfNotNull(Tlv(READ_RECEIPT_REQUESTED, ByteArray(0)).takeIf { readReceipt })
@@ -192,12 +192,6 @@ public class UnsecuredMessaging(
     }
 
     public companion object {
-        /**
-         * The largest payload, in bytes: `unicast-payload-small-max` (spec "Size classes"). A frame
-         * longer than a record body travels as `FRAGMENT`s.
-         */
-        public const val PAYLOAD_MAX: Int = 4_096
-
         /** `clock-skew`: how far, in seconds, a receiver trusts another node's clock (spec "Routing headers"). */
         public const val CLOCK_SKEW_SECONDS: Int = 30
 

@@ -214,10 +214,10 @@
     },
     {
       "name": "large-reassembly-budget",
-      "value": 1048576,
+      "value": 524288,
       "unit": "B",
-      "decision": "-",
-      "source": "ADR 0015 decision 7"
+      "decision": "D-59",
+      "source": "ADR 0015 decision 6 and amendment of 2026-11-25"
     },
     {
       "name": "stream-idle-timeout",

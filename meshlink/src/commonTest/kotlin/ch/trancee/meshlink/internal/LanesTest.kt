@@ -161,4 +161,65 @@ class LanesTest {
             // Assert
             assertSame(parcel, next.await())
         }
+
+    @Test
+    fun aFrameNoLongerWantedIsSkipped() =
+        runTest {
+            // Arrange
+            lanes.open(peer)
+            lanes.put(peer, Parcel(messageId(1), relayed = false, { byteArrayOf(1) }, wanted = { false }) {})
+            val wanted = parcel(2)
+            lanes.put(peer, wanted)
+
+            // Act
+            val next = lanes.next(peer)
+
+            // Assert
+            assertSame(wanted, next)
+        }
+
+    @Test
+    fun aTakenFrameIsBeingWrittenUntilItSettles() =
+        runTest {
+            // Arrange
+            lanes.open(peer)
+            lanes.put(peer, parcel(1))
+            lanes.next(peer)
+            val taken = lanes.writing(messageId(1))
+
+            // Act
+            lanes.written(peer)
+
+            // Assert
+            assertTrue(taken)
+            assertFalse(lanes.writing(messageId(1)))
+        }
+
+    @Test
+    fun aWaitingFrameIsNotBeingWritten() =
+        runTest {
+            // Arrange
+            lanes.open(peer)
+
+            // Act
+            lanes.put(peer, parcel(1))
+
+            // Assert
+            assertFalse(lanes.writing(messageId(1)))
+        }
+
+    @Test
+    fun aClosedLaneWritesNothing() =
+        runTest {
+            // Arrange
+            lanes.open(peer)
+            lanes.put(peer, parcel(1))
+            lanes.next(peer)
+
+            // Act
+            lanes.close(peer)
+
+            // Assert
+            assertFalse(lanes.writing(messageId(1)))
+        }
 }

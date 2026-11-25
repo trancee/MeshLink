@@ -4,10 +4,13 @@ import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.OutgoingMessage
+import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.RejectionReason
+import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendResult
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import ch.trancee.meshlink.meshLinkConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -33,14 +36,23 @@ class BroadcastsTest {
     private val codec = broadcastCodec(nodeId = SELF, random = ::nextId)
     private val floods = Floods(lanes, codec, lowTree(lanes), ::tombstoneCommitment) { received += it }
 
-    private fun TestScope.broadcasts(secured: Boolean = false): Broadcasts {
+    private fun TestScope.broadcasts(
+        secured: Boolean = false,
+        payloadMax: Int = BroadcastFrame.PAYLOAD_MAX,
+    ): Broadcasts {
         val clock = SchedulerClock(testScheduler)
         val writing = if (secured) broadcastCodec(secured = true, random = ::nextId) else codec
         val flooding = if (secured) Floods(lanes, writing, lowTree(lanes), ::tombstoneCommitment) {} else floods
-        val broadcasts = Broadcasts(clock, backgroundScope, capacity, flooding, writing, LIFETIME)
+        val broadcasts = Broadcasts(clock, backgroundScope, capacity, flooding, writing, config(payloadMax))
         broadcasts.begin()
         return broadcasts
     }
+
+    private fun config(payloadMax: Int = BroadcastFrame.PAYLOAD_MAX) =
+        meshLinkConfig(PRESET, SecurityProfile.Unsecured) {
+            meshId = "Broadcasts"
+            limits.maxBroadcastPayload = payloadMax
+        }.build()
 
     private fun TestScope.accepted(
         broadcasts: Broadcasts,
@@ -166,6 +178,25 @@ class BroadcastsTest {
         }
 
     @Test
+    fun aLoweredBroadcastCapRejectsALargerPayloadAsTooLarge() =
+        runTest {
+            // Arrange
+            lanes.open(a)
+            val broadcasts = broadcasts(payloadMax = 100)
+
+            // Act
+            val above = broadcasts.send(ByteArray(101), 255, MeshState.Running)
+            runCurrent()
+            val rejected = lanes.drain(a)
+            accepted(broadcasts, ByteArray(100))
+
+            // Assert
+            assertEquals(SendResult.Rejected(RejectionReason.TooLarge), above)
+            assertEquals(emptyList(), rejected)
+            assertEquals(1, lanes.drain(a).size)
+        }
+
+    @Test
     fun aBroadcastHoldsItsPayloadInTheSendQueueUntilItEnds() =
         runTest {
             // Arrange
@@ -211,7 +242,7 @@ class BroadcastsTest {
             // Arrange
             val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
             val clock = SchedulerClock(testScheduler)
-            val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, LIFETIME)
+            val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, config())
             broadcasts.begin()
             val message = (broadcasts.send(ByteArray(10), 255, MeshState.Running) as SendResult.Accepted).message
 
@@ -277,7 +308,8 @@ class BroadcastsTest {
     private fun Capacity.empty() = reserve((Capacity.LIMIT - 1).toInt()) && reserve(1)
 
     private companion object {
-        const val LIFETIME = 300
+        val PRESET = Preset.ProximityDiscovery
+        val LIFETIME = PRESET.messageLifetimeSeconds
         const val SKEW = 30
         val SELF = ByteArray(32) { 9 }
     }

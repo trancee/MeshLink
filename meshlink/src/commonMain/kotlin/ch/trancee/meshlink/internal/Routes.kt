@@ -34,7 +34,8 @@ internal class Routes {
     /**
      * A route discovery found [route] to [tag] at [nowMillis]. It replaces a live route with an older
      * sequence, the same sequence and more hops, or no sequence; the same route offered again keeps
-     * the later expiry. Returns whether [route] is now the route to [tag].
+     * the later expiry. A route taken was found at [nowMillis]. Returns whether [route] is now the route
+     * to [tag].
      */
     fun offer(
         tag: ByteArray,
@@ -50,24 +51,39 @@ internal class Routes {
                 route.hops != live.hops -> route.hops < live.hops
                 else -> route.peer == live.peer
             }
-        if (taken) put(key, route.also { if (live?.peer == route.peer) it.expiry = maxOf(it.expiry, live.expiry) })
+        if (taken) {
+            route.foundMillis = nowMillis
+            if (live?.peer == route.peer) route.expiry = maxOf(route.expiry, live.expiry)
+            put(key, route)
+        }
         return taken
     }
 
     /**
-     * The active route to [tag] at [nowMillis], or `null` if there is none. Using it keeps it active
-     * at least [ACTIVE_MILLIS] more.
+     * The active route to [tag] at [nowMillis], only one route discovery found within [ACTIVE_MILLIS]
+     * if [discovered], or `null` if there is none. Using it keeps it active at least [ACTIVE_MILLIS] more.
      */
     fun use(
         tag: ByteArray,
         nowMillis: Long,
-    ): Route? = active(tag, nowMillis)?.also { it.expiry = maxOf(it.expiry, nowMillis + ACTIVE_MILLIS) }
+        discovered: Boolean = false,
+    ): Route? = active(tag, nowMillis, discovered)?.also { it.expiry = maxOf(it.expiry, nowMillis + ACTIVE_MILLIS) }
 
-    /** The active route to [tag] at [nowMillis], unchanged, or `null` if there is none. */
+    /**
+     * The active route to [tag] at [nowMillis], unchanged, only one route discovery found within
+     * [ACTIVE_MILLIS] if [discovered], or `null` if there is none. A relay's copy of a found route lasts
+     * at least [FORWARD_MILLIS] from when it was found unless used, so a route found that recently still
+     * holds along its whole path for a large frame's airtime; one kept active only by this node's use
+     * may not (D-58).
+     */
     fun active(
         tag: ByteArray,
         nowMillis: Long,
-    ): Route? = byTag[tag.toHexString()]?.takeIf { it.expiry > nowMillis }
+        discovered: Boolean = false,
+    ): Route? =
+        byTag[tag.toHexString()]?.takeIf {
+            it.expiry > nowMillis && (!discovered || (it.sequence != 0u && nowMillis - it.foundMillis < ACTIVE_MILLIS))
+        }
 
     /** The last sequence this node knows for [tag], even if its route expired; 0 if none. */
     fun sequence(tag: ByteArray): UInt = byTag[tag.toHexString()]?.sequence ?: 0u
@@ -98,7 +114,10 @@ internal class Routes {
         val sequence: UInt = 0u,
         val hops: Int = 0,
         val heardMillis: Long = 0,
-    )
+    ) {
+        /** When on the monotonic clock [offer] took it. */
+        var foundMillis: Long = 0
+    }
 
     companion object {
         /** `reverse-route-timeout`. */

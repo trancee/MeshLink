@@ -401,6 +401,22 @@ final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.mesh
     final fun loadOrCreate(ch.trancee.meshlink.internal/CryptoProvider): ch.trancee.meshlink.internal/Ed25519KeyPair // ch.trancee.meshlink.internal/InMemoryIdentityStore.loadOrCreate|loadOrCreate(ch.trancee.meshlink.internal.CryptoProvider){}[0]
 }
 
+final class ch.trancee.meshlink/Limits { // ch.trancee.meshlink/Limits|null[0]
+    final val maxBroadcastPayload // ch.trancee.meshlink/Limits.maxBroadcastPayload|{}maxBroadcastPayload[0]
+        final fun <get-maxBroadcastPayload>(): kotlin/Int // ch.trancee.meshlink/Limits.maxBroadcastPayload.<get-maxBroadcastPayload>|<get-maxBroadcastPayload>(){}[0]
+    final val maxUnicastPayload // ch.trancee.meshlink/Limits.maxUnicastPayload|{}maxUnicastPayload[0]
+        final fun <get-maxUnicastPayload>(): kotlin/Int // ch.trancee.meshlink/Limits.maxUnicastPayload.<get-maxUnicastPayload>|<get-maxUnicastPayload>(){}[0]
+}
+
+final class ch.trancee.meshlink/LimitsBuilder { // ch.trancee.meshlink/LimitsBuilder|null[0]
+    final var maxBroadcastPayload // ch.trancee.meshlink/LimitsBuilder.maxBroadcastPayload|{}maxBroadcastPayload[0]
+        final fun <get-maxBroadcastPayload>(): kotlin/Int // ch.trancee.meshlink/LimitsBuilder.maxBroadcastPayload.<get-maxBroadcastPayload>|<get-maxBroadcastPayload>(){}[0]
+        final fun <set-maxBroadcastPayload>(kotlin/Int) // ch.trancee.meshlink/LimitsBuilder.maxBroadcastPayload.<set-maxBroadcastPayload>|<set-maxBroadcastPayload>(kotlin.Int){}[0]
+    final var maxUnicastPayload // ch.trancee.meshlink/LimitsBuilder.maxUnicastPayload|{}maxUnicastPayload[0]
+        final fun <get-maxUnicastPayload>(): kotlin/Int // ch.trancee.meshlink/LimitsBuilder.maxUnicastPayload.<get-maxUnicastPayload>|<get-maxUnicastPayload>(){}[0]
+        final fun <set-maxUnicastPayload>(kotlin/Int) // ch.trancee.meshlink/LimitsBuilder.maxUnicastPayload.<set-maxUnicastPayload>|<set-maxUnicastPayload>(kotlin.Int){}[0]
+}
+
 final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
     final val certificateLookups // ch.trancee.meshlink/MeshLink.certificateLookups|{}certificateLookups[0]
         final fun <get-certificateLookups>(): ch.trancee.meshlink.internal/CertificateLookups? // ch.trancee.meshlink/MeshLink.certificateLookups.<get-certificateLookups>|<get-certificateLookups>(){}[0]
@@ -441,6 +457,8 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
 }
 
 final class ch.trancee.meshlink/MeshLinkConfig { // ch.trancee.meshlink/MeshLinkConfig|null[0]
+    final val limits // ch.trancee.meshlink/MeshLinkConfig.limits|{}limits[0]
+        final fun <get-limits>(): ch.trancee.meshlink/Limits // ch.trancee.meshlink/MeshLinkConfig.limits.<get-limits>|<get-limits>(){}[0]
     final val meshId // ch.trancee.meshlink/MeshLinkConfig.meshId|{}meshId[0]
         final fun <get-meshId>(): kotlin/String // ch.trancee.meshlink/MeshLinkConfig.meshId.<get-meshId>|<get-meshId>(){}[0]
     final val meshKey // ch.trancee.meshlink/MeshLinkConfig.meshKey|{}meshKey[0]
@@ -460,6 +478,9 @@ final class ch.trancee.meshlink/MeshLinkConfig { // ch.trancee.meshlink/MeshLink
 }
 
 final class ch.trancee.meshlink/MeshLinkConfigBuilder { // ch.trancee.meshlink/MeshLinkConfigBuilder|null[0]
+    final val limits // ch.trancee.meshlink/MeshLinkConfigBuilder.limits|{}limits[0]
+        final fun <get-limits>(): ch.trancee.meshlink/LimitsBuilder // ch.trancee.meshlink/MeshLinkConfigBuilder.limits.<get-limits>|<get-limits>(){}[0]
+
     final var meshId // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId|{}meshId[0]
         final fun <get-meshId>(): kotlin/String // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<get-meshId>|<get-meshId>(){}[0]
         final fun <set-meshId>(kotlin/String) // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<set-meshId>|<set-meshId>(kotlin.String){}[0]

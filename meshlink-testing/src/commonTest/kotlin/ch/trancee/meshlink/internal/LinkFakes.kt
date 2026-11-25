@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshLinkConfigBuilder
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.SecurityProfile
@@ -31,17 +32,31 @@ internal const val CREDIT_HALF = 4
 /** The NodeId a fake peer claims in its hello. */
 internal val FAKE_ID = ByteArray(32) { 0x7F }
 
-/** Air whose clock is the test's virtual time, with latencies drawn from [seed]. */
-internal fun TestScope.air(seed: Long = 1): VirtualAir {
+/**
+ * Air whose clock is the test's virtual time, with latencies drawn from [seed] and, if set, chunks
+ * taking their airtime at [airtimeBytesPerSecond].
+ */
+internal fun TestScope.air(
+    seed: Long = 1,
+    airtimeBytesPerSecond: Int? = null,
+): VirtualAir {
     val clock = TestClock(testScheduler)
-    return VirtualAir(backgroundScope, clock, SeededRandom(seed))
+    val air = VirtualAir(backgroundScope, clock, SeededRandom(seed))
+    air.airtimeBytesPerSecond = airtimeBytesPerSecond
+    return air
 }
 
-/** A stopped `unsecured` node of [MESH] on [platform]. */
+/** A stopped `unsecured` node of [MESH] on [platform], with any further settings from [configure]. */
 @OptIn(InternalMeshLinkApi::class)
-internal fun node(platform: PlatformPort): MeshLink =
+internal fun node(
+    platform: PlatformPort,
+    configure: MeshLinkConfigBuilder.() -> Unit = {},
+): MeshLink =
     MeshLink.create(
-        meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = MESH }.build(),
+        meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
+            meshId = MESH
+            configure()
+        }.build(),
         MeshPlatform.of(platform),
     )
 

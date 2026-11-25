@@ -95,13 +95,13 @@ class RouterTest {
         return ReadReceipt(header, container).encode()
     }
 
-    // Originates message [id] whose frame is its hop limit.
+    // Originates message [id], flooded, whose frame is its hop limit.
     private fun Router.send(
         id: Int,
         tag: ByteArray,
-        density: DensityClass,
-        search: Boolean = false,
-    ) = originate(tag, OWN, density, search) { Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {} }
+    ) = originate(tag, OWN, Reach.FLOOD, search = false) {
+        Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {}
+    }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
 
@@ -467,45 +467,11 @@ class RouterTest {
         }
 
     @Test
-    fun aLowClassOriginFloodsWithTheMaximumHopLimitEvenWithARoute() =
-        runTest {
-            // Arrange
-            val router = router()
-            router.received(b, message(id = 1, source = tag(9), destination = tag(7)))
-            waiting()
-
-            // Act
-            router.send(2, tag(9), DensityClass.LOW)
-
-            // Assert
-            assertEquals(listOf(255, 255, 255), waiting().values.map { it.single()[0].toInt() and 0xFF })
-        }
-
-    @Test
-    fun aMediumOrHighClassOriginUsesAnActiveRouteElseFloodsWithTheFloodRadius() =
-        runTest {
-            // Arrange
-            val router = router()
-            router.received(b, message(id = 1, source = tag(9), destination = tag(7)))
-            waiting()
-
-            // Act
-            router.send(2, tag(9), DensityClass.MEDIUM)
-            val routed = waiting()
-            router.send(3, tag(6), DensityClass.HIGH)
-
-            // Assert: without a route, a route request goes first on every link.
-            val hopLimits = routed.values.map { frames -> frames.map { it[0].toInt() and 0xFF } }
-            assertEquals(listOf(emptyList(), listOf(255), emptyList()), hopLimits)
-            assertEquals(listOf(3, 3, 3), waiting().values.map { it.last()[0].toInt() })
-        }
-
-    @Test
     fun anOriginsOwnMessageIdComingBackWithinTheSeenWindowIsNotRelayed() =
         runTest {
             // Arrange
             val router = router()
-            router.send(1, tag(9), DensityClass.LOW)
+            router.send(1, tag(9))
             waiting()
 
             // Act

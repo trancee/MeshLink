@@ -1,6 +1,6 @@
 # 0015: Message size and compression
 
-Status: accepted (2026-11-03; ticket "What is the message size cap, and is there compression?"). Version: 3 (amended 2026-11-08, stage F simulation; 2026-11-08, protocol spec).
+Status: accepted (2026-11-03; ticket "What is the message size cap, and is there compression?"). Version: 4 (amended 2026-11-08, stage F simulation; 2026-11-08, protocol spec; 2026-11-25, reassembly budget).
 
 ## Context
 
@@ -69,3 +69,7 @@ Status: accepted (2026-11-03; ticket "What is the message size cap, and is there
 
 - **Size classes at relays (decision 1, [C-05](../spec/decisions.md#c-05)):** relays cannot see the payload size inside encryption, so they enforce the classes by frame size: a small frame is at most 8,192 B and no frame exceeds 139,264 B ([D-19](../spec/decisions.md#d-19-record-and-frame-size-thresholds)). Caps on application payload stay as decided.
 - **Post-quantum overhead (context, [C-06](../spec/decisions.md#c-06)):** the nested seal adds 1,136 B to a first message, not 1,120 B (ADR 0002 amendment).
+
+2026-11-25, reassembly budget ([D-59](../spec/decisions.md#d-59-large-frame-reassembly-budget), ticket 50):
+
+- **Reassembly limits (decision 6):** the per-node budget for large-frame reassembly is 512 KiB, not 1 MiB. With a link budget of at most 6 (ADR 0008 decision 1) and one large frame per link, at most 835,584 B can be reassembling, so 1 MiB could never be reached and its busy reply never sent. At 512 KiB the fourth concurrent near-full large frame is answered "busy, retry later". A seeded host simulation of 5 senders and one hub confirms that every message still arrives.
