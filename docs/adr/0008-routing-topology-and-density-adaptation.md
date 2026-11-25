@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 16 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built; 2026-11-20, reverse-route loops). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 17 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built; 2026-11-20, reverse-route loops; 2026-11-25, unicast retry attempt). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -220,3 +220,10 @@ Results for the v1 configuration:
 2026-11-20, reverse-route loops (ticket 42a; host simulation in `VirtualAir`):
 
 - **Reverse routes (decision 4, D-50):** a relay records a reverse route only from a unicast copy it doesn't drop as a duplicate within `unicast-seen-window`. Learning from every copy let later, longer flood copies point two relays at each other, and the seen window then dropped every retry between them: 50 static nodes at low density delivered 115 of 123 messages within their lifetime. With the rule they delivered all 123 (owner decision).
+
+2026-11-25, unicast retry attempt (ticket 42b; host simulation in `VirtualAir`):
+
+- **Duplicate suppression (decision 4, D-61):** the unicast header carries a `u8` `attempt` after `hop_limit`, so it is 35 B, not 34 B. The origin sends a `message_id` first with attempt 0 and adds 1, modulo 256, on every later send; relays copy it. A relay drops a copy whose `(message_id, attempt)` pair it forwarded within `unicast-seen-window`, now 30 s instead of 1 s keyed by `message_id`. With the 1 s window, echoes of one send that arrived late over longer paths were flooded again with `hop_limit` 255: at n50-low, relays forwarded 17,002 first copies and 312,149 echoes, and the busiest node wrote 5,088 B/s against the 4,700 B/s band. With the attempt it wrote 1,554 B/s. A 5 s window keyed by `message_id` alone dropped the origin's retries at relays and still failed n200-low (owner decision).
+- **Flushing on a found route (decision 3):** `route-flush-gap` stays 1,200 ms. It no longer follows the seen window, since a flush carries a new attempt; it lets the earlier flooded copy settle.
+- **Low-class delivery receipts (decision 3):** a low-class destination sends a delivery receipt on its active route, else floods it with `hop_limit` 255, and never sends a `ROUTE_REQUEST` for it (owner decision).
+- **Known miss:** in a local run of seeds 1–5, every cell meets every band except n200-low, whose busiest node writes 5,187 B/s while delivering every message. Its remaining load is low-class message retries, timed and on new links, each flooding the whole mesh; ticket 73 tracks it.

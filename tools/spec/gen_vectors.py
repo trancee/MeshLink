@@ -321,7 +321,7 @@ def sample_certificate(profile, nb=1798761600, span=86400):
 
 
 def uhdr(t, **kw):
-    f = {"type": m.hx(t), "hop_limit": 255, "message_id": MID[0], "expiry": EXPIRY,
+    f = {"type": m.hx(t), "hop_limit": 255, "attempt": 0, "message_id": MID[0], "expiry": EXPIRY,
          "destination_tag": TAG[0], "source_tag": TAG[1]}
     f.update(kw)
     return f
@@ -529,7 +529,7 @@ def gen_routed_frames():
     samples = [
         ("MESSAGE, IK initiator container", uhdr(0x40, commitment=commit, container={
             "kind": "0x01", "noise_message": dh("ik1", 160)})),
-        ("MESSAGE, transport container", uhdr(0x40, hop_limit=7, commitment=commit, container={
+        ("MESSAGE, transport container", uhdr(0x40, hop_limit=7, attempt=3, commitment=commit, container={
             "kind": "0x03", "nonce": 41, "ciphertext": dh("ct", 80)})),
         ("MESSAGE, unsecured container", uhdr(0x40, commitment=commit, container={
             "kind": "0x04", "sender_node_id": dh("nid", 32), "plaintext": b"hello".hex()})),
@@ -577,21 +577,21 @@ def gen_routed_frames():
             ["UnknownType", "Truncated"])
     msg = enc["MESSAGE, transport container"]
     add_bad(f, g, "hop limit 0", msg[:1] + b"\x00" + msg[2:], "out-of-range")
-    add_bad(f, g, "MESSAGE container kind 0x05", msg[:50] + b"\x05" + msg[51:], "unknown-kind")
-    add_bad(f, g, "MESSAGE container kind 0x00", msg[:50] + b"\x00" + msg[51:], "unknown-kind")
-    add_bad(f, g, "MESSAGE with IK responder container", msg[:50] + b"\x02" + m.u32(4) + bytes(4),
+    add_bad(f, g, "MESSAGE container kind 0x05", msg[:51] + b"\x05" + msg[52:], "unknown-kind")
+    add_bad(f, g, "MESSAGE container kind 0x00", msg[:51] + b"\x00" + msg[52:], "unknown-kind")
+    add_bad(f, g, "MESSAGE with IK responder container", msg[:51] + b"\x02" + m.u32(4) + bytes(4),
             "unknown-kind")
     rr = enc["READ_RECEIPT, transport"]
-    add_bad(f, g, "READ_RECEIPT with IK responder container", rr[:34] + b"\x02" + m.u32(4) + bytes(4),
+    add_bad(f, g, "READ_RECEIPT with IK responder container", rr[:35] + b"\x02" + m.u32(4) + bytes(4),
             "unknown-kind")
     rc = enc["DELIVERY_RECEIPT, one tombstone, transport"]
-    add_bad(f, g, "DELIVERY_RECEIPT with IK initiator container", rc[:63] + b"\x01" + m.u32(4) + bytes(4),
+    add_bad(f, g, "DELIVERY_RECEIPT with IK initiator container", rc[:64] + b"\x01" + m.u32(4) + bytes(4),
             "unknown-kind")
-    add_bad(f, g, "DELIVERY_RECEIPT with zero tombstones", rc[:34] + b"\x00" + rc[63:], "out-of-range",
+    add_bad(f, g, "DELIVERY_RECEIPT with zero tombstones", rc[:35] + b"\x00" + rc[64:], "out-of-range",
             ["BadLength"])
-    add_bad(f, g, "DELIVERY_RECEIPT with 33 tombstones", rc[:34] + b"\x21" + bytes(28 * 33) + rc[63:],
+    add_bad(f, g, "DELIVERY_RECEIPT with 33 tombstones", rc[:35] + b"\x21" + bytes(28 * 33) + rc[64:],
             "out-of-range", ["BadLength"])
-    add_bad(f, g, "transport ciphertext shorter than the AEAD tag", msg[:51] + m.u64(1) + m.u32(16) + bytes(16),
+    add_bad(f, g, "transport ciphertext shorter than the AEAD tag", msg[:52] + m.u64(1) + m.u32(16) + bytes(16),
             "out-of-range", ["BadLength"])
     add_bad(f, g, "ciphertext length says 80, 79 present", msg[:-1], "truncated", ["Truncated"])
     bs = sample_broadcast_signed()
@@ -600,7 +600,7 @@ def gen_routed_frames():
     add_bad(f, g, "BROADCAST container kind 0x03", bs[:18] + b"\x03" + bs[19:], "unknown-kind")
     add_bad(f, g, "ROUTE_REQUEST origin sequence 0", rq[:34] + m.u32(0) + rq[38:], "out-of-range")
     lr = enc["LOOKUP_REPLY, classical certificate"]
-    add_bad(f, g, "LOOKUP_REPLY sealed certificate of 153 B", lr[:66] + m.u16(153) + bytes(153), "out-of-range",
+    add_bad(f, g, "LOOKUP_REPLY sealed certificate of 153 B", lr[:67] + m.u16(153) + bytes(153), "out-of-range",
             ["BadLength"])
     f.write()
     return f

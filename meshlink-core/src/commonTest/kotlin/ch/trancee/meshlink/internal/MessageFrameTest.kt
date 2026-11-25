@@ -44,7 +44,7 @@ class MessageFrameTest {
 
     private companion object {
         const val UNSECURED_MESSAGE =
-            "40ff8f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c" +
+            "40ff008f024f5d07235072ec8b12a46b36eed83975e4d6e4bc2c0505514919d593747f30a53f758a8d877dbf382b43324f250c" +
                 "044bcda937edd6f858cb9c7f565c916530a2b0047709dfd4512fc1c540d8d128530000000568656c6c6f"
         const val RECEIPT_TYPE: Byte = 0x41
         const val TAG = 17

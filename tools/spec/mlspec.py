@@ -359,7 +359,7 @@ def _containers(kinds, payload_max):
     return {k: all_kinds[k] for k in kinds}
 
 
-UNICAST_HEADER = [("u8", "hop_limit", 1, 255), ("bytes", "message_id", 12), ("u32", "expiry"),
+UNICAST_HEADER = [("u8", "hop_limit", 1, 255), ("u8", "attempt"), ("bytes", "message_id", 12), ("u32", "expiry"),
                   ("bytes", "destination_tag", 8), ("bytes", "source_tag", 8)]
 FLOOD_HEADER = [("u8", "hop_limit", 1, 255), ("bytes", "message_id", 12), ("u32", "expiry")]
 

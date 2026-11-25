@@ -131,7 +131,7 @@ public class RouteReply(
         public const val TYPE: Int = 0x43
 
         /** The frame's size. */
-        public const val LENGTH: Int = 47
+        public const val LENGTH: Int = 48
 
         private const val TARGET_AT = UnicastHeader.LENGTH
         private const val SEQUENCE_AT = TARGET_AT + TAG

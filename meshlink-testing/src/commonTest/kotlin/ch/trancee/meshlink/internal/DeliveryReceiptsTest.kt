@@ -263,8 +263,8 @@ class DeliveryReceiptsTest {
         const val CLOCK_SKEW_SECONDS = 30L
         const val MESSAGE_ID = 12
 
-        /** A receipt's tombstone count follows its 34-byte unicast header; its tombstones follow the count. */
-        const val COUNT_OFFSET = 34
+        /** A receipt's tombstone count follows its unicast header; its tombstones follow the count. */
+        const val COUNT_OFFSET = UnicastHeader.LENGTH
 
         val RECEIPT_TYPE = DeliveryReceipt.TYPE.toByte()
         val MESSAGE_TYPE = MessageFrame.TYPE.toByte()

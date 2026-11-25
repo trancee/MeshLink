@@ -37,13 +37,15 @@ class RouterOriginTest {
         messageBody(Container.Unsecured(ByteArray(32), byteArrayOf()), ByteArray(16)),
     )
 
-    // Originates message [id] whose frame is its hop limit.
+    // Originates message [id] whose frame is its hop limit, then room for the attempt at byte 2.
     private fun Router.send(
         id: Int,
         tag: ByteArray,
         reach: Reach,
         search: Boolean = false,
-    ) = originate(tag, OWN, reach, search) { Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte()) }) {} }
+    ) = originate(tag, OWN, reach, search) {
+        Parcel(messageId(id), relayed = false, { byteArrayOf(it.toByte(), 0, 0) }) {}
+    }
 
     // A route to [target] through [peer] that a route reply found: sequence 5, one hop.
     private fun TestScope.found(
@@ -89,6 +91,39 @@ class RouterOriginTest {
             val hopLimits = routed.values.map { frames -> frames.map { it[0].toInt() and 0xFF } }
             assertEquals(listOf(emptyList(), listOf(255), emptyList()), hopLimits)
             assertEquals(listOf(3, 3, 3), waiting().values.map { it.last()[0].toInt() })
+        }
+
+    @Test
+    fun aLowClassReceiptUsesAnActiveRouteElseFloodsWideWithoutARouteRequest() =
+        runTest {
+            // Arrange: B shows a reverse route to tag 9.
+            val router = router()
+            router.received(b, message(id = 1, source = tag(9), destination = tag(7)))
+            waiting()
+
+            // Act
+            router.send(2, tag(9), Reach.receipt(DensityClass.LOW))
+            val routed = waiting()
+            router.send(3, tag(6), Reach.receipt(DensityClass.LOW))
+
+            // Assert: the maximum hop limit either way, and no route request.
+            val hopLimits = routed.values.map { frames -> frames.map { it[0].toInt() and 0xFF } }
+            assertEquals(listOf(emptyList(), listOf(255), emptyList()), hopLimits)
+            assertEquals(
+                listOf(listOf(255), listOf(255), listOf(255)),
+                waiting().values.map { frames ->
+                    frames.map { it[0].toInt() and 0xFF }
+                },
+            )
+        }
+
+    @Test
+    fun aMediumOrHighClassReceiptTakesTheMessageReach() =
+        runTest {
+            assertEquals(
+                listOf(Reach.ROUTE_OR_FLOOD, Reach.ROUTE_OR_FLOOD),
+                listOf(DensityClass.MEDIUM, DensityClass.HIGH).map { Reach.receipt(it) },
+            )
         }
 
     @Test

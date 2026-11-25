@@ -340,13 +340,13 @@ class RoutedUnicastTest {
         const val TWO_EPOCHS_MILLIS = 660_000L
         const val MILLIS_PER_SECOND = 1_000L
         const val MINUTE = 60L
-        const val MESSAGE_ID_LAST = 13
-        const val EXPIRY_OFFSET = 14
+        const val MESSAGE_ID_LAST = 14
+        const val EXPIRY_OFFSET = 15
         const val EXPIRY_BYTES = 4
         const val BITS = 8
 
-        /** A `MESSAGE` frame's commitment follows its 34-byte unicast header. */
-        const val COMMITMENT_OFFSET = 34
+        /** A `MESSAGE` frame's commitment follows its unicast header. */
+        const val COMMITMENT_OFFSET = UnicastHeader.LENGTH
 
         val MESSAGE_TYPE = MessageFrame.TYPE.toByte()
     }

@@ -396,9 +396,9 @@
     },
     {
       "name": "unicast-seen-window",
-      "value": 1000,
+      "value": 30000,
       "unit": "ms",
-      "decision": "D-29",
+      "decision": "D-61",
       "source": "ADR 0008 decision 3 and amendments"
     },
     {

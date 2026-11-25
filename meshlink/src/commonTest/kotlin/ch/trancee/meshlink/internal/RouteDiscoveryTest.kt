@@ -64,7 +64,7 @@ class RouteDiscoveryTest {
         hopCount,
     ).encode()
 
-    // A message of [id] whose frame is its hop limit; returns the route's hop count.
+    // A message of [id] whose frame is its hop limit, then room for the attempt; returns the route's hop count.
     private fun Router.send(
         id: Int,
         tag: ByteArray,
@@ -72,7 +72,7 @@ class RouteDiscoveryTest {
         density: DensityClass = DensityClass.MEDIUM,
         origin: ByteArray? = OWN,
     ) = originate(tag, origin, Reach.of(density), search) { hopLimit ->
-        Parcel(messageId(id), relayed = false, { byteArrayOf(hopLimit.toByte()) }) {}
+        Parcel(messageId(id), relayed = false, { byteArrayOf(hopLimit.toByte(), 0, 0) }) {}
     }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
@@ -83,9 +83,8 @@ class RouteDiscoveryTest {
 
     private fun decodedReply(bytes: ByteArray) = valid(RouteReply.decode(bytes))
 
-    // The peers whose lanes got exactly one frame, a one-byte message of hop limit 255.
-    private suspend fun routedTo(): List<NodeId> =
-        waiting().filterValues { it.singleOrNull()?.contentEquals(byteArrayOf(-1)) == true }.keys.toList()
+    // The peers whose lanes got exactly one frame, a message of hop limit 255.
+    private suspend fun routedTo(): List<NodeId> = waiting().filterValues { it.singleOrNull()?.first() == (-1).toByte() }.keys.toList()
 
     @Test
     fun aRequestFloodsOnToEveryOtherLinkWithOneHopLessAndOneMoreAndTeachesTheWayBackToItsOrigin() =
@@ -289,7 +288,7 @@ class RouteDiscoveryTest {
 
             // Act
             router.received(b, reply(hopCount = 2))
-            router.received(c, reply(id = 10).also { it.fill(0, 42, 46) })
+            router.received(c, reply(id = 10).also { it.fill(0, 43, 47) })
             router.received(c, reply(id = 11, targetSequence = 4u))
 
             // Assert

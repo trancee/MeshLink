@@ -74,7 +74,8 @@ internal fun unicast(
     destination: ByteArray,
     source: ByteArray,
     body: ByteArray = byteArrayOf(),
-): ByteArray = UnicastFrame(type, UnicastHeader(hopLimit, id, expiry.toUInt(), destination, source), body).encode()
+    attempt: Int = 0,
+): ByteArray = UnicastFrame(type, UnicastHeader(hopLimit, id, expiry.toUInt(), destination, source, attempt), body).encode()
 
 /** The body of a `MESSAGE` frame with [container]: a zero commitment, then the container. */
 internal fun messageBody(

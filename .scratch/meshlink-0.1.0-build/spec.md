@@ -145,7 +145,7 @@ Exit: links rotate, fragment, flow-control, rekey and upgrade to L2CAP CoC where
 
 ### M5 Routing
 
-Exit: routed unicast and broadcast (signed in secured profiles) cross multi-hop meshes of 2–12 nodes on pull requests and 50–200 nodes on schedule, within the simulator bands, and a forced 3-hop line works on real phones. The busiest-node band of the 50–200-node meshes needs delivery receipts, so ticket 42b, blocked by 47, closes that part.
+Exit: routed unicast and broadcast (signed in secured profiles) cross multi-hop meshes of 2–12 nodes on pull requests and 50–200 nodes on schedule, within the simulator bands, and a forced 3-hop line works on real phones. Every density cell meets its bands except n200-low's busiest node (ticket 42b, D-61); ticket 73 closes that part.
 
 | # | Ticket | Type | Blocked by |
 |---|---|---|---|
