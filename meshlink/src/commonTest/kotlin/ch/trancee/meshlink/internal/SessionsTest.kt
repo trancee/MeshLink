@@ -84,9 +84,9 @@ class SessionsTest {
         sessions.open(ends(ALICE, BOB).initiator, NOW)
 
         // Act
-        sessions.answered(loser, listOf(one.messageId))
+        sessions.answered(listOf(one.messageId))
         val halfAnswered = sessions.owner(loser.source(epoch), NOW)
-        sessions.answered(loser, listOf(two.messageId))
+        sessions.answered(listOf(two.messageId))
         val answered = sessions.owner(loser.source(epoch), NOW)
 
         // Assert
@@ -142,8 +142,8 @@ class SessionsTest {
 
         // Act
         sessions.sealed(unheld, draft)
-        sessions.answered(unheld, listOf(draft.messageId))
-        sessions.lapsed(unheld, draft.messageId)
+        sessions.answered(listOf(draft.messageId))
+        sessions.lapsed(unheld)
 
         // Assert
         assertSame(held, sessions.current(BOB, NOW))
@@ -204,25 +204,44 @@ class SessionsTest {
     }
 
     @Test
-    fun aLapsedMessageEndsItsSessionWhichGoesOnceNothingElseIsOutstanding() {
+    fun aLapsedMessageEndsItsSessionWhichKeepsOpeningUntilTheMessageIsAnswered() {
         // Arrange
         val sessions = Sessions()
         val session = ends(ALICE, BOB).initiator
         sessions.open(session, NOW)
-        val (lapsed, waiting) = session.sealed() to session.sealed()
+        val lapsed = session.sealed()
         sessions.sealed(session, lapsed)
-        sessions.sealed(session, waiting)
 
         // Act
-        sessions.lapsed(session, lapsed.messageId)
+        sessions.lapsed(session)
         val current = sessions.current(BOB, NOW)
         val kept = sessions.owner(session.source(epoch), NOW)
-        sessions.answered(session, listOf(waiting.messageId))
+        sessions.answered(listOf(lapsed.messageId))
 
         // Assert
         assertNull(current)
         assertSame(session, kept)
         assertNull(sessions.owner(session.source(epoch), NOW))
+    }
+
+    @Test
+    fun aLapsedMessageAnsweredInTheNextSessionSettlesTheEndedOne() {
+        // Arrange
+        val sessions = Sessions()
+        val ended = ends(ALICE, BOB).initiator
+        sessions.open(ended, NOW)
+        val lapsed = ended.sealed()
+        sessions.sealed(ended, lapsed)
+        sessions.lapsed(ended)
+        val next = ends(ALICE, BOB).initiator
+        sessions.open(next, NOW)
+
+        // Act
+        sessions.answered(listOf(lapsed.messageId))
+
+        // Assert
+        assertNull(sessions.owner(ended.source(epoch), NOW))
+        assertSame(next, sessions.current(BOB, NOW))
     }
 
     @Test

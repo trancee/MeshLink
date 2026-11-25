@@ -14,6 +14,7 @@ A new Kotlin or Swift developer follows one tutorial from an empty app to two no
 - [ADR 0011](../../../docs/adr/0011-modules-toggles-and-presets.md#decision) decision 13: background modes belong to the host app, with per-preset recommendations in a how-to.
 - [ADR 0010](../../../docs/adr/0010-discovery-and-advertising.md#amendments) and [ADR 0011](../../../docs/adr/0011-modules-toggles-and-presets.md#amendments) amendments (2026-11-13, deferred for 0.1.0): the Live Activity hook is deferred beyond 0.1.0, so no how-to documents it.
 - [ADR 0007](../../../docs/adr/0007-public-api-shape.md#amendments), send-capacity amendment: every how-to that sends uses `awaitSendCapacity()` after `Rejected(QueueFull)` and never retries in a loop.
+- [ADR 0015](../../../docs/adr/0015-message-size-and-compression.md#decision) decisions 1 and 4: the send how-to explains small and large messages and `TooLarge`, and warns that compressing secret data together with attacker-influenced data leaks it through ciphertext length. Ticket 50 put the same warning in the KDoc of `send` and `LimitsBuilder`.
 - [ADR 0017](../../../docs/adr/0017-testing-architecture.md#amendments), 2026-11-13 amendment: 0.1.0 claims no background behavior, and the docs mark it unverified.
 - Constitution O4, O5 and C8 in [`CONSTITUTION.md`](../../../CONSTITUTION.md).
 

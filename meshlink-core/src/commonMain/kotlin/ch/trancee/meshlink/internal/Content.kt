@@ -103,6 +103,9 @@ public class MessageContent(
         /** The largest app payload, in bytes (spec "Plaintext"). */
         public const val PAYLOAD_MAX: Int = 131_072
 
+        /** The largest payload of a small message, in bytes: `unicast-payload-small-max` (spec "Size classes"). */
+        public const val PAYLOAD_SMALL_MAX: Int = 4_096
+
         private const val K = 16
         private const val EXPIRY_AT = Content.MESSAGE_ID
         private const val K_AT = EXPIRY_AT + 4

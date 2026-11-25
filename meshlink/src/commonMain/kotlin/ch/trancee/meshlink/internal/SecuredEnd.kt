@@ -153,7 +153,7 @@ internal class SecuredEnd(
         retries: Int,
     ): Boolean {
         val conversation = (draft.sealer as? Conversation)?.takeIf { retries >= LAPSE_RETRIES }
-        conversation?.let { sessions.lapsed(it, draft.messageId) }
+        conversation?.let(sessions::lapsed)
         return conversation != null
     }
 
@@ -193,6 +193,7 @@ internal class SecuredEnd(
             val conversation = opening?.adopt(frame, nowSeconds) ?: return
             outstanding.values.remove(waiting)
             sessions.open(conversation, nowSeconds)
+            sessions.answered(listOf(waiting.second.messageId))
             val peer = NodeId(conversation.peer)
             receipts.arrived(peer, listOf(waiting.second.messageId))
             hooks.opened(peer)
@@ -246,7 +247,7 @@ internal class SecuredEnd(
             if (receipt.container is Container.IkResponder) return firsts.adopt(frame, receipt, nowSeconds)
             val conversation = sessions.owner(receipt.header.destinationTag, nowSeconds)
             conversation?.acknowledged(frame, nowSeconds)?.let { messageIds ->
-                sessions.answered(conversation, messageIds)
+                sessions.answered(messageIds)
                 receipts.arrived(NodeId(conversation.peer), messageIds)
             }
         }

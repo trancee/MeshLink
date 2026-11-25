@@ -163,13 +163,21 @@ class UnsecuredMessagingTest {
     }
 
     @Test
-    fun theLargestPayloadMakesASmallFrameAndALargerOneIsRefused() {
-        val draft = sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX), EXPIRY)
+    fun theLargestSmallPayloadMakesASmallFrame() {
+        val draft = sender.draft(bob, ByteArray(MessageContent.PAYLOAD_SMALL_MAX), EXPIRY)
 
         val size = sender.frame(draft, epoch, hopLimit = 1).size
         assertTrue(size > LinkRecord.BODY_MAX && size <= Reassembly.FRAME_SMALL_MAX, "$size")
+    }
+
+    @Test
+    fun theLargestPayloadMakesALargeFrameWithinTheCapAndALargerOneIsRefused() {
+        val draft = sender.draft(bob, ByteArray(MessageContent.PAYLOAD_MAX), EXPIRY)
+
+        val size = sender.frame(draft, epoch, hopLimit = 1).size
+        assertTrue(size > Reassembly.FRAME_SMALL_MAX && size <= Reassembly.FRAME_MAX, "$size")
         assertFailsWith<IllegalArgumentException> {
-            sender.draft(bob, ByteArray(UnsecuredMessaging.PAYLOAD_MAX + 1), EXPIRY)
+            sender.draft(bob, ByteArray(MessageContent.PAYLOAD_MAX + 1), EXPIRY)
         }
     }
 

@@ -64,6 +64,18 @@ public final class ch/trancee/meshlink/FailureReason : java/lang/Enum {
 public abstract interface annotation class ch/trancee/meshlink/InternalMeshLinkApi : java/lang/annotation/Annotation {
 }
 
+public final class ch/trancee/meshlink/Limits {
+	public final fun getMaxBroadcastPayload ()I
+	public final fun getMaxUnicastPayload ()I
+}
+
+public final class ch/trancee/meshlink/LimitsBuilder {
+	public final fun getMaxBroadcastPayload ()I
+	public final fun getMaxUnicastPayload ()I
+	public final fun setMaxBroadcastPayload (I)V
+	public final fun setMaxUnicastPayload (I)V
+}
+
 public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public static final field Companion Lch/trancee/meshlink/MeshLink$Companion;
 	public final fun awaitSendCapacity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -96,6 +108,7 @@ public final class ch/trancee/meshlink/MeshLink$Companion {
 
 public final class ch/trancee/meshlink/MeshLinkConfig {
 	public final fun describe ()Ljava/lang/String;
+	public final fun getLimits ()Lch/trancee/meshlink/Limits;
 	public final fun getMeshId ()Ljava/lang/String;
 	public final fun getMeshKey ()[B
 	public final fun getMessageLifetimeSeconds ()I
@@ -107,6 +120,7 @@ public final class ch/trancee/meshlink/MeshLinkConfig {
 
 public final class ch/trancee/meshlink/MeshLinkConfigBuilder {
 	public final fun build ()Lch/trancee/meshlink/MeshLinkConfig;
+	public final fun getLimits ()Lch/trancee/meshlink/LimitsBuilder;
 	public final fun getMeshId ()Ljava/lang/String;
 	public final fun getMeshKey ()[B
 	public final fun getReadReceiptsRequestByDefault ()Z

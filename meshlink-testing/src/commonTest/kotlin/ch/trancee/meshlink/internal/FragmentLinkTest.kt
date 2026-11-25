@@ -62,8 +62,8 @@ class FragmentLinkTest {
 
             // Act
             node.send(fake, ByteArray(SMALL))
-            node.send(fake, ByteArray(UnsecuredMessaging.PAYLOAD_MAX))
-            node.send(fake, ByteArray(UnsecuredMessaging.PAYLOAD_MAX))
+            node.send(fake, ByteArray(MessageContent.PAYLOAD_SMALL_MAX))
+            node.send(fake, ByteArray(MessageContent.PAYLOAD_SMALL_MAX))
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
@@ -77,7 +77,7 @@ class FragmentLinkTest {
                 assertEquals(fragments.indices.map { it == fragments.lastIndex }, fragments.map { it.last })
             }
             val payloads = (listOf(bodies[0]) + streams.values.map { join(it) }).map { accept(it).size }
-            assertEquals(listOf(SMALL, UnsecuredMessaging.PAYLOAD_MAX, UnsecuredMessaging.PAYLOAD_MAX), payloads)
+            assertEquals(listOf(SMALL, MessageContent.PAYLOAD_SMALL_MAX, MessageContent.PAYLOAD_SMALL_MAX), payloads)
         }
 
     @Test
@@ -225,7 +225,7 @@ class FragmentLinkTest {
                         node.peers.value
                             .single()
                             .nodeId,
-                        ByteArray(UnsecuredMessaging.PAYLOAD_MAX),
+                        ByteArray(MessageContent.PAYLOAD_SMALL_MAX),
                     ),
                 )
             advanceTimeBy(SETTLE_MILLIS)
@@ -297,7 +297,7 @@ class FragmentLinkTest {
             node.peers.value
                 .single()
                 .nodeId
-        val status = status(node.send(peer, ByteArray(UnsecuredMessaging.PAYLOAD_MAX)))
+        val status = status(node.send(peer, ByteArray(MessageContent.PAYLOAD_SMALL_MAX)))
         while (streams(end).isEmpty()) advanceTimeBy(1)
         return Triple(status, end, fake)
     }
@@ -393,7 +393,7 @@ class FragmentLinkTest {
         frames(end).filterIsInstance<LinkFrame.Busy>().map { it.streamId to it.code }
 
     private companion object {
-        val SIZES = listOf(800, 1_500, UnsecuredMessaging.PAYLOAD_MAX)
+        val SIZES = listOf(800, 1_500, MessageContent.PAYLOAD_SMALL_MAX)
         const val PATTERN = 251
         const val SMALL = 800
         const val MESSAGE_TYPE: Byte = 0x40

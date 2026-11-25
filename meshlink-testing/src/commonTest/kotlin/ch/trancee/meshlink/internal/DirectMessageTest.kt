@@ -3,6 +3,7 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshLinkConfigBuilder
 import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.ReceivedMessage
@@ -128,7 +129,7 @@ class DirectMessageTest {
         }
 
     @Test
-    fun payloadAbove4096BytesIsRejectedAsTooLarge() =
+    fun payloadAbove131072BytesIsRejectedAsTooLarge() =
         runTest {
             // Arrange
             val (nodes) = linkedPair()
@@ -143,6 +144,26 @@ class DirectMessageTest {
 
             // Assert
             assertEquals(SendResult.Rejected(RejectionReason.TooLarge), result)
+        }
+
+    @Test
+    fun aLoweredUnicastCapRejectsALargerPayloadAsTooLarge() =
+        runTest {
+            // Arrange
+            val (nodes) = linkedPair { limits.maxUnicastPayload = SMALL_PAYLOAD_MAX }
+            val bob =
+                nodes[0]
+                    .peers.value
+                    .single()
+                    .nodeId
+
+            // Act
+            val above = nodes[0].send(bob, ByteArray(SMALL_PAYLOAD_MAX + 1))
+            val at = nodes[0].send(bob, ByteArray(SMALL_PAYLOAD_MAX))
+
+            // Assert
+            assertEquals(SendResult.Rejected(RejectionReason.TooLarge), above)
+            assertIs<SendResult.Accepted>(at)
         }
 
     @Test
@@ -179,10 +200,10 @@ class DirectMessageTest {
             nodes[1].stop()
             advanceTimeBy(SETTLE_MILLIS)
             val deadline = deadlineOfASendNow()
-            val accepted = List(FULL_QUEUE_COUNT) { nodes[0].send(bob, ByteArray(PAYLOAD_MAX)) }
+            val accepted = List(FULL_QUEUE_COUNT) { nodes[0].send(bob, ByteArray(SMALL_PAYLOAD_MAX)) }
 
             // Act
-            val rejected = nodes[0].send(bob, ByteArray(PAYLOAD_MAX))
+            val rejected = nodes[0].send(bob, ByteArray(SMALL_PAYLOAD_MAX))
             val waiter = async { nodes[0].awaitSendCapacity() }
             advanceTimeBy(deadline - currentTime - 1)
             val waitingBeforeExpiry = waiter.isActive
@@ -392,10 +413,12 @@ class DirectMessageTest {
             assertEquals(emptyList(), collected.await())
         }
 
-    private suspend fun TestScope.linkedPair(): Pair<List<MeshLink>, List<VirtualPlatform>> {
+    private suspend fun TestScope.linkedPair(
+        configure: MeshLinkConfigBuilder.() -> Unit = {},
+    ): Pair<List<MeshLink>, List<VirtualPlatform>> {
         val air = air()
         val platforms = List(2) { air.platform(StandardTestDispatcher(testScheduler)) }
-        val nodes = platforms.map { node(it) }
+        val nodes = platforms.map { node(it, configure) }
         nodes.forEach { it.start() }
         advanceTimeBy(SETTLE_MILLIS)
         return nodes to platforms
@@ -412,7 +435,8 @@ class DirectMessageTest {
 
     private companion object {
         val PAYLOAD = "hello, Bob".encodeToByteArray()
-        const val PAYLOAD_MAX = 4_096
+        const val PAYLOAD_MAX = 131_072
+        const val SMALL_PAYLOAD_MAX = 4_096
         const val MILLIS_PER_SECOND = 1_000L
         const val LIFETIME_SECONDS = 1_800L
         const val SKEW_SECONDS = 30L

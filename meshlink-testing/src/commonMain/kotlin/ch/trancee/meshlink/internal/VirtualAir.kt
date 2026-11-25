@@ -20,7 +20,9 @@ import kotlin.math.min
  * 1–3). Every radio starts at the origin, in range of every other; a test places one elsewhere with
  * [move], and radios more than [range] apart neither sight nor reach each other. Each advertisement,
  * connection, capability read and stream chunk arrives after a latency drawn from [random] within
- * [latencyMillis], so one seed always yields one event order.
+ * [latencyMillis], so one seed always yields one event order. With [airtimeBytesPerSecond] set, a
+ * link's chunks also take their airtime one after another, in whole milliseconds, so the streams
+ * of links that write at once arrive interleaved; without it, a burst of chunks arrives together.
  *
  * A radio takes a fresh address each time it starts advertising, as a phone rotates its resolvable
  * private address, so a peer can't be reached at an address it no longer advertises; a link keeps
@@ -56,6 +58,9 @@ internal class VirtualAir(
     internal val recording: Boolean = true,
 ) {
     private val radios = mutableListOf<VirtualRadio>()
+
+    /** The bytes per second a link direction's chunks take on the air, or `null` for no airtime. */
+    var airtimeBytesPerSecond: Int? = null
 
     /** Called with the writing radio and the bytes of every link and channel write. */
     var onWrite: (VirtualRadio, ByteArray) -> Unit = { _, _ -> }
@@ -186,7 +191,10 @@ internal class VirtualAir(
         }
     }
 
-    /** One direction of a link: actions run in send order, each after its own latency. */
+    /**
+     * One direction of a link: actions run in send order, each after its own latency and after the
+     * airtime of the [send]s' bytes before it.
+     */
     internal inner class Pipe {
         private val queue = Channel<Pair<Long, () -> Unit>>(Channel.UNLIMITED)
         private var lastAtMillis = 0L
@@ -201,8 +209,12 @@ internal class VirtualAir(
             }
         }
 
-        fun send(action: () -> Unit) {
-            lastAtMillis = max(lastAtMillis, clock.monotonicMillis() + latency())
+        fun send(
+            bytes: Int = 0,
+            action: () -> Unit,
+        ) {
+            val airtimeMillis = airtimeBytesPerSecond?.let { bytes.toLong() * MILLIS_PER_SECOND / it } ?: 0
+            lastAtMillis = max(lastAtMillis + airtimeMillis, clock.monotonicMillis() + latency())
             queue.trySend(lastAtMillis to action)
         }
     }
@@ -516,7 +528,7 @@ internal open class VirtualLinkEnd(
             val chunk = bytes.copyOfRange(start, min(start + chunkMax, bytes.size))
             val last = start + chunkMax >= bytes.size
             chunks++
-            pipe.send {
+            pipe.send(chunk.size) {
                 target.inbox.trySend(chunk)
                 if (last) received.complete(Unit)
             }
@@ -599,3 +611,5 @@ internal class VirtualCentralEnd(
         }
     }
 }
+
+private const val MILLIS_PER_SECOND = 1_000L

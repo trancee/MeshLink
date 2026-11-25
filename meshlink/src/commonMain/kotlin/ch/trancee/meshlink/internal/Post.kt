@@ -106,7 +106,11 @@ internal class Post(
     private val capacity = Capacity()
     private val lanes = Lanes()
     private val reading = ReadTracking { diagnose(LinkDiagnostic.ReadTrackingEvicted(it)) }
-    private val outbox = Outbox(clock, scope, capacity, density, reading, ::transmit)
+    private val outbox =
+        Outbox(clock, scope, capacity, density, reading) { entry, retry ->
+            // A large message's timed retry searches its route anew (D-58).
+            transmit(entry, search = retry && entry.large)
+        }
     private val posting = ReceiptPost(clock, scope, config, outbox, { router }, density)
     private val self = MutableStateFlow<NodeId?>(null)
 
@@ -135,7 +139,7 @@ internal class Post(
             { to, tombstones, expiry ->
                 val acknowledger = unsecuredEnd.acknowledger
                 val receipt = acknowledger.receipt(to, tombstones, expiry)
-                router.originate(acknowledger.destination(receipt), unsecuredEnd.tag(), density(), search = false) {
+                router.originate(acknowledger.destination(receipt), unsecuredEnd.tag(), Reach.of(density()), false) {
                     acknowledger.parcel(receipt, it)
                 }
             },
@@ -178,9 +182,11 @@ internal class Post(
             inbox.offer(it)
         }
     private val router: Router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
+    private val origins = Origins(clock, lanes, routes, router, outbox, end)
 
     /** This node's broadcasts. */
-    val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, lifetimeSeconds)
+    val broadcasts =
+        Broadcasts(clock, scope, capacity, floods, codec, config)
 
     /** Starts a run of the node with [identity]. */
     fun begin(identity: InstallationIdentity) {
@@ -226,7 +232,7 @@ internal class Post(
             when {
                 !accepting(state) -> RejectionReason.NotRunning
                 to == self.value -> RejectionReason.UnknownPeer
-                payload.size > UnsecuredMessaging.PAYLOAD_MAX -> RejectionReason.TooLarge
+                payload.size > config.limits.maxUnicastPayload -> RejectionReason.TooLarge
                 !capacity.reserve(payload.size) -> RejectionReason.QueueFull
                 else -> null
             }
@@ -279,7 +285,10 @@ internal class Post(
     override suspend fun next(peer: NodeId): Letter {
         val parcel = lanes.next(peer)
         // A write that failed goes back to the front of the lane, for the peer's next or kept link.
-        return Letter(parcel.render()) { if (it == Settled.FAILED) lanes.putBack(peer, parcel) else parcel.settle(it) }
+        return Letter(parcel.render()) {
+            lanes.written(peer)
+            if (it == Settled.FAILED) lanes.putBack(peer, parcel) else parcel.settle(it)
+        }
     }
 
     override fun plumtree(
@@ -298,42 +307,88 @@ internal class Post(
     }
 
     // Each attempt tags the same draft for the epoch it is written in (spec "Origin behavior"), until
-    // the draft lapses. After its first send on a route, a message is sent once more by a new
-    // [search] if it is still unfinished `resend-base` + `resend-per-hop` × the route's hop count later.
-    // A send that finds no link leaves it `Held`; so does, in the medium and high classes, a flooded
-    // send that finds no route by `resend-base` + `resend-per-hop` × `u6-flood-radius` later.
+    // the draft lapses; [origins] places it, after a new [search] if this is its resend or a large
+    // message's timed retry.
     private fun transmit(
         entry: Outbox.Entry,
-        search: Boolean = false,
+        search: Boolean,
     ) {
         // Only a secured draft lapses: an `unsecured` one has no session to end.
         val draft = entry.drafted(end) { secured && securedEnd.lapsed(it, entry.retries - entry.draftedAt) }
         val reachable = if (entry.directOnly) entry.to in lanes.peers else lanes.peers.isNotEmpty()
         if (!reachable) return entry.held()
-        val sealed = draft ?: return
+        // A copy still being written makes another one pointless (D-57); one still waiting is replaced.
+        val sealed = draft?.takeUnless { lanes.writing(it.messageId) } ?: return
+        origins.place(entry, sealed, Reach.of(density(), entry.large), search) { transmit(entry, search = true) }
+    }
+}
+
+/**
+ * Places this node's drafted messages, made into frames by [end] (spec "Origin behavior" and "Size
+ * classes"). A direct-only message, and a large one whose destination is linked, goes only to its
+ * destination's lane; any other goes by [router]. After its first send on a route, a message is sent
+ * once more by a new search if it is still unfinished `resend-base` + `resend-per-hop` × the route's
+ * hop count later. A flooded small message in the medium and high classes, and a large message, which
+ * is never flooded and waits for a route (D-55), are `Held` if no route turns up within `resend-base`
+ * + `resend-per-hop` × `u6-flood-radius`. A frame of a finished message is not written (D-57).
+ */
+private class Origins(
+    private val clock: Clock,
+    private val lanes: Lanes,
+    private val routes: Routes,
+    private val router: Router,
+    private val outbox: Outbox,
+    private val end: Origin,
+) {
+    /** Places [entry]'s [sealed] draft as [reach] says; [resend] sends it again by a new search. */
+    fun place(
+        entry: Outbox.Entry,
+        sealed: Draft,
+        reach: Reach,
+        search: Boolean,
+        resend: () -> Unit,
+    ) {
         val parcel = { hopLimit: Int ->
-            Parcel(sealed.messageId, relayed = false, { end.frame(sealed, hopLimit) }) {
+            Parcel(sealed.messageId, relayed = false, { end.frame(sealed, hopLimit) }, { !entry.quiet }) {
                 if (it == Settled.SENT) entry.sent()
             }
         }
-        // A direct-only message goes only to its destination's lane, which no node relays (ADR 0013 decision 8).
-        if (entry.directOnly) {
+        // A direct-only message goes only to its destination's lane, which no node relays (ADR 0013
+        // decision 8); so does a large message whose destination is linked.
+        if (entry.directOnly || (entry.large && entry.to in lanes.peers)) {
             lanes.put(entry.to, parcel(1))
             entry.sentMillis = clock.monotonicMillis()
         } else {
             val destination = end.destination(sealed)
-            val hops = router.originate(destination, end.origin(sealed), density(), search, parcel)
-            entry.sentMillis = clock.monotonicMillis()
-            if (hops == null && density() != DensityClass.LOW) {
-                outbox.after(entry, FLOODED_RESEND_MILLIS) {
-                    if (routes.active(destination, clock.monotonicMillis()) == null) entry.held()
-                }
-            }
-            if (hops != null && !entry.resent) {
-                entry.resent = true
-                val resend = RESEND_BASE_MILLIS + RESEND_PER_HOP_MILLIS * hops
-                outbox.after(entry, resend) { transmit(entry, search = true) }
-            }
+            val hops = router.originate(destination, end.origin(sealed), reach, search, parcel)
+            if (hops == null) searching(entry, destination, reach) else routed(entry, hops, resend)
+        }
+    }
+
+    // A message sent on a route is sent once more by a new search if it is still unfinished in time.
+    private fun routed(
+        entry: Outbox.Entry,
+        hops: Int,
+        resend: () -> Unit,
+    ) {
+        entry.sentMillis = clock.monotonicMillis()
+        if (entry.resent) return
+        entry.resent = true
+        outbox.after(entry, RESEND_BASE_MILLIS + RESEND_PER_HOP_MILLIS * hops) { resend() }
+    }
+
+    // A flooded message is sent now, a large one is not (D-55); in the medium and high classes either
+    // is Held if no route, a large one's found by route request, turns up in time.
+    private fun searching(
+        entry: Outbox.Entry,
+        destination: ByteArray,
+        reach: Reach,
+    ) {
+        if (reach != Reach.ROUTE) entry.sentMillis = clock.monotonicMillis()
+        if (reach == Reach.FLOOD) return
+        outbox.after(entry, FLOODED_RESEND_MILLIS) {
+            val route = routes.active(destination, clock.monotonicMillis(), discovered = reach == Reach.ROUTE)
+            if (route == null) entry.held()
         }
     }
 
@@ -362,7 +417,7 @@ private class ReceiptPost(
 ) {
     /** Sends [outgoing]. */
     fun originate(outgoing: Outgoing) {
-        router().originate(outgoing.destination, outgoing.origin, density(), search = false) { hopLimit ->
+        router().originate(outgoing.destination, outgoing.origin, Reach.of(density()), search = false) { hopLimit ->
             Parcel(outgoing.messageId, relayed = false, { outgoing.frame(hopLimit) }) {}
         }
     }
@@ -386,11 +441,14 @@ private class Releases(
     private val density: () -> DensityClass,
     private val destination: (Draft) -> ByteArray,
 ) {
-    // A found route takes the messages waiting for its destination at once, unless the low class floods them.
+    // A found route takes the messages waiting for its destination at once; in the low class, which
+    // floods small messages, only the large ones.
     fun found(tag: ByteArray) {
         routed.update()
-        if (density() == DensityClass.LOW) return
-        outbox.found(FLUSH_GAP_MILLIS) { entry -> entry.draft?.let { destination(it).contentEquals(tag) } == true }
+        val low = density() == DensityClass.LOW
+        outbox.found(FLUSH_GAP_MILLIS) { entry ->
+            (entry.large || !low) && entry.draft?.let { destination(it).contentEquals(tag) } == true
+        }
     }
 
     // A certificate of [peer] arrived: the messages waiting for it are sealed and sent at once.

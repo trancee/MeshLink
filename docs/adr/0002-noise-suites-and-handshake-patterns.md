@@ -1,6 +1,6 @@
 # 0002: Noise suites and handshake patterns per security profile
 
-Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 4 (amended 2026-11-01, libp2p alignment; 2026-11-08, protocol spec; 2026-11-16, protocol names).
+Status: accepted (2026-10-31; ticket "What handshake and crypto suite does each security profile use?"). Version: 5 (amended 2026-11-01, libp2p alignment; 2026-11-08, protocol spec; 2026-11-16, protocol names; 2026-11-25, large end-to-end messages).
 
 Terminology note (2026-11-01, ADR 0007): the profile written `none` here is named `unsecured` everywhere else, because Swift's `.none` collides with `Optional.none`. Meaning unchanged.
 
@@ -65,3 +65,9 @@ None: greenfield. A suite change is a new protocol version with new vectors (C6,
 
 - **Context:** the 2026-11-01 amendment quoted the libp2p name as `Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`. Noise revision 34 §8.2 allows only alphanumerics and `/` in an algorithm name; libp2p [#727](https://github.com/libp2p/specs/pull/727) and the pinned snow commit `dc18c06` both use `MLKEM768`. Noise §8.1 joins a second pattern modifier with `+`, so `XXhfspsk3` is not a valid Noise name, and snow rejects it.
 - **Decision:** the `hfs` protocol names use `MLKEM768`, and the gated pattern is `XXhfs+psk3`: `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`, `Noise_XXhfs+psk3_25519+MLKEM768_ChaChaPoly_SHA256` and `Noise_IKhfs_25519+MLKEM768_ChaChaPoly_SHA256`. `XXhfspsk3` elsewhere in the ADRs is shorthand for that pattern. The libp2p alignment holds: the open-mesh protocol name string is the same.
+
+2026-11-25, large end-to-end messages ([D-56](../spec/decisions.md#d-56-end-to-end-noise-messages-above-65535-b), ticket 50):
+
+- **Context:** Noise revision 34 §3 limits every Noise message to 65,535 B. A large message (ADR 0015 decision 1) carries up to 131,072 B of payload in one `IK`/`IKhfs` message 1 or one transport message.
+- **Decision:** end-to-end Noise messages may exceed 65,535 B, up to `frame-max` (139,264 B), as a documented deviation from Noise. The end-to-end containers carry `u32` lengths. Link handshake messages stay at most 4,096 B.
+- **Consequence:** a generic Noise library that enforces the limit cannot open a large message; MeshLink's own Noise implementation does not enforce it. ChaCha20-Poly1305 (RFC 8439) is safe far beyond this size. MeshLink has no third-party Noise peers.

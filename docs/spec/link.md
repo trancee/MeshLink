@@ -206,7 +206,7 @@ The losing link drains: after its `CLOSE` it writes nothing more, but keeps read
 
 ## Fragments
 
-(ADR 0012 decision 4; ADR 0015 decisions 3 and 5; [D-19].)
+(ADR 0012 decision 4; ADR 0015 decisions 3, 5 and 6 and amendment 2026-11-25; [D-19]; [D-59].)
 
 A frame larger than one record's plaintext is split into `FRAGMENT` frames, each sent in its own record.
 
@@ -231,7 +231,7 @@ Header: 4 B, the 3 B header of ADR 0012 plus the type byte ([conflict C-01](deci
 | fragment-index-max | 32,767 | - | - |
 | reassemblies-per-link | 4 | streams | - |
 | large-reassemblies-per-link | 1 | streams | - |
-| large-reassembly-budget | 1,048,576 | B | - |
+| large-reassembly-budget | 524,288 | B | D-59 |
 | stream-idle-timeout | 10 | s | - |
 
 - A receiver reassembles at most `reassemblies-per-link` streams per link, of which at most `large-reassemblies-per-link` may become large frames. All large reassemblies on a node share `large-reassembly-budget` bytes.

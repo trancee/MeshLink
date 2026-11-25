@@ -20,12 +20,12 @@ import kotlinx.coroutines.launch
 /**
  * The messages this node accepted and has not finished (ADR 0013 decisions 5, 6, 8 and 9; spec
  * "Origin behavior"). Each one is sent with [transmit] at once, then again after doubling intervals
- * for the node's [density] class until it expires; in the low and medium classes also on each new
- * link, at most once per [LINK_RETRY_GAP_MILLIS] per destination. A direct-only message is sent on
- * each new link to its destination, in every class. A message is `Delivered` when its receipt
- * arrives, until its deadline, and holds its bytes in [capacity] until it finishes. A message that asked
- * for a read receipt is `Read` when it arrives, before or after its delivery receipt; once delivered,
- * [reads] watches for it.
+ * for the node's [density] class until it expires, each of those a `retry`; in the low and medium
+ * classes also on each new link, at most once per [LINK_RETRY_GAP_MILLIS] per destination. A
+ * direct-only message is sent on each new link to its destination, in every class. A message is
+ * `Delivered` when its receipt arrives, until its deadline, and holds its bytes in [capacity] until
+ * it finishes. A message that asked for a read receipt is `Read` when it arrives, before or after
+ * its delivery receipt; once delivered, [reads] watches for it.
  *
  * Runs on [scope]'s serial dispatcher.
  */
@@ -35,7 +35,7 @@ internal class Outbox(
     private val capacity: Capacity,
     private val density: () -> DensityClass,
     private val reads: ReadTracking = ReadTracking {},
-    private val transmit: (Entry) -> Unit,
+    private val transmit: (entry: Entry, retry: Boolean) -> Unit,
 ) {
     private val entries = mutableListOf<Entry>()
     private val linkRetries = mutableMapOf<NodeId, Long>()
@@ -65,7 +65,7 @@ internal class Outbox(
      */
     fun linked(peer: NodeId) {
         val sending = entries.filter { !it.quiet }
-        sending.filter { it.directOnly && it.to == peer }.forEach(transmit)
+        sending.filter { it.directOnly && it.to == peer }.forEach { transmit(it, false) }
         if (density() == DensityClass.HIGH) return
         val now = clock.monotonicMillis()
         linkRetries.keys.retainAll(sending.map { it.to }.toSet())
@@ -73,7 +73,7 @@ internal class Outbox(
             val last = linkRetries[to]
             if (last == null || now - last >= LINK_RETRY_GAP_MILLIS) {
                 linkRetries[to] = now
-                waiting.forEach(transmit)
+                waiting.forEach { transmit(it, false) }
             }
         }
     }
@@ -91,7 +91,7 @@ internal class Outbox(
             entry.flushing = true
             after(entry, entry.sentMillis + gapMillis - now) {
                 entry.flushing = false
-                transmit(entry)
+                transmit(entry, false)
             }
         }
     }
@@ -153,8 +153,10 @@ internal class Outbox(
 
     private suspend fun retry(entry: Entry) {
         var doublings = 0
+        var retry = false
         while (true) {
-            transmit(entry)
+            transmit(entry, retry)
+            retry = true
             delay(retryMillis(density(), doublings))
             doublings = minOf(doublings + 1, DOUBLINGS_MAX)
             entry.retries++
@@ -189,6 +191,9 @@ internal class Outbox(
     ) {
         /** Whether only a link to [to] carries this message. */
         val directOnly: Boolean = options.directOnly
+
+        /** Whether this is a large message (spec "Size classes"), which is never flooded. */
+        val large: Boolean = payload.size > MessageContent.PAYLOAD_SMALL_MAX
 
         /** Whether this message asks for a read receipt. */
         val readReceipt: Boolean = options.readReceipt == ReadReceiptRequest.Request

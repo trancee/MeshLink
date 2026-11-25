@@ -30,7 +30,7 @@ Feature: Direct messaging
     Given Alice and Bob are running in the same mesh
     And Alice and Bob are directly linked
     And Bob is collecting received messages
-    When Alice sends 4097 bytes to Bob
+    When Alice sends 131073 bytes to Bob
     Then the send is rejected as TooLarge
     And Bob receives no messages
 

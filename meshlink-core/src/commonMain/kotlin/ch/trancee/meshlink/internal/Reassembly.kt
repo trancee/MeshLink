@@ -188,7 +188,7 @@ public class ReassemblyBudget {
 
     public companion object {
         /** The budget, in bytes. */
-        public const val BYTES: Int = 1_048_576
+        public const val BYTES: Int = 524_288
     }
 }
 

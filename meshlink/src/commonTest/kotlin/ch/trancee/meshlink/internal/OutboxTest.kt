@@ -27,9 +27,9 @@ class OutboxTest {
 
     private fun TestScope.outbox(): Outbox {
         val outbox =
-            Outbox(SchedulerClock(testScheduler), backgroundScope, capacity, { density }) {
-                attempts += testScheduler.currentTime to it.to
-                it.sentMillis = testScheduler.currentTime
+            Outbox(SchedulerClock(testScheduler), backgroundScope, capacity, { density }) { entry, _ ->
+                attempts += testScheduler.currentTime to entry.to
+                entry.sentMillis = testScheduler.currentTime
             }
         outbox.begin()
         return outbox
@@ -75,12 +75,14 @@ class OutboxTest {
         }
 
     @Test
-    fun eachTimedRetryIsCountedButNotANewLinksSend() =
+    fun eachTimedRetryIsCountedAndSentAsOneButNotANewLinksSend() =
         runTest {
             // Arrange
-            val counted = mutableListOf<Int>()
+            val counted = mutableListOf<Pair<Int, Boolean>>()
             val outbox =
-                Outbox(SchedulerClock(testScheduler), backgroundScope, capacity, { density }) { counted += it.retries }
+                Outbox(SchedulerClock(testScheduler), backgroundScope, capacity, { density }) { entry, retry ->
+                    counted += entry.retries to retry
+                }
             outbox.begin()
 
             // Act
@@ -90,7 +92,7 @@ class OutboxTest {
             outbox.linked(PEER)
 
             // Assert
-            assertEquals(listOf(0, 1, 2, 2), counted)
+            assertEquals(listOf(0 to false, 1 to true, 2 to true, 2 to false), counted)
         }
 
     @Test

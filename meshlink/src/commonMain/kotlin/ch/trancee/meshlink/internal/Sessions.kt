@@ -60,21 +60,17 @@ internal class Sessions(
         records.firstOrNull { it.conversation === conversation }?.let { it.outstanding.add(draft) }
     }
 
-    /** The peer's receipt in [conversation] answered the messages of [messageIds]. */
-    fun answered(
-        conversation: Conversation,
-        messageIds: List<ByteArray>,
-    ) {
-        settle(conversation) { draft -> messageIds.any { it.contentEquals(draft.messageId) } }
+    /** A receipt answered the messages of [messageIds], in whichever session each was sealed. */
+    fun answered(messageIds: List<ByteArray>) {
+        settle { draft -> messageIds.any { it.contentEquals(draft.messageId) } }
     }
 
-    /** The message of [messageId] sealed with [conversation] got no receipt in time: the session ends. */
-    fun lapsed(
-        conversation: Conversation,
-        messageId: ByteArray,
-    ) {
+    /**
+     * A message sealed with [conversation] got no receipt in time: the session ends, but still opens the
+     * peer's late receipt for it until it is [answered] or expires.
+     */
+    fun lapsed(conversation: Conversation) {
         records.firstOrNull { it.conversation === conversation }?.let(::end)
-        settle(conversation) { it.messageId.contentEquals(messageId) }
     }
 
     /** Forgets every session. */
@@ -92,12 +88,9 @@ internal class Sessions(
         record.ended = true
     }
 
-    // Drops the messages of [conversation] that [match], then the session if it ended and none are left.
-    private fun settle(
-        conversation: Conversation,
-        match: (Draft) -> Boolean,
-    ) {
-        records.firstOrNull { it.conversation === conversation }?.let { it.outstanding.removeAll(match) }
+    // Drops the messages that [match], then each ended session with none left.
+    private fun settle(match: (Draft) -> Boolean) {
+        records.forEach { it.outstanding.removeAll(match) }
         records.removeAll { it.ended && it.outstanding.isEmpty() }
     }
 

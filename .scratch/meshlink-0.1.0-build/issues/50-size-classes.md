@@ -1,6 +1,6 @@
 # Send large messages within their size classes
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 28, 37
 
@@ -25,15 +25,15 @@ Blocked by: 28, 37
 
 ## Acceptance criteria
 
-- [ ] Seeded `VirtualAir` tests, 5-node line, in all three profiles, medium class: 4,096 B, 4,097 B and 131,072 B payloads arrive once, intact; the large ones travel only on a discovered route.
-- [ ] The same at low class: the origin sends the route request first and never floods the large frame.
-- [ ] A seeded test breaks the route: relays drop the large frame, never hold it, and the origin's retry delivers it over a new route.
-- [ ] A seeded test fills the next hop's reassembly budget: the busy reply makes the origin back off and the message still arrives.
-- [ ] A 131,073 B payload returns `Rejected(TooLarge)`; so does 4,097 B after lowering `maxUnicastPayload` to 4 KiB. Raising a cap above the maximum fails config validation.
-- [ ] A test fills the send queue to 1 MiB, gets `Rejected(QueueFull)`, and `awaitSendCapacity()` resumes after the queue drains.
-- [ ] The largest `PostQuantum` first message with a 131,072 B payload fits within 139,264 B; a test pins the size.
-- [ ] T10: a relayed frame above 8,192 B without a route and any frame above 139,264 B are dropped without state growth.
-- [ ] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
+- [x] Seeded `VirtualAir` tests, 5-node line, in all three profiles, medium class: 4,096 B, 4,097 B and 131,072 B payloads arrive once, intact; the large ones travel only on a discovered route.
+- [x] The same at low class: the origin sends the route request first and never floods the large frame.
+- [x] A seeded test breaks the route: relays drop the large frame, never hold it, and the origin's retry delivers it over a new route.
+- [x] A seeded test fills the next hop's reassembly budget: the busy reply makes the origin back off and the message still arrives.
+- [x] A 131,073 B payload returns `Rejected(TooLarge)`; so does 4,097 B after lowering `maxUnicastPayload` to 4 KiB. Raising a cap above the maximum fails config validation.
+- [x] A test fills the send queue to 1 MiB, gets `Rejected(QueueFull)`, and `awaitSendCapacity()` resumes after the queue drains.
+- [x] The largest `PostQuantum` first message with a 131,072 B payload fits within 139,264 B; a test pins the size.
+- [x] T10: a relayed frame above 8,192 B without a route and any frame above 139,264 B are dropped without state growth.
+- [x] `./gradlew check` passes with Kover at 100% and the ABI dump updated; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 

@@ -168,15 +168,27 @@ class FirstMessagesTest {
     }
 
     @Test
-    fun theLargestPostQuantumPayloadWithAReadReceiptMakesASmallFrameAndALargerOneIsRefused() {
+    fun theLargestSmallPostQuantumPayloadWithAReadReceiptMakesASmallFrame() {
         val (alice, bob) = sides(WireProfile.POST_QUANTUM)
-        val largest = ByteArray(UnsecuredMessaging.PAYLOAD_MAX)
+        val largest = ByteArray(MessageContent.PAYLOAD_SMALL_MAX)
 
         val draft = assertNotNull(alice.codec.draft(bob.certificate, largest, EXPIRY, readReceipt = true))
 
         assertTrue(alice.codec.frame(draft, epoch, HOP_LIMIT).size <= Reassembly.FRAME_SMALL_MAX)
+    }
+
+    @Test
+    fun theLargestPostQuantumFirstMessageFitsTheFrameCapAndALargerPayloadIsRefused() {
+        val (alice, bob) = sides(WireProfile.POST_QUANTUM)
+        val largest = ByteArray(MessageContent.PAYLOAD_MAX)
+
+        val draft = assertNotNull(alice.codec.draft(bob.certificate, largest, EXPIRY, readReceipt = true))
+
+        val size = alice.codec.frame(draft, epoch, HOP_LIMIT).size
+        assertEquals(LARGEST_POST_QUANTUM_FRAME, size)
+        assertTrue(size <= Reassembly.FRAME_MAX)
         assertFailsWith<IllegalArgumentException> {
-            alice.codec.draft(bob.certificate, ByteArray(UnsecuredMessaging.PAYLOAD_MAX + 1), EXPIRY, false)
+            alice.codec.draft(bob.certificate, ByteArray(MessageContent.PAYLOAD_MAX + 1), EXPIRY, false)
         }
     }
 
@@ -488,6 +500,9 @@ class FirstMessagesTest {
         const val KEM_PUBLIC = 1_184
         const val KEM_SECRET = 2_400
         const val HOP_LIMIT = 255
+
+        // The pinned size of the largest PostQuantum first message, with a read receipt requested.
+        const val LARGEST_POST_QUANTUM_FRAME = 134_999
         const val SENDER_CERTIFICATE = 0x01
         const val CONVERSATION_SEED = 0x82
         const val MESSAGE_IDS = 0x83

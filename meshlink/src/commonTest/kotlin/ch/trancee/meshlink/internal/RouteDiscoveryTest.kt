@@ -71,7 +71,7 @@ class RouteDiscoveryTest {
         search: Boolean = false,
         density: DensityClass = DensityClass.MEDIUM,
         origin: ByteArray? = OWN,
-    ) = originate(tag, origin, density, search) { hopLimit ->
+    ) = originate(tag, origin, Reach.of(density), search) { hopLimit ->
         Parcel(messageId(id), relayed = false, { byteArrayOf(hopLimit.toByte()) }) {}
     }
 

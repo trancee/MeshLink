@@ -23,6 +23,42 @@ class RoutesTest {
     }
 
     @Test
+    fun aRouteDiscoveryFoundIsTheOnlyOneAskedForAsDiscovered() {
+        // Arrange
+        routes.learn(tag(1), a, nowMillis = 0)
+        routes.offer(tag(2), Routes.Route(b, expiry = 1_000, sequence = 1u, hops = 1), nowMillis = 0)
+
+        // Act
+        val reverse = routes.use(tag(1), 0, discovered = true) to routes.active(tag(1), 0, discovered = true)
+        val found = routes.use(tag(2), 0, discovered = true) to routes.active(tag(2), 0, discovered = true)
+
+        // Assert
+        assertEquals(null to null, reverse)
+        assertEquals(b to b, found.first?.peer to found.second?.peer)
+        assertEquals(a, routes.use(tag(1), 0)?.peer)
+    }
+
+    @Test
+    fun aDiscoveredRouteIsOneFoundWithinTheActiveTimeoutHoweverLongItsUseKeepsItActive() {
+        // Arrange
+        routes.offer(tag(1), sequenced(a, 0, sequence = 1u, hops = 2), nowMillis = 0)
+        val refound = Routes.ACTIVE_MILLIS + 1_000
+
+        // Act
+        routes.use(tag(1), Routes.ACTIVE_MILLIS - 1)
+        val fresh = routes.active(tag(1), Routes.ACTIVE_MILLIS - 1, discovered = true)
+        val stale = routes.use(tag(1), Routes.ACTIVE_MILLIS, discovered = true)
+        val active = routes.active(tag(1), Routes.ACTIVE_MILLIS)
+        routes.offer(tag(1), sequenced(a, refound, sequence = 2u, hops = 2), refound)
+
+        // Assert
+        assertEquals(a, fresh?.peer)
+        assertNull(stale)
+        assertEquals(a, active?.peer)
+        assertEquals(a, routes.active(tag(1), refound + Routes.ACTIVE_MILLIS - 1, discovered = true)?.peer)
+    }
+
+    @Test
     fun usingARouteKeepsItActiveThirtySecondsAfterTheUse() {
         // Arrange
         routes.learn(tag(1), a, nowMillis = 0)

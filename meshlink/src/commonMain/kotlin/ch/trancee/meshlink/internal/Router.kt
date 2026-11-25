@@ -119,26 +119,29 @@ internal class Router(
     }
 
     /**
-     * Places this node's [parcel] for the destination whose current tag is [tag], from a node of
-     * class [density]: on an active route unless [search], else flooded to every link with a route
-     * request from [origin] alongside in the medium and high classes; none without an [origin].
-     * [parcel] makes the frame for a hop limit. Returns the hop count of the route it went on, 0 for
-     * a route without one, or `null` if flooded.
+     * Places this node's [parcel] for the destination whose current tag is [tag] as [reach] says: on
+     * an active route unless [search] or [Reach.FLOOD], a large message's only one found by route
+     * request. Without one, a [Reach.ROUTE_OR_FLOOD] frame floods to every link within the flood
+     * radius and a [Reach.FLOOD] one with the maximum hop limit, while a [Reach.ROUTE] frame does not
+     * go; a route request from [origin] goes alongside unless [Reach.FLOOD], and none without an
+     * [origin]. [parcel] makes the frame for a hop limit. Returns the hop count of the route it went
+     * on, 0 for a route without one, or `null` if it did not go on a route.
      */
     fun originate(
         tag: ByteArray,
         origin: ByteArray?,
-        density: DensityClass,
+        reach: Reach,
         search: Boolean,
         parcel: (hopLimit: Int) -> Parcel,
     ): Int? {
         val now = clock.monotonicMillis()
-        val low = density == DensityClass.LOW
-        val route = if (low || search) null else routes.use(tag, now)
-        if (!low && route == null && origin != null) {
+        val flood = reach == Reach.FLOOD
+        val route = if (flood || search) null else routes.use(tag, now, discovered = reach == Reach.ROUTE)
+        if (!flood && route == null && origin != null) {
             discovery.search(tag, origin, clock.wallClockMillis() / MILLIS_PER_SECOND)
         }
-        val made = parcel(if (low || route != null) HOP_LIMIT_MAX else FLOOD_RADIUS)
+        if (reach == Reach.ROUTE && route == null) return null
+        val made = parcel(if (flood || route != null) HOP_LIMIT_MAX else FLOOD_RADIUS)
         seen.put(made.messageId, now + SEEN_WINDOW_MILLIS)
         val targets = if (route != null) listOf(route.peer) else lanes.peers
         targets.forEach { lanes.put(it, made) }
@@ -368,3 +371,29 @@ internal fun timely(
 internal fun remembered(expiry: Long): Long = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS + 1) * MILLIS_PER_SECOND
 
 private const val MILLIS_PER_SECOND = 1_000L
+
+/** How [Router.originate] places one of this node's frames (spec "Origin behavior" and "Size classes"). */
+internal enum class Reach {
+    /** Flooded to every link with the maximum hop limit: the low class's small message. */
+    FLOOD,
+
+    /** On an active route, else flooded within the flood radius while a route request searches. */
+    ROUTE_OR_FLOOD,
+
+    /** Only on an active route found by route request, else a route request alone: a large message. */
+    ROUTE,
+    ;
+
+    companion object {
+        /** The reach of a message, [large] or not, from a node of class [density]. */
+        fun of(
+            density: DensityClass,
+            large: Boolean = false,
+        ): Reach =
+            when {
+                large -> ROUTE
+                density == DensityClass.LOW -> FLOOD
+                else -> ROUTE_OR_FLOOD
+            }
+    }
+}

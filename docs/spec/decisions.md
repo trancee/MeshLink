@@ -388,6 +388,41 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** only the destination learns `k` in the secured profiles, so a failing `k` is a forgery or a different message; storing it would spend `tombstone-store` and be offered on every `CATCH_UP`. Keying by `message_id` alone would let a forged tombstone shadow the genuine one. A claim check against unverified tombstones would let a forger suppress delivery. Seeded `VirtualAir` tests in `unsecured`, `classical` and `post-quantum`: a receipt through one relay deletes its copy, and its `CATCH_UP` deletes another relay's copy, which then offers the tombstone.
 - **Alternatives:** store every tombstone from a relayed receipt (forged receipts fill the store); key by `message_id` (a forged tombstone shadows the genuine one); skip claims for tombstoned IDs (unverified tombstones suppress delivery).
 
+### D-55 When a large message waiting for a route is `Held`
+
+- **Question:** a large message is never flooded, so a send without a route sends only a `ROUTE_REQUEST`. When does it stop being `Queued`?
+- **Decision:** in every density class, a large message stays `Queued` while its route request searches, and turns `Held` if no route found by route request is active `resend-base` + `resend-per-hop` × `u6-flood-radius` (1.6 s) after the send. A later send that goes out moves it to `Sent`, as in D-53. Owner decision 2026-11-25 (ticket 50).
+- **Evidence:** the wait mirrors D-53's flooded send, so both classes of message report "no path now" after the same time. `Sent` would claim a frame left the node when none did.
+- **Alternatives:** `Held` at once (most route requests answer within the wait); `Sent` on the route request (no frame of the message was sent).
+
+### D-56 End-to-end Noise messages above 65,535 B
+
+- **Question:** Noise revision 34 §3 limits every Noise message to 65,535 B. A large message carries up to 131,072 B of payload in one `IK` or `IKhfs` message 1 or one transport message. Is that allowed?
+- **Decision:** yes, as a documented deviation, end to end only. An end-to-end Noise message is bounded by `frame-max` (139,264 B), not 65,535 B; the containers already carry `u32` lengths (D-30). Link handshake messages keep their 4,096 B bound. ADR 0002 amendment 2026-11-25. Owner decision 2026-11-25 (ticket 50).
+- **Evidence:** the limit exists for transports with 16-bit length prefixes; MeshLink frames its own lengths. ChaCha20-Poly1305 (RFC 8439) is safe for messages up to about 256 GiB. MeshLink has no third-party Noise peers whose buffers assume the limit. The largest `post-quantum` first message with a 131,072 B payload is 134,999 B (pinned by a test).
+- **Alternatives:** split a large message into several Noise messages (a new chunked container with its own ordering and replay rules); cap the unicast payload below 64 KiB (fails ADR 0015's profile-picture requirement).
+
+### D-57 One copy of a large message at a time
+
+- **Question:** a large frame takes seconds per hop. Retries and found routes queue new copies while one is still being written, and every copy costs full airtime on every hop. How are copies limited?
+- **Decision:** a link skips a frame of the node's own message that has finished or passed its `expiry` when the frame reaches the head of its queue. An origin makes no new copy of a message while one of its copies is being written; a copy still waiting in a link's queue is replaced in place. Relays still forward a retry's copy. Owner decision 2026-11-25 (ticket 50).
+- **Evidence:** seeded `VirtualAir` 5-node line, 131,072 B: before the change each link carried several copies of the message; after, two (the delivered copy and one retry sent while relays still carried the first).
+- **Alternatives:** scale the retry and resend timers by measured airtime (left for a follow-up; the timers stay fixed); cancel a copy mid-write (the receiver discards the partial frame anyway, but needs a new frame type to stop early).
+
+### D-58 Fresh routes for large messages
+
+- **Question:** relays forget a found route after `forward-route-timeout`, but the origin's copy stays active while used. A large frame on such a route is dropped at the first relay that lost it, and no frame reports that. Which routes may a large message use?
+- **Decision:** a large message uses a route found by route request only if the route was found within the last `route-active-timeout`, however long use has kept it active since. Every timed retry of a large message searches anew: it sends a `ROUTE_REQUEST` and goes on the route that answers. Owner decision 2026-11-25 (ticket 50).
+- **Evidence:** seeded `VirtualAir` diamond: after a 4,097 B message finds a route, the destination moves so that route breaks one hop ahead of the origin; a 131,072 B message sent on the old route is dropped by the relay, which neither forwards nor holds it, and the origin's next retry delivers it on the other path. With the retry search disabled, the test fails. The 5-node line delivers in all three profiles in the low and medium classes.
+- **Alternatives:** a route-error frame telling the origin which route broke (a new frame type; left for a follow-up); refresh relays' routes on every use (the route-reply sequence would have to travel with every frame).
+
+### D-59 Large-frame reassembly budget
+
+- **Question:** ADR 0015 set 1 MiB of large-frame reassembly per node. Can that budget ever be reached?
+- **Decision:** no; it is lowered to `large-reassembly-budget` 524,288 B (512 KiB). A node keeps at most 6 links (link budget d, ADR 0008 decision 1), each reassembles at most one large frame, and a link writes one frame at a time, so at most 6 × `frame-max` = 835,584 B can be reassembling. At 512 KiB the fourth concurrent large frame near `frame-max` gets `BUSY` with `LARGE_BUDGET`. ADR 0015 amendment 2026-11-25. Owner decision 2026-11-25 (ticket 50).
+- **Evidence:** seeded `VirtualAir` hub with airtime limited to 50,000 B/s: 5 senders each send a 131,072 B message to the hub at once; it answers `BUSY` with `LARGE_BUDGET` only, and all 5 messages arrive and are delivered. At 1 MiB the hub never answers `BUSY`.
+- **Alternatives:** keep 1 MiB (the busy reply for the budget could never be sent, so the rule would be untested); lower to 256 KiB (only one near-full large frame at a time, which serializes a hub).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

@@ -2,7 +2,9 @@
 
 package ch.trancee.meshlink
 
+import ch.trancee.meshlink.internal.BroadcastFrame
 import ch.trancee.meshlink.internal.Derivations
+import ch.trancee.meshlink.internal.MessageContent
 import kotlin.experimental.ExperimentalObjCRefinement
 import kotlin.native.HiddenFromObjC
 
@@ -54,6 +56,9 @@ public class MeshLinkConfigBuilder internal constructor(
     @HiddenFromObjC
     public var readReceiptsSend: Boolean = false
 
+    /** The payload caps; see [LimitsBuilder]. [build] checks them. */
+    public val limits: LimitsBuilder = LimitsBuilder()
+
     /**
      * Validates the settings and returns the immutable config.
      *
@@ -63,12 +68,14 @@ public class MeshLinkConfigBuilder internal constructor(
     @Throws(MeshLinkException::class)
     public fun build(): MeshLinkConfig {
         checkMeshId()
+        limits.check()
         return MeshLinkConfig(
             preset,
             securityProfile,
             meshId,
             checkedMeshKey(),
             Reading(readReceiptsRequestByDefault, readReceiptsSend),
+            Limits(limits.maxUnicastPayload, limits.maxBroadcastPayload),
         )
     }
 
@@ -115,6 +122,8 @@ public class MeshLinkConfig internal constructor(
     public val meshId: String,
     private val key: ByteArray?,
     internal val reading: Reading,
+    /** The effective payload caps; see [LimitsBuilder]. */
+    public val limits: Limits,
 ) {
     /** A copy of the mesh key, or `null` for an open mesh; see [MeshLinkConfigBuilder.meshKey]. */
     public val meshKey: ByteArray? get() = key?.copyOf()
@@ -147,6 +156,8 @@ public class MeshLinkConfig internal constructor(
             "messageLifetimeSeconds = $messageLifetimeSeconds",
             "readReceiptsRequestByDefault = ${reading.requestByDefault}",
             "readReceiptsSend = ${reading.send}",
+            "limits.maxUnicastPayload = ${limits.maxUnicastPayload}",
+            "limits.maxBroadcastPayload = ${limits.maxBroadcastPayload}",
         ).joinToString("\n")
 }
 
@@ -154,4 +165,56 @@ public class MeshLinkConfig internal constructor(
 internal class Reading(
     val requestByDefault: Boolean,
     val send: Boolean,
+)
+
+/**
+ * The payload caps of a [MeshLinkConfig], set through [MeshLinkConfigBuilder.limits] (ADR 0015
+ * decision 8). They may only lower the protocol caps: a send above them returns
+ * [SendResult.Rejected] with [RejectionReason.TooLarge].
+ *
+ * ```kotlin
+ * meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) {
+ *     meshId = "Festival"
+ *     limits.maxUnicastPayload = 4_096
+ * }
+ * ```
+ *
+ * MeshLink never compresses payloads. If an app compresses secret data together with data an
+ * attacker can influence, the ciphertext length leaks the secret (CRIME/BREACH-style); compress
+ * only data that is all public or all secret.
+ */
+public class LimitsBuilder internal constructor() {
+    /**
+     * The largest payload of a message to one peer: 4,096 to 131,072 bytes; 131,072 by default.
+     * A payload above 4,096 bytes is a large message, which travels only on a direct link or a
+     * discovered route and is never held for an absent destination.
+     */
+    public var maxUnicastPayload: Int = MessageContent.PAYLOAD_MAX
+
+    /** The largest payload of a mesh broadcast: 1 to 1,024 bytes; 1,024 by default. */
+    public var maxBroadcastPayload: Int = BroadcastFrame.PAYLOAD_MAX
+
+    internal fun check() {
+        if (maxUnicastPayload !in MessageContent.PAYLOAD_SMALL_MAX..MessageContent.PAYLOAD_MAX) {
+            throw MeshLinkException.InvalidConfig(
+                "limits.maxUnicastPayload",
+                "limits.maxUnicastPayload must be ${MessageContent.PAYLOAD_SMALL_MAX} to " +
+                    "${MessageContent.PAYLOAD_MAX} bytes, not $maxUnicastPayload",
+            )
+        }
+        if (maxBroadcastPayload !in 1..BroadcastFrame.PAYLOAD_MAX) {
+            throw MeshLinkException.InvalidConfig(
+                "limits.maxBroadcastPayload",
+                "limits.maxBroadcastPayload must be 1 to ${BroadcastFrame.PAYLOAD_MAX} bytes, not $maxBroadcastPayload",
+            )
+        }
+    }
+}
+
+/** The effective payload caps of a [MeshLinkConfig]; see [LimitsBuilder]. */
+public class Limits internal constructor(
+    /** The largest payload of a message to one peer, in bytes; see [LimitsBuilder.maxUnicastPayload]. */
+    public val maxUnicastPayload: Int,
+    /** The largest payload of a mesh broadcast, in bytes; see [LimitsBuilder.maxBroadcastPayload]. */
+    public val maxBroadcastPayload: Int,
 )

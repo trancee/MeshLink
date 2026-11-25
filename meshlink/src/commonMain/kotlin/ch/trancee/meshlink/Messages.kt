@@ -57,8 +57,8 @@ public enum class RejectionReason {
     UnknownPeer,
 
     /**
-     * The payload is larger than one message can carry: 4,096 bytes for [MeshLink.send], 1,024 for
-     * [MeshLink.broadcast].
+     * The payload is larger than the configured cap: [Limits.maxUnicastPayload] for [MeshLink.send],
+     * [Limits.maxBroadcastPayload] for [MeshLink.broadcast].
      */
     TooLarge,
 

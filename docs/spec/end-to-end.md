@@ -56,6 +56,8 @@ Routed frames that carry end-to-end content end with a container. Its first byte
 | | 33 | 4 | length | `u32` | |
 | | 37 | var | plaintext | `bytes` | Unpadded plaintext (below), or the broadcast payload |
 
+A `noise_message` or `ciphertext` of a large message is longer than the 65,535 B that Noise revision 34 §3 allows. MeshLink departs from Noise here, end to end only: the frame that carries it bounds it, at most `frame-max` ([link.md](link.md#link-records)) [D-56]. Link handshake messages keep their own bound ([link.md](link.md#handshake-limits)).
+
 Kind `0x05` is in [routing.md](routing.md#broadcast). Allowed kinds per frame:
 
 | Frame | Secured profiles | `unsecured` |

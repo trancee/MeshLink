@@ -199,8 +199,10 @@ public class MeshLink private constructor(
      * Rejects the message with [RejectionReason.NotRunning] unless the node is [MeshState.Running]
      * or [MeshState.Blocked] on anything but [Requirement.IdentityUnavailable];
      * [RejectionReason.UnknownPeer] if [to] is this node's own NodeId;
-     * [RejectionReason.TooLarge] above 4,096 bytes; and [RejectionReason.QueueFull] while the payloads
-     * of unfinished messages reach 1 MiB, after which the caller awaits [awaitSendCapacity].
+     * [RejectionReason.TooLarge] above [Limits.maxUnicastPayload] (at most 131,072 bytes); and
+     * [RejectionReason.QueueFull] while the payloads of unfinished messages reach 1 MiB, after which
+     * the caller awaits [awaitSendCapacity]. MeshLink never compresses payloads; see [LimitsBuilder]
+     * before compressing secret data.
      *
      * @throws MeshLinkException.Closed if the node is closed.
      */
@@ -232,8 +234,8 @@ public class MeshLink private constructor(
      *
      * Rejects the broadcast with [RejectionReason.NotRunning] as [send] does;
      * [RejectionReason.InvalidHopLimit] unless [hopLimit] is 1 to 255;
-     * [RejectionReason.TooLarge] above 1,024 bytes; and [RejectionReason.QueueFull] while the
-     * payloads of unfinished messages and broadcasts reach 1 MiB.
+     * [RejectionReason.TooLarge] above [Limits.maxBroadcastPayload] (at most 1,024 bytes); and
+     * [RejectionReason.QueueFull] while the payloads of unfinished messages and broadcasts reach 1 MiB.
      *
      * @throws MeshLinkException.Closed if the node is closed.
      */

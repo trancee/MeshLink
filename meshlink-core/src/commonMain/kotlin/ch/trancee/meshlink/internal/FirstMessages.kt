@@ -24,7 +24,8 @@ public class FirstMessages(
      * secret, fresh ones if `null`, and a fresh conversation seed; `null` if [responder]'s keys can't be
      * sealed to.
      *
-     * @param payload at most [PAYLOAD_MAX] bytes, so the frame is a small frame.
+     * @param payload at most [MessageContent.PAYLOAD_MAX] bytes; above [MessageContent.PAYLOAD_SMALL_MAX] the
+     *   frame is a large frame.
      * @param expiry Unix seconds; the caller adds the message lifetime to the current time.
      * @param readReceipt whether the plaintext asks for a read receipt.
      * @param tombstone the message's tombstone when it is sealed again after its session lapsed (spec
@@ -37,7 +38,6 @@ public class FirstMessages(
         readReceipt: Boolean,
         tombstone: Tombstone? = null,
     ): Draft? {
-        require(payload.size <= PAYLOAD_MAX) { "payload must be at most $PAYLOAD_MAX bytes, not ${payload.size}" }
         val kept = tombstone ?: Tombstone(crypto.randomBytes(MESSAGE_ID), crypto.randomBytes(K))
         val messageId = kept.messageId
         val k = kept.k
@@ -215,9 +215,6 @@ public class FirstMessages(
     }
 
     public companion object {
-        /** The largest payload, in bytes: `unicast-payload-small-max`, as [UnsecuredMessaging.PAYLOAD_MAX]. */
-        public const val PAYLOAD_MAX: Int = UnsecuredMessaging.PAYLOAD_MAX
-
         private const val MESSAGE_ID = 12
         private const val K = 16
         private const val SEED = 32
