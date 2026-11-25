@@ -1,0 +1,10 @@
+{"t_ms":3,"event":"start","scenario":"direct-message","run":"cos-ctl-6","role":"any","peer":"pixel6","mesh":"lab-cos-ctl-6","profile":"unsecured","duration_s":40}
+{"t_ms":40,"event":"state","state":"Starting","role":null}
+{"t_ms":127,"event":"state","state":"Running","role":null}
+{"t_ms":4736,"event":"link","peer_node":"4568b8b286e5f544","role":"central"}
+{"t_ms":4746,"event":"send","to":"4568b8b286e5f544","bytes":83,"sha256":"ea1dcee1f79b9bf5733e84ce4042fbd0b7b7e9421285758d8b3c2d3aa47548fd","role":"central"}
+{"t_ms":4752,"event":"status","status":"Queued","role":"central"}
+{"t_ms":4764,"event":"status","status":"Sent","role":"central"}
+{"t_ms":5110,"event":"received","from":"4568b8b286e5f544","bytes":84,"sha256":"a0323d0c2b44c252f907b1d691d921e77fe9606c10a52406cb1f5ab30cb32367","intact":true,"role":"central"}
+{"t_ms":5961,"event":"status","status":"Delivered","role":"central"}
+{"t_ms":40305,"event":"done","result":"pass","failures":[]}

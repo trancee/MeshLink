@@ -1,6 +1,6 @@
 # Run phones that can't advertise MESH as central-only nodes
 
-Status: in-progress (device proof open)
+Status: done
 Type: AFK
 Blocked by: 17
 
@@ -26,7 +26,7 @@ Costs the design must cover: two central-only phones never link; peers can't fin
 - [x] On API 26–27, and when the advertiser is null or its start fails, a running node scans and connects as central and never starts advertising; host tests went red first.
 - [x] The host app can tell a central-only node from a full one through the public API or a diagnostic, as the ADR amendment defines.
 - [x] Dated amendments to ADR 0009 decision 9 and ADR 0010 decisions 1 and 6 record the central-only mode; `python3 tools/check_adrs.py` passes.
-- [ ] Device proof: `p10lite` (central-only) exchanges the M1 message with `pixel6`, and a radio trace shows no advertising start on the P10 lite.
+- [x] Device proof: `p10lite` (central-only) exchanges the M1 message with `pixel6`, and a radio trace shows no advertising start on the P10 lite.
 - [x] `PROJECT.md`'s Android radio limitation and the CHANGELOG agree.
 
 ## Proof commands
@@ -53,4 +53,4 @@ python3 tools/lab/lab.py run --scenario direct-message --devices p10lite,pixel6 
 - A refused advertising start, at run start, at a rotation or as `RadioEvent.AdvertisingFailed`, stops advertising for the rest of the run; the node keeps serving the capability record and scanning. A refused capability record or scan still ends discovery as a radio failure.
 - Red first: reverting the behavior failed `CentralOnlyTest`, the flipped `DiscoveryTest` cases, `aLostAdvertisementIsNotRetriedAtLaterRotations` and three `AndroidRadioRequirementsTest` cases.
 - Gate: detekt (`--rerun-tasks`), `./gradlew check iosSimulatorArm64Test dokkaGenerate koverVerify -x :meshlink-crypto-sodium:checkSodiumJniSymbols` and `python3 tools/check_adrs.py` pass.
-- Open: device proof. `adb devices` listed no phones on 2026-11-25, so the `p10lite`/`pixel6` run and its radio trace are still to do.
+- Device proof ([evidence](../../../docs/evidence/2026-11-25-central-only/README.md)): `cos-aa-1` (roles central,peripheral) and `cos-aa-2` (P10 lite unrestricted) passed on `6612ff5`; the P10 lite reported `CentralOnly(LegacyUuidBug)`. Its HCI summary shows no advertising command on `6612ff5`, while the control `cos-ctl-6` on `4975296` enabled advertising with the truncated `00005348`.
