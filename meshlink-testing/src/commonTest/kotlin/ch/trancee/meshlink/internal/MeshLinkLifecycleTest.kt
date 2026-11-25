@@ -37,7 +37,7 @@ class MeshLinkLifecycleTest {
 
             // Assert
             assertEquals(
-                listOf(MeshState.Stopped, MeshState.Starting, MeshState.Running, MeshState.Stopping, MeshState.Stopped),
+                listOf(MeshState.Stopped, MeshState.Starting, RUNNING, MeshState.Stopping, MeshState.Stopped),
                 states,
             )
         }
@@ -59,7 +59,7 @@ class MeshLinkLifecycleTest {
 
             // Assert
             assertEquals(
-                listOf(MeshState.Stopped, MeshState.Starting, MeshState.Running, MeshState.Stopping, MeshState.Stopped),
+                listOf(MeshState.Stopped, MeshState.Starting, RUNNING, MeshState.Stopping, MeshState.Stopped),
                 states,
             )
         }
@@ -105,7 +105,7 @@ class MeshLinkLifecycleTest {
 
                 // Assert
                 assertEquals(MeshState.Blocked(setOf(requirement)), blocked)
-                assertEquals(MeshState.Running, node.state.value)
+                assertEquals(RUNNING, node.state.value)
                 node.close()
             }
         }
@@ -127,7 +127,7 @@ class MeshLinkLifecycleTest {
 
             // Assert
             assertEquals(MeshState.Blocked(setOf(Requirement.BluetoothOff)), blocked)
-            assertEquals(MeshState.Running, node.state.value)
+            assertEquals(RUNNING, node.state.value)
         }
 
     @Test
@@ -147,7 +147,7 @@ class MeshLinkLifecycleTest {
 
             // Assert
             assertEquals(MeshState.Blocked(setOf(Requirement.RadioInUse)), blocked)
-            assertEquals(MeshState.Running, second.state.value)
+            assertEquals(RUNNING, second.state.value)
         }
 
     @Test
@@ -165,7 +165,7 @@ class MeshLinkLifecycleTest {
             runCurrent()
 
             // Assert
-            assertEquals(MeshState.Running, second.state.value)
+            assertEquals(RUNNING, second.state.value)
         }
 
     @Test
@@ -185,7 +185,7 @@ class MeshLinkLifecycleTest {
 
             // Assert
             assertEquals(MeshState.Starting, unknown)
-            assertEquals(MeshState.Running, node.state.value)
+            assertEquals(RUNNING, node.state.value)
             node.close()
         }
 
@@ -221,7 +221,7 @@ class MeshLinkLifecycleTest {
             nodes.forEach { it.start() }
 
             // Assert
-            nodes.forEach { assertEquals(MeshState.Running, it.state.value) }
+            nodes.forEach { assertEquals(RUNNING, it.state.value) }
         }
 
     @Test
@@ -258,5 +258,9 @@ class MeshLinkLifecycleTest {
         val states = mutableListOf<MeshState>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.state.toList(states) }
         return states
+    }
+
+    private companion object {
+        val RUNNING: MeshState = MeshState.Running(emptySet())
     }
 }

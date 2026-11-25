@@ -60,7 +60,9 @@ internal class BleAdvertiser(
             txPower: Int,
             status: Int,
         ) {
-            if (status != ADVERTISE_SUCCESS && current === this) emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
+            if (status != ADVERTISE_SUCCESS && current === this) {
+                emit(RadioEvent.AdvertisingFailed(RadioFailure.RADIO_ERROR))
+            }
         }
     }
 }

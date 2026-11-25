@@ -51,7 +51,7 @@ class AppleRadioDiscoveryTest {
     }
 
     @Test
-    fun advertisingThatFailsToStartIsAFailure() =
+    fun advertisingThatFailsToStartIsAnAdvertisingFailure() =
         runTest {
             // Arrange
             val seen = events()
@@ -61,7 +61,7 @@ class AppleRadioDiscoveryTest {
             bluetooth.events.advertisingStarted(ok = false)
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.Failed>(seen.single()).reason)
+            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.AdvertisingFailed>(seen.single()).reason)
         }
 
     @Test

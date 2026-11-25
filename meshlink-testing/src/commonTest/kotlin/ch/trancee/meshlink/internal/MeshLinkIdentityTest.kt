@@ -72,7 +72,7 @@ class MeshLinkIdentityTest {
             node.start()
 
             // Assert
-            assertEquals(MeshState.Running, node.state.value)
+            assertEquals(MeshState.Running(emptySet()), node.state.value)
         }
 
     @Test
@@ -133,7 +133,7 @@ class MeshLinkIdentityTest {
             // Assert
             assertTrue(reset)
             assertNotEquals(before, store.memory.loadOrCreate(SodiumCryptoProvider))
-            assertEquals(MeshState.Running, node.state.value)
+            assertEquals(MeshState.Running(emptySet()), node.state.value)
         }
 
     @Test
@@ -148,8 +148,8 @@ class MeshLinkIdentityTest {
             val thrown = assertFailsWith<MeshLinkException.InvalidState> { node.resetIdentity() }
 
             // Assert
-            assertEquals(MeshState.Running, thrown.state)
-            assertEquals(MeshState.Running, node.state.value)
+            assertEquals(MeshState.Running(emptySet()), thrown.state)
+            assertEquals(MeshState.Running(emptySet()), node.state.value)
             assertEquals(0, store.deletes)
         }
 

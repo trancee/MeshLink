@@ -65,18 +65,27 @@ internal class Scanner(
     private val stale = mutableMapOf<PeerHandle, Long>()
 
     /**
-     * Why the radio last refused or failed to serve the capability record, advertise or scan, or
-     * `null`. Until real adapters show which failures recur, a failure ends discovery until the next
-     * run; tickets 32 and 54 decide retries and diagnostics.
+     * Why the radio last refused or failed to serve the capability record or scan, or `null`. Until
+     * real adapters show which failures recur, a failure ends discovery until the next run; tickets
+     * 32 and 54 decide retries and diagnostics.
      */
     var failure: RadioFailure? = null
         private set
 
+    private val mutableAdvertisingLost = MutableStateFlow(false)
+
+    /**
+     * Whether the radio refused to advertise, or reported a [RadioEvent.AdvertisingFailed], during
+     * the current run. The run then goes on without advertising (ADR 0010 decision 6): it keeps
+     * scanning, serving the capability record and listening, so links already open stay up.
+     */
+    val advertisingLost: StateFlow<Boolean> = mutableAdvertisingLost
+
     /**
      * Serves the capability record, advertises and scans until cancelled, then stops advertising and
      * scanning and forgets the candidates. Passes every link event to [onLinkEvent]. Returns early,
-     * recording [failure], if the radio refuses any of the three or a rotation, or reports a
-     * [RadioEvent.Failed].
+     * recording [failure], if the radio refuses to serve or scan, or reports a [RadioEvent.Failed]; a
+     * refused or failed advertisement sets [advertisingLost] instead.
      * Restricted to [role], it neither serves nor advertises as [LinkRole.CENTRAL] and doesn't scan as
      * [LinkRole.PERIPHERAL]. Recognizes peers by [recognition]. With [coc], a peripheral listens
      * for L2CAP CoC channels and, if the radio can, offers the PSM in its capability record and sets
@@ -116,6 +125,7 @@ internal class Scanner(
             radio.stopAdvertising()
             radio.stopListening()
             mutableCandidates.value = emptyMap()
+            mutableAdvertisingLost.value = false
         }
     }
 
@@ -131,7 +141,7 @@ internal class Scanner(
     /**
      * Serves the capability record and advertises a fresh payload for the current epoch with
      * [identifier], or a new one at the start of a run, and draws the identifier for the next
-     * rotation; `null` if both succeed.
+     * rotation; `null` unless serving fails. A refused advertisement loses advertising for the rest of the run.
      */
     private fun advertise(
         recognition: Recognition,
@@ -149,8 +159,11 @@ internal class Scanner(
         val flags = coc or if (radio.supportsLe2MPhy) Advertisement.PHY_2M else 0
         val payload = discovery.advertisement(epoch, flags = flags, identifier = own)
         val capability = CapabilityRecord.of(listOf(LinkPolicy.PROTOCOL_VERSION), payload, psm)
-        return radio.serveCapability(capability.encode()) as? RadioResult.Failed
-            ?: radio.startAdvertising(payload) as? RadioResult.Failed
+        val refused = radio.serveCapability(capability.encode()) as? RadioResult.Failed
+        if (refused == null && radio.startAdvertising(payload) is RadioResult.Failed) {
+            radio.lose(mutableAdvertisingLost)
+        }
+        return refused
     }
 
     /**
@@ -192,7 +205,8 @@ internal class Scanner(
 
     /**
      * Re-advertises at this run's phase in every epoch with the identifier drawn ahead, and sends the
-     * neighbor lists before and after; emits a [RadioEvent.Failed] if the radio refuses.
+     * neighbor lists before and after, until advertising is lost; emits a [RadioEvent.Failed] if the
+     * radio refuses to serve the capability record.
      */
     private fun rotations(recognition: Recognition): Flow<RadioEvent> =
         flow {
@@ -200,6 +214,7 @@ internal class Scanner(
                 val now = clock.wallClockMillis()
                 // The wall clock is far past the phase, so the remainder is never negative.
                 delay(EPOCH_MILLIS - (now - phase) % EPOCH_MILLIS)
+                if (mutableAdvertisingLost.value) break
                 recognition.neighbors.changed()
                 advertise(recognition, next)?.let { emit(RadioEvent.Failed(it.reason)) }
                 recognition.neighbors.changed()
@@ -216,6 +231,7 @@ internal class Scanner(
         when (event) {
             is RadioEvent.Sighted -> sighted(event.sighting, recognition, onSighting)
             is RadioEvent.Connected, is RadioEvent.Disconnected, is RadioEvent.ChannelOpened -> onLinkEvent(event)
+            is RadioEvent.AdvertisingFailed -> radio.lose(mutableAdvertisingLost)
             is RadioEvent.Failed -> Unit
         }
         return event is RadioEvent.Failed
@@ -342,4 +358,10 @@ internal class Recognition(
         epoch: UInt,
         nowMillis: Long,
     ): NodeId? = keys?.resolve(identifier, epoch, nowMillis) ?: neighbors.peerOf(identifier)
+}
+
+/** Stops advertising for the rest of the run and records it in [lost]. */
+private fun RadioPort.lose(lost: MutableStateFlow<Boolean>) {
+    stopAdvertising()
+    lost.value = true
 }

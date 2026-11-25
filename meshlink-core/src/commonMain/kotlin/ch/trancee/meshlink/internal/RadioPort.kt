@@ -136,8 +136,16 @@ public sealed interface RadioEvent {
     ) : RadioEvent
 
     /**
-     * Advertising, scanning or serving the capability record failed for [reason] after its start
-     * returned [RadioResult.Ok], as platforms that answer through a later callback report it.
+     * Advertising failed for [reason] after its start returned [RadioResult.Ok], as platforms that
+     * answer through a later callback report it. The node runs on without advertising.
+     */
+    public class AdvertisingFailed(
+        public val reason: RadioFailure,
+    ) : RadioEvent
+
+    /**
+     * Scanning or serving the capability record failed for [reason] after its start returned
+     * [RadioResult.Ok], as platforms that answer through a later callback report it.
      */
     public class Failed(
         public val reason: RadioFailure,

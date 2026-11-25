@@ -1,6 +1,6 @@
 # 0009: BLE bearers, PHY policy and link rules
 
-Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 9 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control; 2026-11-18, bearer switch; 2026-11-18, Android CoC adapter; 2026-11-18, iOS CoC adapter).
+Status: accepted (2026-11-02; ticket "Which BLE bearer(s) and PHY policy should MeshLink use?"). Version: 10 (amended 2026-11-02, ADR 0010; 2026-11-08, protocol spec; 2026-11-14, Android adapter; 2026-11-15, iOS adapter; 2026-11-16, link limits and flow control; 2026-11-18, bearer switch; 2026-11-18, Android CoC adapter; 2026-11-18, iOS CoC adapter; 2026-11-25, central-only nodes).
 
 ## Context
 
@@ -163,3 +163,7 @@ Measured, medians unless noted:
 - **Open timeout:** CoreBluetooth never times out `openL2CAPChannel`, so the iOS central fails an open with `RADIO_ERROR` after 30 s, the same as its connect timeout, and closes a channel that opens later. Owner decision.
 - **Listener and power:** CoreBluetooth ignores a publish while the peripheral manager isn't powered on, so `listenForChannels` fails at once with `RADIO_ERROR` and the node stays on GATT. Bluetooth turning off forgets the PSM, fails a pending publish and closes the accepted channels. Owner decision.
 - **Link limits (decision 6):** the iOS radio reports `peripheralLinkCap` = 3.
+
+2026-11-25, central-only nodes (0.1.0 backlog ticket "Run phones that can't advertise MESH as central-only nodes"):
+
+- **Support tiers (decision 9):** Android 8.0 and 8.1 (API 26–27) run as central-only nodes: they scan and connect as central and never advertise, because the platform truncates the advertised MESH UUID (ADR 0010 amendments of 2026-11-15 and 2026-11-25). They report `Running(setOf(CentralOnly(LegacyUuidBug)))` (ADR 0007 amendment of 2026-11-25). Android 9 advertises and stays allowed but not fully supported.

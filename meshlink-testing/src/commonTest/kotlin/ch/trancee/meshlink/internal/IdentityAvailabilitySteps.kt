@@ -70,7 +70,7 @@ internal fun StepsBuilder.identityAvailabilitySteps() {
     }
 
     then("Bob recognizes Alice's original identity") {
-        assertEquals(MeshState.Running, nodes[0].state.value)
+        assertEquals(MeshState.Running(emptySet()), nodes[0].state.value)
         assertEquals(
             original,
             nodes[1]

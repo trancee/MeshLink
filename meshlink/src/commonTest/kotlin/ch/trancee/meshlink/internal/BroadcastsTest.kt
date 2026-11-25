@@ -59,7 +59,7 @@ class BroadcastsTest {
         payload: ByteArray = byteArrayOf(1, 2, 3),
         hopLimit: Int = 255,
     ): OutgoingMessage {
-        val result = broadcasts.send(payload, hopLimit, MeshState.Running)
+        val result = broadcasts.send(payload, hopLimit, RUNNING)
         runCurrent()
         return (result as SendResult.Accepted).message
     }
@@ -160,9 +160,9 @@ class BroadcastsTest {
             // Act
             val results =
                 listOf(
-                    broadcasts.send(ByteArray(1), 0, MeshState.Running),
-                    broadcasts.send(ByteArray(1), 256, MeshState.Running),
-                    broadcasts.send(ByteArray(1_025), 255, MeshState.Running),
+                    broadcasts.send(ByteArray(1), 0, RUNNING),
+                    broadcasts.send(ByteArray(1), 256, RUNNING),
+                    broadcasts.send(ByteArray(1_025), 255, RUNNING),
                     broadcasts.send(ByteArray(1), 255, MeshState.Stopped),
                 )
             runCurrent()
@@ -185,7 +185,7 @@ class BroadcastsTest {
             val broadcasts = broadcasts(payloadMax = 100)
 
             // Act
-            val above = broadcasts.send(ByteArray(101), 255, MeshState.Running)
+            val above = broadcasts.send(ByteArray(101), 255, RUNNING)
             runCurrent()
             val rejected = lanes.drain(a)
             accepted(broadcasts, ByteArray(100))
@@ -205,7 +205,7 @@ class BroadcastsTest {
             accepted(broadcasts, ByteArray(1))
 
             // Act
-            val full = broadcasts.send(ByteArray(1), 255, MeshState.Running)
+            val full = broadcasts.send(ByteArray(1), 255, RUNNING)
             advanceTimeBy((LIFETIME + SKEW) * 1_000L)
             runCurrent()
             capacity.release((Capacity.LIMIT - 1).toInt())
@@ -244,7 +244,7 @@ class BroadcastsTest {
             val clock = SchedulerClock(testScheduler)
             val broadcasts = Broadcasts(clock, scope, capacity, floods, codec, config())
             broadcasts.begin()
-            val message = (broadcasts.send(ByteArray(10), 255, MeshState.Running) as SendResult.Accepted).message
+            val message = (broadcasts.send(ByteArray(10), 255, RUNNING) as SendResult.Accepted).message
 
             // Act
             scope.cancel()
@@ -308,6 +308,7 @@ class BroadcastsTest {
     private fun Capacity.empty() = reserve((Capacity.LIMIT - 1).toInt()) && reserve(1)
 
     private companion object {
+        val RUNNING: MeshState = MeshState.Running(emptySet())
         val PRESET = Preset.ProximityDiscovery
         val LIFETIME = PRESET.messageLifetimeSeconds
         const val SKEW = 30

@@ -12,17 +12,20 @@ import android.content.pm.PackageManager
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Build
 import android.os.Bundle
+import ch.trancee.meshlink.CentralOnlyReason
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.PermissionKind
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * What the Android radio is missing (ADR 0007 decision 3): no Bluetooth LE or no LE advertiser
- * while Bluetooth is on ([Requirement.Unsupported]), a runtime permission the API level needs, or
- * Bluetooth turned off. Location services being off is not detected. A phone with a single
- * advertising instance reports no multiple advertisement support yet advertises, so that flag is
- * not checked; an advertising start that fails surfaces as a radio failure.
+ * What the Android radio is missing (ADR 0007 decision 3): no Bluetooth LE
+ * ([Requirement.Unsupported]), a runtime permission the API level needs, or Bluetooth turned off.
+ * Location services being off is not detected. Also what it runs without: a phone with no LE
+ * advertiser while Bluetooth is on, or on Android 8.0 or 8.1, runs [Limitation.CentralOnly]. A phone
+ * with a single advertising instance reports no multiple advertisement support yet advertises, so
+ * that flag is not checked; an advertising start that fails makes the run central-only.
  */
 internal class AndroidRequirements(
     private val context: Context,
@@ -30,13 +33,31 @@ internal class AndroidRequirements(
 ) {
     private val missing = MutableStateFlow(current())
 
+    private val without = MutableStateFlow(limits())
+
     /** What is missing now. */
     val requirements: StateFlow<Set<Requirement>> = missing
+
+    /** What the radio runs without now. */
+    val limitations: StateFlow<Set<Limitation>> = without
 
     /** Checks again, after something that may have changed the answer. */
     fun refresh() {
         missing.value = current()
+        without.value = limits()
     }
+
+    private fun limits(): Set<Limitation> =
+        buildSet {
+            // AOSP before Android 9 advertises a 32-bit service UUID's lower 16 bits only.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                add(Limitation.CentralOnly(CentralOnlyReason.LegacyUuidBug))
+            }
+            val enabled = adapter != null && adapter.isEnabled
+            if (enabled && adapter.bluetoothLeAdvertiser == null) {
+                add(Limitation.CentralOnly(CentralOnlyReason.NoAdvertiser))
+            }
+        }
 
     private fun current(): Set<Requirement> {
         val le = context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
@@ -47,10 +68,7 @@ internal class AndroidRequirements(
         buildSet {
             val denied = neededPermissions(Build.VERSION.SDK_INT).filterValues { names -> names.none(::granted) }
             denied.keys.mapTo(this, Requirement::PermissionDenied)
-            when {
-                !adapter.isEnabled -> add(Requirement.BluetoothOff)
-                adapter.bluetoothLeAdvertiser == null -> add(Requirement.Unsupported)
-            }
+            if (!adapter.isEnabled) add(Requirement.BluetoothOff)
         }
 
     private fun granted(name: String): Boolean = context.checkSelfPermission(name) == PERMISSION_GRANTED

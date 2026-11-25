@@ -1,6 +1,6 @@
 # Run phones that can't advertise MESH as central-only nodes
 
-Status: ready-for-agent
+Status: in-progress (device proof open)
 Type: AFK
 Blocked by: 17
 
@@ -23,11 +23,11 @@ Costs the design must cover: two central-only phones never link; peers can't fin
 
 ## Acceptance criteria
 
-- [ ] On API 26–27, and when the advertiser is null or its start fails, a running node scans and connects as central and never starts advertising; host tests went red first.
-- [ ] The host app can tell a central-only node from a full one through the public API or a diagnostic, as the ADR amendment defines.
-- [ ] Dated amendments to ADR 0009 decision 9 and ADR 0010 decisions 1 and 6 record the central-only mode; `python3 tools/check_adrs.py` passes.
+- [x] On API 26–27, and when the advertiser is null or its start fails, a running node scans and connects as central and never starts advertising; host tests went red first.
+- [x] The host app can tell a central-only node from a full one through the public API or a diagnostic, as the ADR amendment defines.
+- [x] Dated amendments to ADR 0009 decision 9 and ADR 0010 decisions 1 and 6 record the central-only mode; `python3 tools/check_adrs.py` passes.
 - [ ] Device proof: `p10lite` (central-only) exchanges the M1 message with `pixel6`, and a radio trace shows no advertising start on the P10 lite.
-- [ ] `PROJECT.md`'s Android radio limitation and the CHANGELOG agree.
+- [x] `PROJECT.md`'s Android radio limitation and the CHANGELOG agree.
 
 ## Proof commands
 
@@ -45,3 +45,12 @@ python3 tools/lab/lab.py run --scenario direct-message --devices p10lite,pixel6 
 ## Devices needed
 
 `p10lite` and `pixel6`.
+
+## Outcome (2026-11-25)
+
+- `MeshState.Running` carries `limitations`; `Limitation.CentralOnly(reason)` names `NoAdvertiser`, `AdvertisingFailed` or `LegacyUuidBug` (ADR 0007 amendment "central-only nodes"). A null advertiser is no longer `Blocked(Unsupported)`.
+- Android reports `LegacyUuidBug` below API 28 and `NoAdvertiser` while Bluetooth is on without an advertiser; a node with either links only as central and never starts advertising.
+- A refused advertising start, at run start, at a rotation or as `RadioEvent.AdvertisingFailed`, stops advertising for the rest of the run; the node keeps serving the capability record and scanning. A refused capability record or scan still ends discovery as a radio failure.
+- Red first: reverting the behavior failed `CentralOnlyTest`, the flipped `DiscoveryTest` cases, `aLostAdvertisementIsNotRetriedAtLaterRotations` and three `AndroidRadioRequirementsTest` cases.
+- Gate: detekt (`--rerun-tasks`), `./gradlew check iosSimulatorArm64Test dokkaGenerate koverVerify -x :meshlink-crypto-sodium:checkSodiumJniSymbols` and `python3 tools/check_adrs.py` pass.
+- Open: device proof. `adb devices` listed no phones on 2026-11-25, so the `p10lite`/`pixel6` run and its radio trace are still to do.

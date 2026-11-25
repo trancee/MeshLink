@@ -1,6 +1,6 @@
 # Rotate static keys and drop expired certificates
 
-Status: in-progress
+Status: done
 Type: AFK
 Blocked by: 44, 49
 

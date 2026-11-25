@@ -46,6 +46,18 @@ final enum class ch.trancee.meshlink.internal/LinkRole : kotlin/Enum<ch.trancee.
     final fun values(): kotlin/Array<ch.trancee.meshlink.internal/LinkRole> // ch.trancee.meshlink.internal/LinkRole.values|values#static(){}[0]
 }
 
+final enum class ch.trancee.meshlink/CentralOnlyReason : kotlin/Enum<ch.trancee.meshlink/CentralOnlyReason> { // ch.trancee.meshlink/CentralOnlyReason|null[0]
+    enum entry AdvertisingFailed // ch.trancee.meshlink/CentralOnlyReason.AdvertisingFailed|null[0]
+    enum entry LegacyUuidBug // ch.trancee.meshlink/CentralOnlyReason.LegacyUuidBug|null[0]
+    enum entry NoAdvertiser // ch.trancee.meshlink/CentralOnlyReason.NoAdvertiser|null[0]
+
+    final val entries // ch.trancee.meshlink/CentralOnlyReason.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/CentralOnlyReason> // ch.trancee.meshlink/CentralOnlyReason.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink/CentralOnlyReason // ch.trancee.meshlink/CentralOnlyReason.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink/CentralOnlyReason> // ch.trancee.meshlink/CentralOnlyReason.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink/FailureReason : kotlin/Enum<ch.trancee.meshlink/FailureReason> { // ch.trancee.meshlink/FailureReason|null[0]
     enum entry Stopped // ch.trancee.meshlink/FailureReason.Stopped|null[0]
 
@@ -121,6 +133,8 @@ abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.mes
         abstract fun <get-dispatcher>(): kotlinx.coroutines/CoroutineDispatcher // ch.trancee.meshlink.internal/PlatformPort.dispatcher.<get-dispatcher>|<get-dispatcher>(){}[0]
     abstract val identityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore|{}identityStore[0]
         abstract fun <get-identityStore>(): ch.trancee.meshlink.internal/IdentityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore.<get-identityStore>|<get-identityStore>(){}[0]
+    abstract val limitations // ch.trancee.meshlink.internal/PlatformPort.limitations|{}limitations[0]
+        abstract fun <get-limitations>(): kotlinx.coroutines.flow/Flow<kotlin.collections/Set<ch.trancee.meshlink/Limitation>> // ch.trancee.meshlink.internal/PlatformPort.limitations.<get-limitations>|<get-limitations>(){}[0]
     abstract val radio // ch.trancee.meshlink.internal/PlatformPort.radio|{}radio[0]
         abstract fun <get-radio>(): ch.trancee.meshlink.internal/RadioPort // ch.trancee.meshlink.internal/PlatformPort.radio.<get-radio>|<get-radio>(){}[0]
     abstract val random // ch.trancee.meshlink.internal/PlatformPort.random|{}random[0]
@@ -250,6 +264,21 @@ sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/Del
     }
 }
 
+sealed interface ch.trancee.meshlink/Limitation { // ch.trancee.meshlink/Limitation|null[0]
+    final class CentralOnly : ch.trancee.meshlink/Limitation { // ch.trancee.meshlink/Limitation.CentralOnly|null[0]
+        constructor <init>(ch.trancee.meshlink/CentralOnlyReason) // ch.trancee.meshlink/Limitation.CentralOnly.<init>|<init>(ch.trancee.meshlink.CentralOnlyReason){}[0]
+
+        final val reason // ch.trancee.meshlink/Limitation.CentralOnly.reason|{}reason[0]
+            final fun <get-reason>(): ch.trancee.meshlink/CentralOnlyReason // ch.trancee.meshlink/Limitation.CentralOnly.reason.<get-reason>|<get-reason>(){}[0]
+
+        final fun component1(): ch.trancee.meshlink/CentralOnlyReason // ch.trancee.meshlink/Limitation.CentralOnly.component1|component1(){}[0]
+        final fun copy(ch.trancee.meshlink/CentralOnlyReason = ...): ch.trancee.meshlink/Limitation.CentralOnly // ch.trancee.meshlink/Limitation.CentralOnly.copy|copy(ch.trancee.meshlink.CentralOnlyReason){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Limitation.CentralOnly.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Limitation.CentralOnly.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Limitation.CentralOnly.toString|toString(){}[0]
+    }
+}
+
 sealed interface ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState|null[0]
     final class Blocked : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Blocked|null[0]
         constructor <init>(kotlin.collections/Set<ch.trancee.meshlink/Requirement>) // ch.trancee.meshlink/MeshState.Blocked.<init>|<init>(kotlin.collections.Set<ch.trancee.meshlink.Requirement>){}[0]
@@ -264,7 +293,14 @@ sealed interface ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshStat
         final fun toString(): kotlin/String // ch.trancee.meshlink/MeshState.Blocked.toString|toString(){}[0]
     }
 
-    final object Running : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Running|null[0]
+    final class Running : ch.trancee.meshlink/MeshState { // ch.trancee.meshlink/MeshState.Running|null[0]
+        constructor <init>(kotlin.collections/Set<ch.trancee.meshlink/Limitation>) // ch.trancee.meshlink/MeshState.Running.<init>|<init>(kotlin.collections.Set<ch.trancee.meshlink.Limitation>){}[0]
+
+        final val limitations // ch.trancee.meshlink/MeshState.Running.limitations|{}limitations[0]
+            final fun <get-limitations>(): kotlin.collections/Set<ch.trancee.meshlink/Limitation> // ch.trancee.meshlink/MeshState.Running.limitations.<get-limitations>|<get-limitations>(){}[0]
+
+        final fun component1(): kotlin.collections/Set<ch.trancee.meshlink/Limitation> // ch.trancee.meshlink/MeshState.Running.component1|component1(){}[0]
+        final fun copy(kotlin.collections/Set<ch.trancee.meshlink/Limitation> = ...): ch.trancee.meshlink/MeshState.Running // ch.trancee.meshlink/MeshState.Running.copy|copy(kotlin.collections.Set<ch.trancee.meshlink.Limitation>){}[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/MeshState.Running.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/MeshState.Running.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // ch.trancee.meshlink/MeshState.Running.toString|toString(){}[0]

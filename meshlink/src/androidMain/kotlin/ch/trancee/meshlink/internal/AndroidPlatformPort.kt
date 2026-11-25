@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +27,8 @@ internal class AndroidPlatformPort(
         adapter?.let { AndroidRadio(app, manager, it, CoroutineScope(SupervisorJob() + dispatcher)) }
 
     override val requirements: StateFlow<Set<Requirement>> = checks.requirements
+
+    override val limitations: StateFlow<Set<Limitation>> = checks.limitations
 
     override val identityStore: IdentityStore = PersistentIdentityStore(KeystoreSlot.of(app))
 

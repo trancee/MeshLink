@@ -13,6 +13,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import ch.trancee.meshlink.CentralOnlyReason
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.PermissionKind
 import ch.trancee.meshlink.Requirement
@@ -150,16 +152,59 @@ class AndroidRadioRequirementsTest {
     }
 
     @Test(timeout = TIMEOUT_MILLIS)
-    fun anAdapterWithoutAnAdvertiserIsUnsupported() {
+    fun anAdapterWithoutAnAdvertiserMissesNothingButIsCentralOnly() {
         // Arrange
         grantAll()
         ShadowMeshAdapter.withoutAdvertiser = true
 
         // Act
-        val missing = AndroidRequirements(app, adapter).requirements.value
+        val requirements = AndroidRequirements(app, adapter)
 
         // Assert
-        assertEquals(setOf(Requirement.Unsupported), missing)
+        assertEquals(emptySet(), requirements.requirements.value)
+        assertTrue(Limitation.CentralOnly(CentralOnlyReason.NoAdvertiser) in requirements.limitations.value)
+    }
+
+    @Test(timeout = TIMEOUT_MILLIS)
+    fun anAdapterThatGetsItsAdvertiserBackOnRefreshIsNoLongerWithoutOne() {
+        // Arrange
+        grantAll()
+        ShadowMeshAdapter.withoutAdvertiser = true
+        val requirements = AndroidRequirements(app, adapter)
+
+        // Act
+        ShadowMeshAdapter.withoutAdvertiser = false
+        requirements.refresh()
+
+        // Assert
+        assertFalse(Limitation.CentralOnly(CentralOnlyReason.NoAdvertiser) in requirements.limitations.value)
+    }
+
+    @Test(timeout = TIMEOUT_MILLIS)
+    @Config(sdk = [26])
+    fun android8IsCentralOnlyBecauseItsAdvertisementLosesTheMeshUuid() {
+        // Arrange
+        grantAll()
+
+        // Act
+        val requirements = AndroidRequirements(app, adapter)
+
+        // Assert
+        assertEquals(emptySet(), requirements.requirements.value)
+        assertEquals(setOf(Limitation.CentralOnly(CentralOnlyReason.LegacyUuidBug)), requirements.limitations.value)
+    }
+
+    @Test(timeout = TIMEOUT_MILLIS)
+    @Config(sdk = [37])
+    fun aCurrentAndroidWithAnAdvertiserHasNoLimitation() {
+        // Arrange
+        grantAll()
+
+        // Act
+        val limitations = AndroidPlatformPort(app).limitations.value
+
+        // Assert
+        assertEquals(emptySet(), limitations)
     }
 
     @Test(timeout = TIMEOUT_MILLIS)

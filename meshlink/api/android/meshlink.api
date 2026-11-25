@@ -1,3 +1,12 @@
+public final class ch/trancee/meshlink/CentralOnlyReason : java/lang/Enum {
+	public static final field AdvertisingFailed Lch/trancee/meshlink/CentralOnlyReason;
+	public static final field LegacyUuidBug Lch/trancee/meshlink/CentralOnlyReason;
+	public static final field NoAdvertiser Lch/trancee/meshlink/CentralOnlyReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/CentralOnlyReason;
+	public static fun values ()[Lch/trancee/meshlink/CentralOnlyReason;
+}
+
 public abstract interface class ch/trancee/meshlink/DeliveryStatus {
 }
 
@@ -62,6 +71,20 @@ public final class ch/trancee/meshlink/FailureReason : java/lang/Enum {
 }
 
 public abstract interface annotation class ch/trancee/meshlink/InternalMeshLinkApi : java/lang/annotation/Annotation {
+}
+
+public abstract interface class ch/trancee/meshlink/Limitation {
+}
+
+public final class ch/trancee/meshlink/Limitation$CentralOnly : ch/trancee/meshlink/Limitation {
+	public fun <init> (Lch/trancee/meshlink/CentralOnlyReason;)V
+	public final fun component1 ()Lch/trancee/meshlink/CentralOnlyReason;
+	public final fun copy (Lch/trancee/meshlink/CentralOnlyReason;)Lch/trancee/meshlink/Limitation$CentralOnly;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/Limitation$CentralOnly;Lch/trancee/meshlink/CentralOnlyReason;ILjava/lang/Object;)Lch/trancee/meshlink/Limitation$CentralOnly;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lch/trancee/meshlink/CentralOnlyReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class ch/trancee/meshlink/Limits {
@@ -186,8 +209,12 @@ public final class ch/trancee/meshlink/MeshState$Blocked : ch/trancee/meshlink/M
 }
 
 public final class ch/trancee/meshlink/MeshState$Running : ch/trancee/meshlink/MeshState {
-	public static final field INSTANCE Lch/trancee/meshlink/MeshState$Running;
+	public fun <init> (Ljava/util/Set;)V
+	public final fun component1 ()Ljava/util/Set;
+	public final fun copy (Ljava/util/Set;)Lch/trancee/meshlink/MeshState$Running;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/MeshState$Running;Ljava/util/Set;ILjava/lang/Object;)Lch/trancee/meshlink/MeshState$Running;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLimitations ()Ljava/util/Set;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -534,6 +561,7 @@ public abstract interface class ch/trancee/meshlink/internal/PlatformPort {
 	public abstract fun getClock ()Lch/trancee/meshlink/internal/Clock;
 	public abstract fun getDispatcher ()Lkotlinx/coroutines/CoroutineDispatcher;
 	public abstract fun getIdentityStore ()Lch/trancee/meshlink/internal/IdentityStore;
+	public abstract fun getLimitations ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getRadio ()Lch/trancee/meshlink/internal/RadioPort;
 	public abstract fun getRandom ()Lch/trancee/meshlink/internal/RandomSource;
 	public abstract fun getRequirements ()Lkotlinx/coroutines/flow/Flow;

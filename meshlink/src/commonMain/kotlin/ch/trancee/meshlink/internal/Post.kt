@@ -484,5 +484,5 @@ private fun Outbox.Entry.drafted(
 }
 
 internal fun accepting(state: MeshState): Boolean =
-    state == MeshState.Running ||
+    state is MeshState.Running ||
         (state is MeshState.Blocked && Requirement.IdentityUnavailable !in state.requirements)
