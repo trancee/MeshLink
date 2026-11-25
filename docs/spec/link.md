@@ -401,7 +401,7 @@ Maximum: 7,127 B, so `CATCH_UP` is always a small frame.
 
 - The receiver requests a missing offered broadcast with `GRAFT` ([routing.md](routing.md#plumtree)). The sender answers it from the broadcasts it received recently or from those it holds [D-52].
 - For each held entry whose destination tag is one of the receiver's own tags for any epoch within the last `message-lifetime-max`, or that it has an active route to over another link, the receiver MAY request it with `GRAFT`. MeshLink does not request a message it already took, nor one it requested within the last `catch-up-window`. The holder then forwards the held frame unchanged except for the hop limit (ADR 0014 decision 7 and amendment).
-- Each tombstone lets the receiver verify `H(k)` against a held copy's commitment and delete it ([end-to-end.md](end-to-end.md#tombstones)).
+- Each tombstone lets the receiver verify `H(k)` against a held copy's commitment and delete it ([end-to-end.md](end-to-end.md#tombstones)). The receiver stores only tombstones that verified a held copy and ignores the rest [D-54].
 - If a list would exceed its maximum, the sender keeps the newest entries.
 
 <!-- data: limits.json -->

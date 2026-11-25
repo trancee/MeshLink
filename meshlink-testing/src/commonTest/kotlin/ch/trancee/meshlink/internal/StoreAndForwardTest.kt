@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -146,6 +147,24 @@ class StoreAndForwardTest {
             assertEquals(0, mesh.grafts(E), "E grafted")
         }
 
+    @Test
+    fun anUnsecuredRelaysCopyIsDeletedByTheTombstoneOfAReceiptAnotherRelayCarried() =
+        runTest(timeout = 5.minutes) {
+            buries(SecurityProfile.Unsecured, WireProfile.UNSECURED)
+        }
+
+    @Test
+    fun aClassicalRelaysCopyIsDeletedByTheTombstoneOfAReceiptAnotherRelayCarried() =
+        runTest(timeout = 5.minutes) {
+            buries(SecurityProfile.Classical, WireProfile.CLASSICAL)
+        }
+
+    @Test
+    fun aPostQuantumRelaysCopyIsDeletedByTheTombstoneOfAReceiptAnotherRelayCarried() =
+        runTest(timeout = 5.minutes) {
+            buries(SecurityProfile.PostQuantum, WireProfile.POST_QUANTUM)
+        }
+
     // E is away while A sends; R holds the frame; E returns next to R once A's retries have run on.
     private suspend fun TestScope.handsOver(profile: SecurityProfile) {
         // Arrange
@@ -162,6 +181,40 @@ class StoreAndForwardTest {
         assertEquals(listOf("hello"), mesh.texts(E))
         assertTrue(mesh.grafts(E) > 0, "E sent no GRAFT")
         assertEquals(DeliveryStatus.Delivered, message.status.value)
+    }
+
+    // R1 and R2, of the medium class amid a crowd, both hold A's message to E; E returns next to R1 and its receipt
+    // through R1 carries the tombstone; R2 then meets R1, and F, which met R2 before, meets it again.
+    private suspend fun TestScope.buries(
+        profile: SecurityProfile,
+        wire: WireProfile,
+    ) {
+        // Arrange
+        val mesh = Mesh(this, profile, count = 5).start()
+        val e = mesh.id(E)
+        mesh.leave(E)
+        mesh.leave(F)
+        mesh.place(R2, -SPACING)
+        repeat(MEDIUM_CROWD) { mesh.air.move(advertiseFake(mesh.air, null, profile = wire), 0.0, CROWD_NEAR) }
+        advanceTimeBy(SETTLE_MILLIS)
+        assertEquals(listOf(MEDIUM_OFF, MEDIUM_OFF), listOf(R, R2).map { lastGap(mesh.platforms[it]) }, "scan off")
+        mesh.send(A, e, "hello", settleMillis = RETRIES_MILLIS)
+        mesh.leave(A)
+        mesh.meetFar(R2, F)
+        mesh.leave(F)
+        mesh.place(E, 2 * SPACING)
+        advanceTimeBy(SETTLE_MILLIS)
+
+        // Act
+        mesh.place(R2, 0.0)
+        advanceTimeBy(SETTLE_MILLIS)
+        mesh.meetFar(R2, F)
+
+        // Assert
+        assertEquals(listOf("hello"), mesh.texts(E))
+        val seen = mesh.catchUps(F).filter { it.held.isNotEmpty() || it.tombstones.isNotEmpty() }
+        assertEquals(listOf(1 to 0, 0 to 1), seen.map { it.held.size to it.tombstones.size })
+        assertContentEquals(seen[0].held[0].messageId, seen[1].tombstones[0].messageId)
     }
 
     /**
@@ -218,6 +271,30 @@ class StoreAndForwardTest {
                 scope.testScheduler.advanceTimeBy(settleMillis)
             }
 
+        /** Nodes [index] and [other] meet far from everyone else, until linked. */
+        fun meetFar(
+            index: Int,
+            other: Int,
+        ) {
+            place(index, FAR)
+            place(other, FAR + SPACING)
+            scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
+        }
+
+        /** The `CATCH_UP`s node [index] received. */
+        fun catchUps(index: Int): List<LinkFrame.CatchUp> {
+            val received =
+                if (profile == SecurityProfile.Unsecured) {
+                    val ends = platforms.flatMap { it.radio.ends }.filter { it.remote == platforms[index].radio }
+                    ends.flatMap(::clearFrames)
+                } else {
+                    crypto[index].frames()
+                }
+            return received
+                .filter { it[0] == CATCH_UP }
+                .map { assertIs<LinkFrame.CatchUp>(assertIs<Decoded.Valid<LinkFrame>>(LinkFrame.decode(it)).value) }
+        }
+
         fun texts(index: Int): List<String> = inboxes[index].map { it.payload.decodeToString() }
 
         /** The `GRAFT`s node [index] sent. */
@@ -238,6 +315,9 @@ class StoreAndForwardTest {
         const val E = 2
         const val B = 3
         const val Q = 3
+        const val R2 = 3
+        const val F = 4
+        const val FAR = -5_000.0
         const val SPACING = 25.0
         const val AWAY = 1_000.0
         const val SETTLE_MILLIS = 60_000L
@@ -252,6 +332,10 @@ class StoreAndForwardTest {
         const val MEDIUM_CROWD = 13
         const val MEDIUM_OFF = 12_000L
         const val CROWD_OFFSET = 20.0
+
+        // In range of A, R1 and R2, not of E at 2 × SPACING.
+        const val CROWD_NEAR = 10.0
         const val GRAFT: Byte = 0x0C
+        const val CATCH_UP: Byte = 0x0A
     }
 }

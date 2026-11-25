@@ -255,7 +255,7 @@ Vectors: `derivations.json`, derivations `conversation-secret` and `conversation
 
 ## Tombstones
 
-(ADR 0014 decision 8 and amendments; [D-10], [D-42].)
+(ADR 0014 decision 8 and amendments; [D-10], [D-42], [D-54].)
 
 ```text
 commitment = trunc_16(H("tombstone", k))           k: 16 random bytes per unicast message
@@ -264,7 +264,11 @@ commitment = trunc_16(H("tombstone", k))           k: 16 random bytes per unicas
 - The origin draws `k`, puts it in the plaintext and `H(k)` in the `MESSAGE` commitment. Retries reuse both.
 - A tombstone is `{message_id, k}`. Any node that holds a `MESSAGE` with that `message_id` and verifies `H(k)` against its commitment deletes its copy.
 - A node stores a tombstone if it verified a held copy, or if it relayed the `DELIVERY_RECEIPT` that carried it. It ignores other tombstones from `CATCH_UP`.
+- A tombstone whose `k` fails to verify against a held copy with that `message_id` deletes nothing and is not stored, even from a relayed receipt [D-54].
 - A tombstone from a receipt is kept until that receipt's `expiry`; one that verified a held copy until that copy's `expiry`. At most `tombstone-store` entries are kept, oldest dropped first. Stored tombstones are offered in `CATCH_UP`.
+- MeshLink stores each `{message_id, k}` pair once; two tombstones with the same `message_id` and different `k` are distinct entries, so a forged one never replaces the genuine one [D-54].
+- A relay does not hold a relayed `MESSAGE` that a tombstone it stores verifies; it still forwards it [D-54].
+- The destination and the origin store no tombstones: they hold no relayed copy, and the origin's outbox drops the message on the receipt.
 - In `unsecured`, `k` is plaintext in the message, so anyone on the path can forge tombstones.
 
 <!-- data: limits.json -->

@@ -110,17 +110,19 @@ class HoldingTest {
     }
 
     @Test
-    fun aGraftTakesAHeldFrameUntilItsExpiry() {
+    fun aHeldFrameIsCopiedForAGraftUntilItsExpiry() {
         // Arrange
-        holding.hold(unicast(a, 1, expiry = NOW + 10), HOP_LIMIT, NOW_MILLIS)
+        val frame = unicast(a, 1, expiry = NOW + 10)
+        holding.hold(frame, HOP_LIMIT, NOW_MILLIS)
         val expiryMillis = (NOW + 10) * MILLIS
 
         // Act
-        val before = holding.taken(b, mid(1), expiryMillis - 1)
-        val at = holding.taken(b, mid(1), expiryMillis)
+        val before = holding.copy(mid(1), expiryMillis - 1)?.takenBy(b)
+        val at = holding.copy(mid(1), expiryMillis)
 
         // Assert
         assertContentEquals(mid(1), before?.messageId)
+        assertEquals(setOf(b), frame.sentTo)
         assertNull(at)
     }
 

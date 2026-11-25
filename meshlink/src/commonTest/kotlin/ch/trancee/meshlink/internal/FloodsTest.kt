@@ -24,7 +24,7 @@ class FloodsTest {
         density: DensityClass = DensityClass.LOW,
     ): Floods {
         val tree = Plumtree(lanes, SchedulerClock(testScheduler), backgroundScope) { density }
-        return Floods(lanes, broadcastCodec(secured), tree) { delivered += it }
+        return Floods(lanes, broadcastCodec(secured), tree, ::tombstoneCommitment) { delivered += it }
     }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
@@ -346,6 +346,25 @@ class FloodsTest {
             val held = catchUp.held.map { it.messageId.toList() to it.destinationTag.toList() }
             assertEquals(listOf(messageId(9).toList() to tag(9).toList()), held)
             assertEquals(0, catchUp.tombstones.size)
+        }
+
+    @Test
+    fun aCatchUpsTombstoneDeletesTheHeldCopyItOpensAndLaterCatchUpsOfferIt() =
+        runTest {
+            // Arrange
+            val floods = floods()
+            val k = ByteArray(16) { 7 }
+            val copy = HeldFrame(a, messageId(9), tag(9), NOW + LIFETIME, ByteArray(10), tombstoneCommitment(k))
+            floods.holding.hold(copy, 5, wallMillis())
+
+            // Act
+            val unsolicited = LinkFrame.CatchUp(emptyList(), emptyList(), listOf(Tombstone(messageId(9), k)))
+            floods.plumtree(b, unsolicited, wallMillis())
+            val catchUp = floods.linked(c, wallMillis())
+
+            // Assert
+            assertEquals(emptyList(), catchUp.held)
+            assertEquals(listOf(messageId(9).toList()), catchUp.tombstones.map { it.messageId.toList() })
         }
 
     @Test

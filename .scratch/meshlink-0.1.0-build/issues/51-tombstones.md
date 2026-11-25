@@ -1,6 +1,6 @@
 # Delete messages with tombstones
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 49
 
@@ -25,14 +25,14 @@ Once a unicast message is delivered, its held copies disappear across the mesh. 
 
 ## Acceptance criteria
 
-- [ ] The `tombstone-commitment` vectors pass on Android and iOS through the vector runner.
-- [ ] Seeded `VirtualAir` test, `Classical`, medium class: two relays hold a message for E; E receives it from one; the receipt's tombstone deletes the copy on the path, and the other holder deletes its copy at the next encounter through `CATCH_UP`.
-- [ ] The same scenario passes in `Unsecured` and `PostQuantum`.
-- [ ] Unit tests: a tombstone with a wrong `k` deletes nothing and is not stored; an unsolicited `CATCH_UP` tombstone is ignored; the 1,001st entry drops the oldest; entries expire at the right `expiry`.
-- [ ] Retries of one message carry the same `k` and commitment.
-- [ ] T10: a flood of forged or unmatched tombstones neither deletes held copies (in secured profiles) nor grows storage past 1,000 entries.
-- [ ] [observer-exposure.md](../../../docs/reference/observer-exposure.md) "Tombstone (in a receipt)" row matches the code.
-- [ ] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
+- [x] The `tombstone-commitment` vectors pass on Android and iOS through the vector runner.
+- [x] Seeded `VirtualAir` test, `Classical`, medium class: two relays hold a message for E; E receives it from one; the receipt's tombstone deletes the copy on the path, and the other holder deletes its copy at the next encounter through `CATCH_UP`.
+- [x] The same scenario passes in `Unsecured` and `PostQuantum`.
+- [x] Unit tests: a tombstone with a wrong `k` deletes nothing and is not stored; an unsolicited `CATCH_UP` tombstone is ignored; the 1,001st entry drops the oldest; entries expire at the right `expiry`.
+- [x] Retries of one message carry the same `k` and commitment.
+- [x] T10: a flood of forged or unmatched tombstones neither deletes held copies (in secured profiles) nor grows storage past 1,000 entries.
+- [x] [observer-exposure.md](../../../docs/reference/observer-exposure.md) "Tombstone (in a receipt)" row matches the code.
+- [x] `./gradlew check` passes with Kover at 100%; `./gradlew iosSimulatorArm64Test` passes.
 
 ## Proof commands
 

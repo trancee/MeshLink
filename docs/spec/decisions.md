@@ -381,6 +381,13 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Evidence:** a medium or high class origin waits that long after a flooded send before searching again (Origin behavior), so no route by then means the destination is out of reach for now; a low class origin never searches.
 - **Alternatives:** `Held` only with no link (a medium or high class app never learns its message waits); `Held` after the first retry with no receipt (the retry interval reaches 60 s).
 
+### D-54 Tombstones that fail to verify, and held copies of delivered messages
+
+- **Question:** what does a node do with a tombstone whose `k` does not open its held copy's commitment, how does it tell tombstones with the same `message_id` apart, and may a relay hold a message whose tombstone it already stores?
+- **Decision:** a tombstone that fails against a held copy deletes nothing and is not stored, even from a relayed `DELIVERY_RECEIPT`; with no held copy, a relayed receipt's tombstone is stored until the receipt's `expiry` (D-42). Stored tombstones are keyed by `{message_id, k}`, so a forged one with the genuine `message_id` cannot displace the genuine one. A relay does not hold a relayed `MESSAGE` that a stored tombstone verifies, but still forwards it. A tombstone does not stop a node claiming a held entry with `GRAFT`. Owner-delegated decisions 2026-11-25 (ticket 51).
+- **Evidence:** only the destination learns `k` in the secured profiles, so a failing `k` is a forgery or a different message; storing it would spend `tombstone-store` and be offered on every `CATCH_UP`. Keying by `message_id` alone would let a forged tombstone shadow the genuine one. A claim check against unverified tombstones would let a forger suppress delivery. Seeded `VirtualAir` tests in `unsecured`, `classical` and `post-quantum`: a receipt through one relay deletes its copy, and its `CATCH_UP` deletes another relay's copy, which then offers the tombstone.
+- **Alternatives:** store every tombstone from a relayed receipt (forged receipts fill the store); key by `message_id` (a forged tombstone shadows the genuine one); skip claims for tombstoned IDs (unverified tombstones suppress delivery).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

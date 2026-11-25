@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 8 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec; 2026-11-13, errata; 2026-11-24, store-and-forward built).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 9 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec; 2026-11-13, errata; 2026-11-24, store-and-forward built; 2026-11-25, tombstones built).
 
 ## Context
 
@@ -97,3 +97,7 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 - **Broadcasts on catch-up (decisions 6 and 7):** `CATCH_UP` offers held broadcasts together with the broadcasts received in the last 60 s, newest first, up to 128 entries. A `GRAFT` is answered from either.
 - **Origin status (decision 1; [D-53](../spec/decisions.md#d-53-when-an-origins-message-is-held)):** while relays hold copies, the origin's message is `Held` if a send found no link or, in the medium and high classes, no route within 1.6 s of a flooded send.
 - **Not built yet:** tombstones (decision 8) are not offered on catch-up yet; `CATCH_UP` sends an empty tombstone list.
+
+2026-11-25, tombstones built (0.1.0 backlog ticket "Delete messages with tombstones"):
+
+- **Tombstones (decision 8; [D-54](../spec/decisions.md#d-54-tombstones-that-fail-to-verify-and-held-copies-of-delivered-messages)):** relays verify and store the tombstones of the delivery receipts they relay, and `CATCH_UP` offers the stored ones. A tombstone that fails to open a held copy is not stored, and the store tells tombstones with the same message ID apart by `k`. A relay does not hold a message that a stored tombstone opens. The 2026-11-24 note that `CATCH_UP` sends an empty tombstone list no longer applies.

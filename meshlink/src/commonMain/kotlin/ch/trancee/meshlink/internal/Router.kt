@@ -89,7 +89,7 @@ internal class Router(
     private val delivered = MessageIds()
 
     /** This node's hand-over of the unicasts it holds for others. */
-    val handOver: HandOver = HandOver(clock, lanes, routes, endpoint, floods.holding, delivered)
+    val handOver: HandOver = HandOver(clock, lanes, routes, endpoint, floods.tombstones, delivered)
     private val discovery =
         RouteDiscovery(clock, lanes, routes, random, endpoint) { tag, peer ->
             endpoint.found(tag)
@@ -205,6 +205,10 @@ internal class Router(
         if (seen.has(frame.header.messageId, now)) return
         routes.learn(frame.header.sourceTag, peer, now)
         handOver.flush(frame.header.sourceTag, peer)
+        if (frame.type == DeliveryReceipt.TYPE) {
+            val receipt = receipt(bytes)
+            floods.tombstones.relayed(receipt.tombstones, receipt.header.expiry.toLong(), clock.wallClockMillis())
+        }
         val relayed = if (frame.header.hopLimit > 1) relayed(peer, frame, bytes) else null
         val targets = relayed?.let { targets(peer, frame, bytes.size, now) }
         if (relayed == null || targets == null) return
@@ -345,6 +349,9 @@ internal class Router(
 
 // A ROUTE_REPLY that carried() admitted.
 private fun reply(bytes: ByteArray): RouteReply = (RouteReply.decode(bytes) as Decoded.Valid).value
+
+// A DELIVERY_RECEIPT that carried() admitted.
+private fun receipt(bytes: ByteArray): DeliveryReceipt = (DeliveryReceipt.decode(bytes) as Decoded.Valid).value
 
 // A secured node's LOOKUP_REPLY that carried() admitted.
 private fun lookupReply(bytes: ByteArray): LookupReply = (LookupReply.decode(bytes) as Decoded.Valid).value

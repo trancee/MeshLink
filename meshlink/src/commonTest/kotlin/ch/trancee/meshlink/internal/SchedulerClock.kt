@@ -77,7 +77,13 @@ internal fun unicast(
 ): ByteArray = UnicastFrame(type, UnicastHeader(hopLimit, id, expiry.toUInt(), destination, source), body).encode()
 
 /** The body of a `MESSAGE` frame with [container]: a zero commitment, then the container. */
-internal fun messageBody(container: Container): ByteArray = ByteArray(16) + container.encode()
+internal fun messageBody(
+    container: Container,
+    commitment: ByteArray = ByteArray(16),
+): ByteArray = commitment + container.encode()
+
+/** `trunc_16(H("tombstone", k))`, as a node's floods verify tombstones with. */
+internal fun tombstoneCommitment(k: ByteArray): ByteArray = Derivations(SodiumCryptoProvider).tombstoneCommitment(k)
 
 /** A broadcast tree on [lanes] in the low class, which floods; its grafts run on [scope] and [clock]. */
 @OptIn(ExperimentalCoroutinesApi::class)
