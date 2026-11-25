@@ -36,17 +36,6 @@ internal class Holding {
     /** The live broadcasts, oldest first. */
     fun broadcasts(nowMillis: Long): List<HeldFrame> = live(nowMillis).filter { it.destinationTag == null }
 
-    /** The live frame with message_id [id] to send to [peer], who asked for it with `GRAFT`; `null` if not held. */
-    fun taken(
-        peer: NodeId,
-        id: ByteArray,
-        nowMillis: Long,
-    ): Parcel? =
-        frames[id.toHexString()]?.takeIf { it.liveAt(nowMillis) }?.let {
-            it.sentTo += peer
-            it.parcel()
-        }
-
     /** The live unicasts as a `CATCH_UP` lists them, oldest first. */
     fun listed(nowMillis: Long): List<LinkFrame.CatchUp.Held> =
         live(nowMillis).mapNotNull { frame ->
@@ -58,6 +47,17 @@ internal class Holding {
         tag: ByteArray,
         nowMillis: Long,
     ): List<HeldFrame> = unicasts(nowMillis).filter { tag.contentEquals(it.destinationTag) }
+
+    /** The live frame with message_id [id], if held. */
+    fun copy(
+        id: ByteArray,
+        nowMillis: Long,
+    ): HeldFrame? = frames[id.toHexString()]?.takeIf { it.liveAt(nowMillis) }
+
+    /** Drops [frame]. */
+    fun drop(frame: HeldFrame) {
+        frames -= frame.messageId.toHexString()
+    }
 
     /** Drops every held frame. */
     fun clear() {
@@ -164,8 +164,8 @@ private class Eviction(
 
 /**
  * A frame held for others: as relayed, from link [from], with [messageId], toward [destinationTag]
- * (`null` for a broadcast), live until [expiry] in Unix seconds. [sentTo] are the links it went to
- * from the hold.
+ * (`null` for a broadcast), live until [expiry] in Unix seconds. A `MESSAGE` carries its tombstone
+ * [commitment]; other types `null`. [sentTo] are the links it went to from the hold.
  */
 internal class HeldFrame(
     val from: NodeId,
@@ -173,6 +173,7 @@ internal class HeldFrame(
     val destinationTag: ByteArray?,
     val expiry: Long,
     val bytes: ByteArray,
+    val commitment: ByteArray? = null,
 ) {
     val sentTo: MutableSet<NodeId> = mutableSetOf()
 
@@ -181,6 +182,12 @@ internal class HeldFrame(
 
     /** The frame to write again, unchanged. */
     fun parcel(): Parcel = Parcel(messageId, relayed = true, { bytes }) {}
+
+    /** The frame to send to [peer], who asked for it with `GRAFT`. */
+    fun takenBy(peer: NodeId): Parcel {
+        sentTo += peer
+        return parcel()
+    }
 }
 
 private const val MILLIS_PER_SECOND = 1_000L

@@ -25,7 +25,7 @@ class RouterTest {
     private val endpoint = FakeEndpoint(OWN)
     private val delivered = endpoint.delivered
     private val broadcasts = mutableListOf<ReceivedMessage>()
-    private val floods = Floods(lanes, broadcastCodec(), lowTree(lanes)) { broadcasts += it }
+    private val floods = Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment) { broadcasts += it }
 
     private var lookups: Lookups? = null
 
@@ -65,6 +65,7 @@ class RouterTest {
         destination: ByteArray = tag(9),
         source: ByteArray = tag(8),
         container: Container = Container.Unsecured(ByteArray(32), byteArrayOf()),
+        commitment: ByteArray = ByteArray(16),
     ) = unicast(
         MessageFrame.TYPE,
         hopLimit,
@@ -72,16 +73,17 @@ class RouterTest {
         nowSeconds() + 60,
         destination,
         source,
-        messageBody(container),
+        messageBody(container, commitment),
     )
 
     private fun TestScope.receipt(
         id: Int,
         destination: ByteArray,
         container: Container = Container.Unsecured(ByteArray(32), byteArrayOf()),
+        tombstones: List<Tombstone> = listOf(Tombstone(messageId(id + 100), ByteArray(16))),
     ): ByteArray {
         val header = UnicastHeader(5, messageId(id), (nowSeconds() + 60).toUInt(), destination, tag(8))
-        return DeliveryReceipt(header, listOf(Tombstone(messageId(id + 100), ByteArray(16))), container).encode()
+        return DeliveryReceipt(header, tombstones, container).encode()
     }
 
     private fun TestScope.read(
@@ -678,6 +680,39 @@ class RouterTest {
         }
 
     @Test
+    fun aRelayedDeliveryReceiptsTombstoneDeletesTheHeldCopyItOpensAndIsKept() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.received(a, message(id = 1, commitment = tombstoneCommitment(K)))
+
+            // Act
+            router.received(b, receipt(2, tag(7), tombstones = listOf(Tombstone(messageId(1), K))))
+
+            // Assert
+            val held = floods.holding.unicasts(wallMillis()).map { it.messageId.toList() }
+            assertEquals(listOf(messageId(2).toList()), held)
+            val kept = floods.tombstones.offered(wallMillis())
+            assertEquals(listOf(messageId(1).toList()), kept.map { it.messageId.toList() })
+        }
+
+    @Test
+    fun aRelayHoldsNoMessageThatAKeptTombstoneOpens() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.received(b, receipt(2, tag(7), tombstones = listOf(Tombstone(messageId(1), K))))
+
+            // Act
+            router.received(a, message(id = 1, commitment = tombstoneCommitment(K)))
+            router.received(a, message(id = 3, commitment = tombstoneCommitment(K)))
+
+            // Assert
+            val held = floods.holding.unicasts(wallMillis()).map { it.messageId.toList() }
+            assertEquals(listOf(messageId(2).toList(), messageId(3).toList()), held)
+        }
+
+    @Test
     fun aFrameRelayedOnARouteARouteReplyAndAnUnknownTypeAreNotHeld() =
         runTest {
             // Arrange
@@ -825,5 +860,6 @@ class RouterTest {
         val TRANSPORT = Container.Transport(0u, ByteArray(17))
         val FLOOD_TYPE: Byte = 0x80.toByte()
         const val UNKNOWN_TYPE = 0x4e
+        val K = ByteArray(16) { 7 }
     }
 }

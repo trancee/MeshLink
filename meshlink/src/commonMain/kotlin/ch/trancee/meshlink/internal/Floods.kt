@@ -20,7 +20,7 @@ import ch.trancee.meshlink.ReceivedMessage
  * `GRAFT` and `PRUNE` frames; a duplicate `BROADCAST` goes to it too. Each kept link opens with the
  * one `CATCH_UP` from [linked] (spec "Catch-up") offering the broadcasts [holding] and [tree] hold,
  * and an offered ID not seen is grafted like one announced by `IHAVE`; the held messages it lists go
- * to the router, and its tombstones are ignored. A `GRAFT` is answered from [tree] or [holding].
+ * to the router, and its tombstones go to [tombstones]. A `GRAFT` is answered from [tree] or [holding].
  *
  * It also places this node's own broadcasts: through [tree], or on the first link that opens if
  * there is none.
@@ -31,10 +31,17 @@ internal class Floods(
     private val lanes: Lanes,
     private val codec: BroadcastCodec,
     private val tree: Plumtree,
+    commitment: (k: ByteArray) -> ByteArray,
     private val deliver: (ReceivedMessage) -> Unit,
 ) {
     /** The frames this node holds for others (spec "Holding"). */
     val holding: Holding = Holding()
+
+    /**
+     * The tombstones kept (spec "Tombstones"); they open [holding]'s `MESSAGE` commitments with the `commitment`
+     * function.
+     */
+    val tombstones: Tombstones = Tombstones(holding, commitment)
     private val seen = MessageIds()
     private val waiting = mutableListOf<Parcel>()
 
@@ -70,6 +77,7 @@ internal class Floods(
         when (frame) {
             is LinkFrame.CatchUp -> {
                 announced(peer, frame.offered, nowMillis)
+                tombstones.caughtUp(frame.tombstones, nowMillis)
             }
 
             is LinkFrame.Ihave -> {
@@ -79,7 +87,7 @@ internal class Floods(
             is LinkFrame.Graft -> {
                 // A GRAFT the tree could not answer gets the frame from the hold, if it is there.
                 if (!tree.grafted(peer, frame.messageId)) {
-                    holding.taken(peer, frame.messageId, nowMillis)?.let { lanes.put(peer, it) }
+                    holding.copy(frame.messageId, nowMillis)?.let { lanes.put(peer, it.takenBy(peer)) }
                 }
             }
 
@@ -109,7 +117,7 @@ internal class Floods(
     /**
      * A link to [peer] completed its hello at wall-clock [nowMillis]: the frames waiting for a link go
      * to it. Returns the `CATCH_UP` the link opens with if it is kept: offering the held broadcasts,
-     * then those [tree] holds, oldest first; listing the held unicasts.
+     * then those [tree] holds, oldest first; listing the held unicasts and the kept tombstones.
      */
     fun linked(
         peer: NodeId,
@@ -119,7 +127,7 @@ internal class Floods(
         waiting.clear()
         val recent = tree.offered()
         val held = holding.broadcasts(nowMillis).map { it.messageId }.filterNot { id -> recent.any(id::contentEquals) }
-        return LinkFrame.CatchUp.newest(held + recent, holding.listed(nowMillis), emptyList())
+        return LinkFrame.CatchUp.newest(held + recent, holding.listed(nowMillis), tombstones.offered(nowMillis))
     }
 
     /** [parcel] ended: it no longer waits for a link. */

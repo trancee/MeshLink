@@ -167,7 +167,7 @@ A relay MAY hold a small unicast or broadcast frame for others. Holding is local
 
 - At most `hold-messages` frames and `hold-bytes` bytes, and at most 1/`hold-link-share-divisor` of each from one incoming link.
 - Only small frames with at least `hold-min-remaining` of lifetime left that arrived with `hop_limit` 2 or more. `hold-message-max` is the app payload bound that makes a message small (ADR 0015 amendment to ADR 0014).
-- A held message is deleted at its expiry, or when a verified tombstone for it arrives ([end-to-end.md](end-to-end.md#tombstones)).
+- A held message is deleted at its expiry, or when a verified tombstone for it arrives ([end-to-end.md](end-to-end.md#tombstones)). A relay checks the tombstones of every `DELIVERY_RECEIPT` it relays, and does not hold a `MESSAGE` that a tombstone it stores verifies [D-54].
 - MeshLink holds a relayed `MESSAGE`, `DELIVERY_RECEIPT` or `READ_RECEIPT` only when it has no active route to its destination tag, and every `BROADCAST` it relays. It does not hold its own frames; its outbox keeps them.
 
 A holder runs no timed retries of its own; the origin's retries already cover a reachable destination. It forwards a held unicast again only [D-52]:

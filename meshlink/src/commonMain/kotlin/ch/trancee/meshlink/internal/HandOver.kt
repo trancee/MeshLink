@@ -13,12 +13,16 @@ internal class HandOver(
     private val lanes: Lanes,
     private val routes: Routes,
     private val endpoint: Endpoint,
-    private val holding: Holding,
+    private val tombstones: Tombstones,
     private val delivered: MessageIds,
 ) {
+    private val holding = tombstones.holding
     private val claimed = MessageIds()
 
-    /** Holds [frame] as [relayed] from [peer] if it is a held type and has no active route on. */
+    /**
+     * Holds [frame] as [relayed] from [peer] if it is a held type, has no active route on, and is no
+     * `MESSAGE` a kept tombstone opens.
+     */
     fun relayed(
         peer: NodeId,
         frame: UnicastFrame,
@@ -26,8 +30,11 @@ internal class HandOver(
     ) {
         val header = frame.header
         if (frame.type in HELD_TYPES && routes.active(header.destinationTag, clock.monotonicMillis()) == null) {
-            val copy = HeldFrame(peer, header.messageId, header.destinationTag, header.expiry.toLong(), relayed)
-            holding.hold(copy, header.hopLimit, clock.wallClockMillis())
+            val commitment = relayed.takeIf { frame.type == MessageFrame.TYPE }?.commitment()
+            val copy =
+                HeldFrame(peer, header.messageId, header.destinationTag, header.expiry.toLong(), relayed, commitment)
+            val now = clock.wallClockMillis()
+            if (!tombstones.buries(copy, now)) holding.hold(copy, header.hopLimit, now)
         }
     }
 
@@ -72,6 +79,9 @@ internal class HandOver(
                 routes.active(held.destinationTag, now).let { it != null && it.peer != peer }
         return wanted && !delivered.has(id, nowSeconds * MILLIS_PER_SECOND) && !claimed.has(id, now)
     }
+
+    // A MESSAGE frame's tombstone commitment, after its unicast header.
+    private fun ByteArray.commitment(): ByteArray = copyOfRange(UnicastHeader.LENGTH, MessageFrame.OVERHEAD)
 
     companion object {
         /** `catch-up-window`: how long a claimed held message is not claimed again. */

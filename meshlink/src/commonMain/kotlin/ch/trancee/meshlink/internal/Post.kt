@@ -173,7 +173,10 @@ internal class Post(
         )
     private val end: Origin = if (secured) securedEnd else unsecuredEnd
     private val codec = BroadcastCodec(crypto, secured)
-    private val floods = Floods(lanes, codec, Plumtree(lanes, clock, scope, density)) { inbox.offer(it) }
+    private val floods =
+        Floods(lanes, codec, Plumtree(lanes, clock, scope, density), Derivations(crypto)::tombstoneCommitment) {
+            inbox.offer(it)
+        }
     private val router: Router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
 
     /** This node's broadcasts. */
@@ -209,6 +212,7 @@ internal class Post(
         routed.end()
         lookups?.end()
         floods.holding.clear()
+        floods.tombstones.clear()
     }
 
     /** Accepts or rejects a message of [payload] to [to], sent as [options] say, from a node in [state]. */

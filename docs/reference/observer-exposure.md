@@ -19,7 +19,7 @@ Per message type, what each observer learns in the secured profiles (`classical`
 | Advertisement | That a MeshLink node is present; in an open mesh, which mesh; rotating identifier (5 min) | same | same | same (gated mesh: also who, if it holds the resolving key) |
 | Link handshake | That two radios linked; sizes | Identity certificate | – | – |
 | Neighbor list and shuffle | Size only | On-air identifiers of the node's other neighbors (current epoch) | – (never forwarded) | – |
-| Catch-up summary | Size only | Message IDs received in the last 60 s; destination tags of held messages | – (direct neighbors only) | Which held messages are for nodes it knows |
+| Catch-up summary | Size only | Message IDs received in the last 60 s; destination tags of held messages; tombstones of delivered messages | – (direct neighbors only) | Which held messages are for nodes it knows |
 | First unicast message (and held first message) | Size and timing | Destination's public tag, size in 32 B steps, hop count | same | That this node was contacted |
 | Later messages, replies, acks, receipts | Size and timing | Conversation tags, size in 32 B steps | same | Nothing linkable to identities |
 | Route request and reply | Size and timing | Searched and replying tags, hop count | same | For public tags: who is searched for; conversation tags: nothing |
