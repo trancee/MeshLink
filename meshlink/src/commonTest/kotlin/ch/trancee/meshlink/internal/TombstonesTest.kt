@@ -62,7 +62,7 @@ class TombstonesTest {
     }
 
     @Test
-    fun aCatchUpTombstoneThatVerifiesAHeldCopyDeletesItAndIsKeptUntilTheCopysExpiry() {
+    fun aCatchUpTombstoneThatVerifiesAHeldCopyDeletesItAndIsKeptUntilTheHeldCopyExpires() {
         // Arrange
         holding.hold(message(1, expiry = NOW + 200), HOP_LIMIT, NOW_MILLIS)
 
