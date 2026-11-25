@@ -123,12 +123,12 @@ internal fun StepsBuilder.lifecycleSteps() {
     }
 
     then("the node is running") {
-        assertEquals(MeshState.Running, world.node.state.value)
+        assertEquals(MeshState.Running(emptySet()), world.node.state.value)
     }
 
     then("the node remains running without a lifecycle transition") {
-        assertEquals(listOf<MeshState>(MeshState.Running), observedStates)
-        assertEquals(MeshState.Running, world.node.state.value)
+        assertEquals(listOf<MeshState>(MeshState.Running(emptySet())), observedStates)
+        assertEquals(MeshState.Running(emptySet()), world.node.state.value)
     }
 
     whenever("the node stops") {
@@ -166,9 +166,9 @@ internal fun StepsBuilder.separateRadioSteps(world: LifecycleNodes) {
     }
 
     then("both nodes are running and neither was blocked") {
-        world.nodes.forEach { assertEquals(MeshState.Running, it.state.value) }
+        world.nodes.forEach { assertEquals(MeshState.Running(emptySet()), it.state.value) }
         observedByNode.forEach { states ->
-            assertEquals(listOf(MeshState.Stopped, MeshState.Starting, MeshState.Running), states)
+            assertEquals(listOf(MeshState.Stopped, MeshState.Starting, MeshState.Running(emptySet())), states)
         }
     }
 }
@@ -201,7 +201,7 @@ internal fun StepsBuilder.sharedRadioSteps(world: LifecycleNodes) {
         val third = world.onSameRadio()
         third.start()
         assertEquals(
-            MeshState.Running,
+            MeshState.Running(emptySet()),
             world.nodes
                 .first()
                 .state.value,
@@ -211,7 +211,7 @@ internal fun StepsBuilder.sharedRadioSteps(world: LifecycleNodes) {
 
     then("exactly one waiting node is running and the other is blocked because the radio is in use") {
         assertEquals(
-            setOf(MeshState.Running, radioInUse),
+            setOf(MeshState.Running(emptySet()), radioInUse),
             world.nodes
                 .drop(1)
                 .map { it.state.value }
@@ -270,7 +270,7 @@ internal fun StepsBuilder.identitySteps(world: LifecycleNodes) {
     }
 
     then("the reset is rejected because the node is running") {
-        assertEquals(MeshState.Running, assertNotNull(resetFailure).state)
-        assertEquals(MeshState.Running, world.node.state.value)
+        assertEquals(MeshState.Running(emptySet()), assertNotNull(resetFailure).state)
+        assertEquals(MeshState.Running(emptySet()), world.node.state.value)
     }
 }

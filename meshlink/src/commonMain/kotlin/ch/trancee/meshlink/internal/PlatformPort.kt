@@ -2,6 +2,7 @@
 
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,12 @@ public interface PlatformPort {
      * the radio knows, and a node stays [ch.trancee.meshlink.MeshState.Starting] until then.
      */
     public val requirements: Flow<Set<Requirement>>
+
+    /**
+     * What a node on this radio runs without, each time it changes; empty for a radio that can
+     * advertise. A change restarts a running node's discovery.
+     */
+    public val limitations: Flow<Set<Limitation>>
 
     /** Where nodes on this platform do their work; it runs one task at a time. */
     public val dispatcher: CoroutineDispatcher

@@ -1,10 +1,12 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.InternalMeshLinkApi
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 
 /**
@@ -19,6 +21,9 @@ internal class VirtualPlatform(
     override val dispatcher: CoroutineDispatcher,
 ) : PlatformPort {
     override val requirements: Flow<Set<Requirement>> = radio.requirements.filterNotNull()
+
+    /** What a node on this platform runs without; tests set it. */
+    override val limitations: MutableStateFlow<Set<Limitation>> = MutableStateFlow(emptySet())
 
     override val identityStore: IdentityStore = InMemoryIdentityStore()
 

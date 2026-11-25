@@ -1,8 +1,11 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.CentralOnlyReason
 import ch.trancee.meshlink.InternalMeshLinkApi
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
+import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.Requirement
 import ch.trancee.meshlink.SecurityProfile
@@ -136,7 +139,7 @@ class DiscoveryTest {
         }
 
     @Test
-    fun failureToAdvertiseStopsDiscoveryAndIsRecorded() =
+    fun refusedAdvertisingLeavesTheNodeScanningCentralOnly() =
         runTest {
             // Arrange
             val virtual = air().platform(StandardTestDispatcher(testScheduler))
@@ -151,8 +154,9 @@ class DiscoveryTest {
             runCurrent()
 
             // Assert
-            assertEquals(RadioFailure.UNSUPPORTED, node.radioFailure)
-            assertFalse(virtual.radio.scanning)
+            assertNull(node.radioFailure)
+            assertTrue(virtual.radio.scanning)
+            assertEquals(MeshState.Running(ADVERTISING_FAILED), node.state.value)
         }
 
     @Test
@@ -248,7 +252,7 @@ class DiscoveryTest {
         }
 
     @Test
-    fun refusedRotationStopsDiscoveryAndIsRecorded() =
+    fun refusedRotationLeavesTheNodeScanningCentralOnly() =
         runTest {
             // Arrange
             val virtual = air().platform(StandardTestDispatcher(testScheduler))
@@ -258,6 +262,62 @@ class DiscoveryTest {
                     override fun startAdvertising(payload: ByteArray) =
                         if (advertised++ == 0) {
                             virtual.radio.startAdvertising(payload)
+                        } else {
+                            RadioResult.Failed(RadioFailure.RADIO_ERROR)
+                        }
+                }
+            val node = node(platformWith(virtual, radio), "Festival")
+            node.start()
+            runCurrent()
+            val firstFailure = node.radioFailure
+
+            // Act
+            advanceTimeBy(EPOCH_MILLIS + 1)
+
+            // Assert
+            assertNull(firstFailure)
+            assertNull(node.radioFailure)
+            assertNull(virtual.radio.advertisement)
+            assertEquals(2, advertised)
+            assertEquals(MeshState.Running(ADVERTISING_FAILED), node.state.value)
+        }
+
+    @Test
+    fun aLostAdvertisementIsNotRetriedAtLaterRotations() =
+        runTest {
+            // Arrange
+            val virtual = air().platform(StandardTestDispatcher(testScheduler))
+            var advertised = 0
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override fun startAdvertising(payload: ByteArray): RadioResult<Unit> {
+                        advertised++
+                        return RadioResult.Failed(RadioFailure.RADIO_ERROR)
+                    }
+                }
+            val node = node(platformWith(virtual, radio), "Festival")
+            node.start()
+            runCurrent()
+
+            // Act
+            advanceTimeBy(3 * EPOCH_MILLIS)
+
+            // Assert
+            assertEquals(1, advertised)
+            assertTrue(virtual.radio.scanning)
+        }
+
+    @Test
+    fun refusedServingAtARotationStopsDiscoveryAndIsRecorded() =
+        runTest {
+            // Arrange
+            val virtual = air().platform(StandardTestDispatcher(testScheduler))
+            var served = 0
+            val radio =
+                object : RadioPort by virtual.radio {
+                    override fun serveCapability(record: ByteArray) =
+                        if (served++ == 0) {
+                            virtual.radio.serveCapability(record)
                         } else {
                             RadioResult.Failed(RadioFailure.RADIO_ERROR)
                         }
@@ -392,5 +452,6 @@ class DiscoveryTest {
         // A sighting arrives within one maximum air latency of the first scan window's start.
         val FIRST_SCAN_WINDOW_MILLIS: Long = VirtualAir.DEFAULT_LATENCY_MILLIS.last + 1L
         const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * 1_000L
+        val ADVERTISING_FAILED: Set<Limitation> = setOf(Limitation.CentralOnly(CentralOnlyReason.AdvertisingFailed))
     }
 }

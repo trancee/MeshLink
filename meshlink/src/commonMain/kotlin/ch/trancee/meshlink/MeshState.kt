@@ -11,8 +11,14 @@ public sealed interface MeshState {
     /** [MeshLink.start] is in progress. */
     public data object Starting : MeshState
 
-    /** Started, and the radio has everything it needs. */
-    public data object Running : MeshState
+    /**
+     * Started, and the radio has everything it needs. [limitations] lists what the node can't do on
+     * this device and still runs without; empty on a full node.
+     */
+    public data class Running(
+        /** What the node runs without; empty when it runs with every role. */
+        public val limitations: Set<Limitation>,
+    ) : MeshState
 
     /**
      * Started, but the radio can't work until every requirement in [requirements] is met. The node
@@ -58,6 +64,40 @@ public sealed interface Requirement {
      * with a new [NodeId].
      */
     public data object IdentityUnavailable : Requirement
+}
+
+/**
+ * Something a [MeshState.Running] node does without on this device (ADR 0007 decision 2). Unlike a
+ * [Requirement], a limitation doesn't stop the node, and the app can't fix it.
+ */
+public sealed interface Limitation {
+    /**
+     * The node scans and connects to peers as central, but never advertises or accepts links
+     * (ADR 0010 decision 6). Peers can't find it, so it joins the mesh only by connecting to them,
+     * and two central-only nodes never link.
+     */
+    public data class CentralOnly(
+        /** Why the node can't advertise. */
+        public val reason: CentralOnlyReason,
+    ) : Limitation
+}
+
+/** Why a node is [Limitation.CentralOnly]. */
+public enum class CentralOnlyReason {
+    /** Android: the Bluetooth adapter has no LE advertiser while Bluetooth is on. */
+    NoAdvertiser,
+
+    /**
+     * Advertising failed to start or stopped during this run. The node tries again on its next
+     * start, after Bluetooth turns off and on, or after a requirement comes and goes.
+     */
+    AdvertisingFailed,
+
+    /**
+     * Android 8.0 and 8.1 (API 26–27): the platform drops the upper half of the 32-bit MESH service
+     * UUID it advertises, so no peer would recognize the advertisement.
+     */
+    LegacyUuidBug,
 }
 
 /** A permission the radio needs, for [Requirement.PermissionDenied]. */

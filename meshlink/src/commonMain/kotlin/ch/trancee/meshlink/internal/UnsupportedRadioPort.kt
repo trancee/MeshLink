@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -7,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * The port of a platform without a Bluetooth radio MeshLink can use, such as the iOS simulator:
@@ -16,6 +18,8 @@ internal class UnsupportedRadioPort(
     override val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
 ) : PlatformPort {
     override val requirements: StateFlow<Set<Requirement>> = MutableStateFlow(setOf(Requirement.Unsupported))
+
+    override val limitations: Flow<Set<Limitation>> = flowOf(emptySet())
 
     override val identityStore: IdentityStore = InMemoryIdentityStore()
 

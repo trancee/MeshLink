@@ -141,7 +141,7 @@ internal fun StepsBuilder.discoverySteps() {
     }
 
     then("both discovery nodes are running") {
-        nodes.forEach { assertEquals(MeshState.Running, it.state.value) }
+        nodes.forEach { assertEquals(MeshState.Running(emptySet()), it.state.value) }
     }
 
     then("both discovery peers are secured") {

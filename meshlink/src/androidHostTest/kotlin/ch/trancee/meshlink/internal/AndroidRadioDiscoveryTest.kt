@@ -158,7 +158,7 @@ class AndroidRadioDiscoveryTest {
             current.onAdvertisingSetStarted(null, 0, AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS)
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.Failed>(events.single()).reason)
+            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.AdvertisingFailed>(events.single()).reason)
         }
 
     @Test

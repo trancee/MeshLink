@@ -1,8 +1,10 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * The port of an iPhone or iPad: the CoreBluetooth radio [AppleRadio] over [bluetooth]. The
@@ -20,6 +22,8 @@ internal class ApplePlatformPort(
     private val apple = AppleRadio(bluetooth)
 
     override val requirements: Flow<Set<Requirement>> = apple.requirements
+
+    override val limitations: Flow<Set<Limitation>> = flowOf(emptySet())
 
     override val identityStore: IdentityStore = PersistentIdentityStore(KeychainSlot(keychain))
 

@@ -268,7 +268,8 @@ public class MeshLink private constructor(
     /**
      * The only role this node takes on the links it opens from its next start, or `null` for either:
      * a central neither serves nor advertises, a peripheral doesn't scan. For the lab apps
-     * (ADR 0017 decision 7); two nodes restricted to one role never link.
+     * (ADR 0017 decision 7); two nodes restricted to one role never link. A
+     * [Limitation.CentralOnly] node is a central whatever this says.
      */
     @InternalMeshLinkApi
     @HiddenFromObjC
@@ -303,7 +304,7 @@ public class MeshLink private constructor(
     public val certificateLookups: CertificateLookups? =
         post.lookups?.let { CertificateLookups(scope, port.dispatcher, port.clock, config.messageLifetimeSeconds, it) }
 
-    /** Why the radio last refused to advertise or scan, or `null`; for `meshlink-testing`. */
+    /** Why the radio last refused to serve the capability record or scan, or `null`; for `meshlink-testing`. */
     @InternalMeshLinkApi
     @HiddenFromObjC
     public val radioFailure: RadioFailure? get() = scanner.failure
@@ -323,29 +324,39 @@ public class MeshLink private constructor(
     /**
      * Holds the radio when it is free and keeps [state] at running or blocked until cancelled, and
      * discovers and links to peers while running. Each write expects the state the watcher wrote last, so it
-     * never overwrites a concurrent [close].
+     * never overwrites a concurrent [close]. A change to the port's limitations restarts discovery; a
+     * run that loses advertising adds [CentralOnlyReason.AdvertisingFailed] until the run ends.
      */
     private suspend fun watch() {
         var written: MeshState = MeshState.Starting
         try {
-            combine(port.requirements, RadioRegistry.holder(port), ::Pair)
-                .map { (missing, holder) ->
-                    val holding = holder === this || (holder == null && RadioRegistry.tryAcquire(port, this))
-                    val blockers = if (holding) missing else missing + Requirement.RadioInUse
-                    val next = if (blockers.isEmpty()) MeshState.Running else MeshState.Blocked(blockers)
-                    mutableState.compareAndSet(written, next)
-                    written = next
-                    next == MeshState.Running
-                }.distinctUntilChanged()
-                .collectLatest { running -> if (running) session() }
+            combine(port.requirements, port.limitations, RadioRegistry.holder(port), scanner.advertisingLost) {
+                missing,
+                limitations,
+                holder,
+                lost,
+                ->
+                val holding = holder === this || (holder == null && RadioRegistry.tryAcquire(port, this))
+                val blockers = if (holding) missing else missing + Requirement.RadioInUse
+                val running = blockers.isEmpty()
+                val shown = if (lost) limitations + ADVERTISING_FAILED else limitations
+                val next = if (running) MeshState.Running(shown) else MeshState.Blocked(blockers)
+                mutableState.compareAndSet(written, next)
+                written = next
+                if (running) limitations else null
+            }.distinctUntilChanged()
+                .collectLatest { limitations -> if (limitations != null) session(limitations) }
         } finally {
             RadioRegistry.release(port, this)
         }
     }
 
-    /** Discovers peers and links to them until cancelled or the radio refuses discovery. */
+    /**
+     * Discovers peers and links to them until cancelled or the radio refuses discovery; only as
+     * central if [limitations] say so, which overrides [restrictedLinkRole].
+     */
     @OptIn(InternalMeshLinkApi::class)
-    private suspend fun session() =
+    private suspend fun session(limitations: Set<Limitation>) =
         coroutineScope {
             val digest = Derivations(crypto).meshIdDigest(meshId, profile)
             val identity = identity
@@ -381,7 +392,9 @@ public class MeshLink private constructor(
                 // Rotates the static keys every 12 h (spec "Static-key rotation").
                 val rotating = launch { secured?.let { (_, rotation) -> rotation() } }
                 val recognition = Recognition(keys, session.neighbors) { session.handles }
-                scanner.run(restrictedLinkRole, recognition, coc, session::accept, session.proximities::sighted)
+                val centralOnly = limitations.any { it is Limitation.CentralOnly }
+                val role = if (centralOnly) LinkRole.CENTRAL else restrictedLinkRole
+                scanner.run(role, recognition, coc, session::accept, session.proximities::sighted)
                 linking.cancel()
                 announcing.cancel()
                 rotating.cancel()
@@ -393,6 +406,7 @@ public class MeshLink private constructor(
     /** Creates nodes. */
     public companion object {
         private val IDENTITY_UNAVAILABLE = MeshState.Blocked(setOf(Requirement.IdentityUnavailable))
+        private val ADVERTISING_FAILED = Limitation.CentralOnly(CentralOnlyReason.AdvertisingFailed)
         private const val DIAGNOSTICS_BUFFER = 64
 
         /** Creates a stopped node with [config] on [platform]. Doesn't touch the radio. */
