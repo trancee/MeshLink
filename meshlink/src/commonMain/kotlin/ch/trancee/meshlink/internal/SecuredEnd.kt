@@ -92,7 +92,7 @@ internal class SecuredEnd(
     override fun draft(entry: Outbox.Entry): Draft? {
         val session = sessions.current(entry.to, clock.seconds())
         val sealed =
-            session?.draft(entry.payload, entry.expiry.toUInt(), entry.readReceipt)?.also {
+            session?.draft(entry.payload, entry.expiry.toUInt(), entry.readReceipt, entry.tombstone)?.also {
                 sessions.sealed(session, it)
             }
         return sealed ?: firsts.draft(entry)
@@ -173,7 +173,8 @@ internal class SecuredEnd(
             outstanding.values.removeAll { it.first.done }
             if (certificate == null) lookups.find(entry.to, entry.deadlineMillis)
             val free = certificate?.takeIf { entry.to !in outstanding }
-            val draft = free?.let { codec.draft(it, entry.payload, entry.expiry.toUInt(), entry.readReceipt) }
+            val draft =
+                free?.let { codec.draft(it, entry.payload, entry.expiry.toUInt(), entry.readReceipt, entry.tombstone) }
             draft?.let {
                 outstanding[entry.to] = entry to it
                 conversations.open(it)

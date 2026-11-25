@@ -158,7 +158,7 @@ class ConversationTest {
         }
 
     @Test
-    fun eachSideSendsToTheTagOfItsDirectionFromTheOtherAndOwnsOnlyTheOtherForAdjacentEpochs() {
+    fun eachSideSendsToTheTagOfItsDirectionFromTheOtherAndOwnsOnlyTheOtherForTheLastLifetimeAndTheNextEpoch() {
         val opened = Opened(WireProfile.CLASSICAL)
         val alice = opened.adopted()
         val bob = opened.first.conversation
@@ -172,11 +172,11 @@ class ConversationTest {
         assertContentEquals(tag(2, epoch + 1u), alice.source(epoch + 1u))
         assertContentEquals(tag(2, epoch), bob.destination(epoch))
         assertContentEquals(tag(1, epoch), bob.source(epoch))
-        listOf(epoch - 1u, epoch, epoch + 1u).forEach {
+        (epoch - 12u..epoch + 1u).forEach {
             assertTrue(alice.owns(tag(2, it), NOW), "epoch $it")
             assertTrue(bob.owns(tag(1, it), NOW), "epoch $it")
         }
-        listOf(epoch - 2u, epoch + 2u).forEach { assertFalse(alice.owns(tag(2, it), NOW), "epoch $it") }
+        listOf(epoch - 13u, epoch + 2u).forEach { assertFalse(alice.owns(tag(2, it), NOW), "epoch $it") }
         assertFalse(alice.owns(tag(1, epoch), NOW))
         assertTrue(alice.owns(tag(2, epoch + 2u), NOW + Derivations.EPOCH_SECONDS))
     }
@@ -321,6 +321,26 @@ class ConversationTest {
         assertNull(alice.acknowledged(bytes, NOW), "replayed")
         // Four flawed receipts open before their checks fail, then the late and the valid one.
         assertEquals(6, alice.received)
+    }
+
+    @Test
+    fun aMessageSealedAgainWithItsTombstoneKeepsItsMessageIdAndCommitmentForThePeer() {
+        // Arrange
+        val opened = Opened(WireProfile.CLASSICAL)
+        val alice = opened.adopted()
+        val bob = opened.first.conversation
+        val tombstone = Tombstone(ByteArray(ID) { 7 }, ByteArray(K) { 9 })
+
+        // Act
+        val draft = assertNotNull(alice.draft(SECOND, EXPIRY, tombstone = tombstone))
+        val delivery = assertNotNull(bob.accept(alice.frame(draft, epoch, HOP_LIMIT), NOW))
+
+        // Assert
+        assertContentEquals(tombstone.messageId, draft.tombstone.messageId)
+        assertContentEquals(tombstone.k, draft.tombstone.k)
+        assertContentEquals(Derivations(crypto).tombstoneCommitment(tombstone.k), draft.commitment)
+        assertContentEquals(tombstone.messageId, delivery.tombstone.messageId)
+        assertContentEquals(tombstone.k, delivery.tombstone.k)
     }
 
     @Test

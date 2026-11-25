@@ -20,22 +20,27 @@ public class FirstMessages(
     private var window: List<ByteArray> = emptyList()
 
     /**
-     * A new first message of [payload] to the holder of [responder], with a fresh `message_id`,
-     * tombstone secret and conversation seed; `null` if [responder]'s keys can't be sealed to.
+     * A new first message of [payload] to the holder of [responder], with [tombstone]'s `message_id` and
+     * secret, fresh ones if `null`, and a fresh conversation seed; `null` if [responder]'s keys can't be
+     * sealed to.
      *
      * @param payload at most [PAYLOAD_MAX] bytes, so the frame is a small frame.
      * @param expiry Unix seconds; the caller adds the message lifetime to the current time.
      * @param readReceipt whether the plaintext asks for a read receipt.
+     * @param tombstone the message's tombstone when it is sealed again after its session lapsed (spec
+     *   "Sessions"), so its destination takes it once.
      */
     public fun draft(
         responder: IdentityCertificate,
         payload: ByteArray,
         expiry: UInt,
         readReceipt: Boolean,
+        tombstone: Tombstone? = null,
     ): Draft? {
         require(payload.size <= PAYLOAD_MAX) { "payload must be at most $PAYLOAD_MAX bytes, not ${payload.size}" }
-        val messageId = crypto.randomBytes(MESSAGE_ID)
-        val k = crypto.randomBytes(K)
+        val kept = tombstone ?: Tombstone(crypto.randomBytes(MESSAGE_ID), crypto.randomBytes(K))
+        val messageId = kept.messageId
+        val k = kept.k
         val seed = crypto.randomBytes(SEED)
         val extensions =
             listOfNotNull(
@@ -49,7 +54,7 @@ public class FirstMessages(
         val secret = tags.conversationSecret(seed, keys.nodeId, responderNodeId)
         val opening = Opening(crypto, replay, secret, keys.nodeId, responderNodeId, messageId)
         val commitment = derivations.tombstoneCommitment(k)
-        return Draft(responder.x25519Key, messageId, expiry, commitment, Container.IkInitiator(message), opening)
+        return Draft(responder.x25519Key, kept, expiry, commitment, Container.IkInitiator(message), opening)
     }
 
     /** The `MESSAGE` bytes of [draft] tagged for [epoch] with [hopLimit]; a retry re-tags the same container. */
@@ -73,7 +78,7 @@ public class FirstMessages(
     ): ByteArray = tags.conversationTag((draft.sealer as Opening).secret, REPLY_DIRECTION, epoch)
 
     /**
-     * Whether [tag] is this node's public tag for epoch e − 1, e or e + 1, where e is the epoch of
+     * Whether [tag] is this node's public tag for an epoch [Derivations.recognized] at
      * [nowSeconds].
      */
     public fun owns(
@@ -82,7 +87,7 @@ public class FirstMessages(
     ): Boolean {
         val epoch = Derivations.epoch(nowSeconds)
         if (epoch != windowEpoch) {
-            window = listOf(epoch - 1u, epoch, epoch + 1u).map { tags.publicTag(keys.static.publicKey, it) }
+            window = Derivations.recognized(nowSeconds).map { tags.publicTag(keys.static.publicKey, it) }
             windowEpoch = epoch
         }
         return window.any { it.contentEquals(tag) }

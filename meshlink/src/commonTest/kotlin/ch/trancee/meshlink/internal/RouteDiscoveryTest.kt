@@ -249,7 +249,7 @@ class RouteDiscoveryTest {
             // Arrange: a message from the target through b taught a reverse route without a sequence.
             val router = router()
             val body = messageBody(Container.Unsecured(ByteArray(32), byteArrayOf()))
-            router.received(b, unicast(MessageFrame.TYPE, 5, messageId(20), nowSeconds() + 60, ORIGIN, TARGET, body))
+            router.received(b, unicast(MessageFrame.TYPE, 5, messageId(20), nowSeconds() + 60, tag(0x33), TARGET, body))
             waiting()
 
             // Act

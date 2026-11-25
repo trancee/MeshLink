@@ -1,6 +1,6 @@
 # Hold messages for absent recipients
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 47
 

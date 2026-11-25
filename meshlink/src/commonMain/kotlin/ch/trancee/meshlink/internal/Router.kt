@@ -85,9 +85,16 @@ internal class Router(
 ) {
     private val floods = handoff.floods
     private val lookups = handoff.lookups
-    private val discovery = RouteDiscovery(clock, lanes, routes, random, endpoint)
     private val seen = MessageIds()
     private val delivered = MessageIds()
+
+    /** This node's hand-over of the unicasts it holds for others. */
+    val handOver: HandOver = HandOver(clock, lanes, routes, endpoint, floods.holding, delivered)
+    private val discovery =
+        RouteDiscovery(clock, lanes, routes, random, endpoint) { tag, peer ->
+            endpoint.found(tag)
+            handOver.flush(tag, peer)
+        }
 
     /** A routed frame arrived from linked [peer]. */
     fun received(
@@ -197,11 +204,13 @@ internal class Router(
         val now = clock.monotonicMillis()
         if (seen.has(frame.header.messageId, now)) return
         routes.learn(frame.header.sourceTag, peer, now)
+        handOver.flush(frame.header.sourceTag, peer)
         val relayed = if (frame.header.hopLimit > 1) relayed(peer, frame, bytes) else null
         val targets = relayed?.let { targets(peer, frame, bytes.size, now) }
         if (relayed == null || targets == null) return
         seen.put(frame.header.messageId, now + SEEN_WINDOW_MILLIS)
         targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }) {}) }
+        handOver.relayed(peer, frame, relayed)
     }
 
     // The links a relayed frame from [peer] goes on: its active route, else every other link for a
@@ -281,6 +290,7 @@ internal class Router(
     ) {
         if (frame.type == RouteReply.TYPE) return discovery.replied(peer, reply(bytes))
         routes.learn(frame.header.sourceTag, peer, clock.monotonicMillis())
+        handOver.flush(frame.header.sourceTag, peer)
         when (frame.type) {
             MessageFrame.TYPE -> message(frame, bytes, nowSeconds)
             DeliveryReceipt.TYPE -> endpoint.acknowledger.acknowledged(bytes, nowSeconds)

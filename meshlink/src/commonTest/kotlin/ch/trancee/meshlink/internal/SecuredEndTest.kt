@@ -561,25 +561,30 @@ class SecuredEndTest {
         }
 
     @Test
-    fun aSessionMessageLapsesAtItsSecondRetryAndTheNextIsAFirstMessage() =
+    fun aSessionMessageLapsesAtItsSecondRetryAndIsDraftedAgainAsAFirstMessageWithItsMessageIdAndTombstone() =
         runTest {
             // Arrange
             val (alice, bob) = node(1) to node(2)
             session(alice, bob)
             val first = alice.end.draft(entry(bob.nodeId)).let { assertNotNull(it) }
             alice.arrived.clear()
-            val draft = assertNotNull(alice.end.draft(entry(bob.nodeId, SECOND)))
+            val entry = entry(bob.nodeId, SECOND)
+            val draft = assertNotNull(alice.end.draft(entry))
+            entry.tombstone = draft.tombstone
 
             // Act
             val once = alice.end.lapsed(draft, retries = 1)
             val twice = alice.end.lapsed(draft, retries = 2)
-            val next = assertNotNull(alice.end.draft(entry(bob.nodeId)))
+            val next = assertNotNull(alice.end.draft(entry))
 
             // Assert
             assertFalse(once)
             assertTrue(twice)
             assertTrue(first.sealer is Conversation)
+            assertTrue(draft.sealer is Conversation)
             assertFalse(next.sealer is Conversation)
+            assertContentEquals(draft.messageId, next.messageId)
+            assertContentEquals(draft.commitment, next.commitment)
             assertFalse(alice.end.lapsed(next, retries = 2))
         }
 

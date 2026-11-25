@@ -235,7 +235,7 @@ class FloodsTest {
             // Act
             floods.originate(Parcel(messageId(1), relayed = false, { ByteArray(0) }) {}, NOW + LIFETIME)
             lanes.open(d)
-            floods.linked(d)
+            floods.linked(d, NOW * MILLIS_PER_SECOND)
 
             // Assert
             assertEquals(listOf(1, 1, 1), waiting().values.map { it.size })
@@ -327,23 +327,64 @@ class FloodsTest {
         }
 
     @Test
-    fun theCatchUpOffersTheBroadcastsOfTheLastMinuteOldestFirst() =
+    fun theCatchUpOffersTheHeldBroadcastsThenThoseOfTheLastMinuteOldestFirstAndListsTheHeldUnicasts() =
         runTest {
-            // Arrange
+            // Arrange: broadcast 1 is held but out of the tree's last minute; 3 is this node's own.
             val floods = floods()
             floods.received(a, broadcast(id = 1), NOW)
             advanceTimeBy(Plumtree.HOLD_MILLIS / 2)
             floods.received(a, broadcast(id = 2), NOW + HALF_MINUTE)
             floods.originate(Parcel(messageId(3), relayed = false, { broadcast(id = 3) }) {}, NOW + LIFETIME)
+            floods.holding.hold(HeldFrame(a, messageId(9), tag(9), NOW + LIFETIME, ByteArray(10)), 5, wallMillis())
             advanceTimeBy(Plumtree.HOLD_MILLIS / 2)
 
             // Act
-            val catchUp = floods.linked(b)
+            val catchUp = floods.linked(b, wallMillis())
 
             // Assert
-            assertEquals(listOf(messageId(2), messageId(3)).map { it.toList() }, catchUp.offered.map { it.toList() })
-            assertEquals(Pair(0, 0), catchUp.held.size to catchUp.tombstones.size)
+            assertEquals(listOf(1, 2, 3).map { messageId(it).toList() }, catchUp.offered.map { it.toList() })
+            val held = catchUp.held.map { it.messageId.toList() to it.destinationTag.toList() }
+            assertEquals(listOf(messageId(9).toList() to tag(9).toList()), held)
+            assertEquals(0, catchUp.tombstones.size)
         }
+
+    @Test
+    fun aRelayedBroadcastIsHeldAsRelayedAndAnotherFloodTypeIsNot() =
+        runTest {
+            // Arrange
+            val floods = floods()
+            val frame = broadcast(hopLimit = 5)
+
+            // Act
+            floods.received(a, frame, NOW)
+            floods.received(a, header(type = UNKNOWN_TYPE, id = 2), NOW)
+
+            // Assert
+            val held = floods.holding.broadcasts(NOW * MILLIS_PER_SECOND).single()
+            assertContentEquals(frame.copyOf().also { it[1] = 4 }, held.bytes)
+            assertEquals(a, held.from)
+        }
+
+    @Test
+    fun aGraftForAFrameHeldButNotInTheTreeIsAnsweredFromTheHold() =
+        runTest {
+            // Arrange: broadcast 1 left the tree's last minute; unicast 9 was never in it.
+            val floods = floods()
+            floods.received(a, broadcast(id = 1), NOW)
+            val unicast = HeldFrame(a, messageId(9), tag(9), NOW + LIFETIME, ByteArray(10) { 9 })
+            floods.holding.hold(unicast, 5, wallMillis())
+            advanceTimeBy(Plumtree.HOLD_MILLIS)
+            waiting()
+
+            // Act
+            listOf(1, 9, 8).forEach { floods.plumtree(b, LinkFrame.Graft(messageId(it)), wallMillis()) }
+
+            // Assert
+            val relayed = broadcast(id = 1).also { it[1] = 4 }.toList()
+            assertEquals(listOf(relayed, unicast.bytes.toList()), lanes.drain(b).map { it.render().toList() })
+        }
+
+    private fun TestScope.wallMillis() = SchedulerClock(testScheduler).wallClockMillis()
 
     @Test
     fun aCatchUpGraftsTheOfferedIdsNotSeenFromItsSender() =

@@ -109,10 +109,10 @@ class BroadcastsTest {
 
             // Act
             lanes.open(a)
-            floods.linked(a)
+            floods.linked(a, SchedulerClock(testScheduler).wallClockMillis())
             val first = lanes.drain(a)
             lanes.open(b)
-            floods.linked(b)
+            floods.linked(b, SchedulerClock(testScheduler).wallClockMillis())
 
             // Assert
             assertEquals(1, first.size)
@@ -131,7 +131,7 @@ class BroadcastsTest {
 
             // Act
             lanes.open(a)
-            floods.linked(a)
+            floods.linked(a, SchedulerClock(testScheduler).wallClockMillis())
 
             // Assert
             assertEquals(DeliveryStatus.Expired, message.status.value)
@@ -196,7 +196,7 @@ class BroadcastsTest {
             broadcasts.end()
             val late = accepted(broadcasts, ByteArray(10))
             lanes.open(a)
-            floods.linked(a)
+            floods.linked(a, SchedulerClock(testScheduler).wallClockMillis())
 
             // Assert
             assertEquals(DeliveryStatus.Failed(FailureReason.Stopped), waiting.status.value)

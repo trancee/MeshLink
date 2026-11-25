@@ -35,7 +35,7 @@ public class UnsecuredMessaging(
         val requested = listOfNotNull(Tlv(READ_RECEIPT_REQUESTED, ByteArray(0)).takeIf { readReceipt })
         val plaintext = MessageContent(messageId, expiry, k, requested, payload).encode(secured = false)
         val container = Container.Unsecured(nodeId, plaintext)
-        return Draft(destination, messageId, expiry, derivations.tombstoneCommitment(k), container)
+        return Draft(destination, Tombstone(messageId, k), expiry, derivations.tombstoneCommitment(k), container)
     }
 
     /**
@@ -142,7 +142,7 @@ public class UnsecuredMessaging(
 
     /**
      * The message in [bytes] if it is for this node, or `null` to drop it. It must decode, carry
-     * this node's tag for epoch e − 1, e or e + 1, where e is the epoch of [nowSeconds], use an
+     * this node's tag for an epoch [Derivations.recognized] at [nowSeconds], use an
      * `unsecured` container whose plaintext repeats the header's `message_id` and `expiry`, commit
      * to its `k`, and not have expired, allowing [CLOCK_SKEW_SECONDS] either way.
      */
@@ -155,7 +155,7 @@ public class UnsecuredMessaging(
     }
 
     /**
-     * Whether [tag] is this node's routing tag for epoch e − 1, e or e + 1, where e is the epoch of
+     * Whether [tag] is this node's routing tag for an epoch [Derivations.recognized] at
      * [nowSeconds].
      */
     public fun owns(
@@ -164,7 +164,7 @@ public class UnsecuredMessaging(
     ): Boolean {
         val epoch = Derivations.epoch(nowSeconds)
         if (epoch != windowEpoch) {
-            window = listOf(epoch - 1u, epoch, epoch + 1u).map { derivations.unsecuredTag(nodeId, it) }
+            window = Derivations.recognized(nowSeconds).map { derivations.unsecuredTag(nodeId, it) }
             windowEpoch = epoch
         }
         return window.any { it.contentEquals(tag) }
@@ -349,15 +349,20 @@ public class ReadDraft internal constructor(
  * [Conversation.frame]). A first message's [destination] is the responder's certified X25519 key and
  * its [sealer] the [Opening] its source tags and session come from; a session frame's [destination]
  * is the peer's NodeId and its [sealer] the [Conversation] that sealed it. An `unsecured` draft has none.
+ * Its [tombstone] holds its `message_id` and the secret `k` its [commitment] commits to; a message sealed
+ * again after its session lapsed keeps them (spec "Sessions").
  */
 public class Draft internal constructor(
     public val destination: ByteArray,
-    public val messageId: ByteArray,
+    public val tombstone: Tombstone,
     public val expiry: UInt,
     public val commitment: ByteArray,
     public val container: Container,
     public val sealer: Sealer? = null,
-)
+) {
+    /** The `message_id` of every frame of this draft. */
+    public val messageId: ByteArray get() = tombstone.messageId
+}
 
 /**
  * An accepted message: the claimed [sender] NodeId, the [payload], the [tombstone] and [expiry] its

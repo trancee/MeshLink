@@ -199,6 +199,12 @@ internal class Outbox(
         /** The message drafted for its first send, which every retry sends again; `null` before. */
         var draft: Draft? = null
 
+        /**
+         * The `message_id` and tombstone secret of this message's first draft, which a draft sealed again
+         * after its session lapsed keeps, so its destination takes it once; `null` before.
+         */
+        var tombstone: Tombstone? = null
+
         /** The timed retries so far: the sends after the first on the retry schedule. */
         var retries = 0
 
@@ -227,9 +233,14 @@ internal class Outbox(
             status.value = status.value.then(DeliveryStatus.Sent)
         }
 
-        /** No link can take this message now. */
+        /** The node lost its last link: this message, if not yet sent, is `Held`. */
         fun hold() {
             if (status.value == DeliveryStatus.Queued) status.value = status.value.then(DeliveryStatus.Held)
+        }
+
+        /** A send found no link or no route to take this message: it is `Held` unless it finished. */
+        fun held() {
+            status.value = status.value.then(DeliveryStatus.Held)
         }
     }
 

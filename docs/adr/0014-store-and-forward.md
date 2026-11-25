@@ -1,6 +1,6 @@
 # 0014: Store-and-forward
 
-Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 7 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec; 2026-11-13, errata).
+Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Version: 8 (amended 2026-11-03, ADR 0015; 2026-11-08, ADRs 0016 and 0018, and the stage F simulation; 2026-11-08, protocol spec; 2026-11-13, errata; 2026-11-24, store-and-forward built).
 
 ## Context
 
@@ -89,3 +89,11 @@ Status: accepted (2026-11-03; ticket "How does store-and-forward work?"). Versio
 2026-11-13, errata (0.1.0 backlog review):
 
 - **Context:** the ADR 0008 summary gave the tag rotation period as 15 min. It is 5 min, as the 2026-11-08 protocol spec amendment above already states for decision 7.
+
+2026-11-24, store-and-forward built (0.1.0 backlog ticket "Hold messages for absent recipients"):
+
+- **Hand-over (decision 7; [D-52](../spec/decisions.md#d-52-holder-hand-over-triggers)):** held unicasts do not keep the routing retries of ADR 0008; the origin's retries cover a reachable destination. A holder forwards a held unicast only when a peer claims it with `GRAFT` after `CATCH_UP`, or on a new route to its destination tag. Each held frame goes at most once on each link and never back on the link it came from.
+- **Route hand-over and epochs (decision 7):** a new route only hands a frame over within the epoch of the destination tag it carries, because relays cannot re-tag. After an epoch change, only a claim on `CATCH_UP` hands it over. The "at most 4 epochs" of decision 7 is superseded by the 13 epochs of the 2026-11-08 protocol spec amendment; MeshLink claims tags from the last `message-lifetime-max`.
+- **Broadcasts on catch-up (decisions 6 and 7):** `CATCH_UP` offers held broadcasts together with the broadcasts received in the last 60 s, newest first, up to 128 entries. A `GRAFT` is answered from either.
+- **Origin status (decision 1; [D-53](../spec/decisions.md#d-53-when-an-origins-message-is-held)):** while relays hold copies, the origin's message is `Held` if a send found no link or, in the medium and high classes, no route within 1.6 s of a flooded send.
+- **Not built yet:** tombstones (decision 8) are not offered on catch-up yet; `CATCH_UP` sends an empty tombstone list.

@@ -142,6 +142,18 @@ public class Derivations(
             require(unixSeconds in UNIX_SECONDS) { "unix seconds must fit a u32, not $unixSeconds" }
             return (unixSeconds / EPOCH_SECONDS).toUInt()
         }
+
+        /**
+         * The epochs whose tags a node recognizes at [unixSeconds]: every epoch within the last
+         * `message-lifetime-max`, e − 12 through e, so it can claim a held frame sent that long ago,
+         * and e + 1 for a sender's clock ahead (spec "Routing tags").
+         */
+        public fun recognized(unixSeconds: Long): List<UInt> {
+            val epoch = epoch(unixSeconds)
+            return (epoch - RECOGNIZED_PAST_EPOCHS.toUInt()..epoch + 1u).toList()
+        }
+
+        private const val RECOGNIZED_PAST_EPOCHS = UnsecuredMessaging.LIFETIME_MAX_SECONDS / EPOCH_SECONDS
     }
 }
 

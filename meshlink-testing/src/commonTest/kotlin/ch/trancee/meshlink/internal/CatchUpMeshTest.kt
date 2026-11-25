@@ -20,7 +20,8 @@ import kotlin.time.Duration.Companion.minutes
 
 /**
  * Catch-up (spec "Catch-up") on a 2 × 3 grid whose nodes hear their row and column neighbors only: a node that was
- * out of range while broadcasts went out gets the last minute's ones through `GRAFT` once it links again.
+ * out of range while broadcasts went out gets them through `GRAFT` once it links again: the last minute's ones,
+ * and older ones its neighbors hold (spec "Holding").
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CatchUpMeshTest {
@@ -43,9 +44,9 @@ class CatchUpMeshTest {
         }
 
     @Test
-    fun aNodeBackAfterAMinuteIsOfferedNoneOfTheBroadcastsItMissed() =
+    fun aNodeBackAfterAMinuteGetsTheBroadcastsItsNeighborsHold() =
         runTest(timeout = 5.minutes) {
-            // Arrange
+            // Arrange: past the tree's minute, only the relays' holds still have F's missed broadcasts.
             val mesh = mesh(crowd = 0)
             val away = leave(mesh)
 
@@ -55,10 +56,9 @@ class CatchUpMeshTest {
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            assertEquals(emptyList(), mesh.inboxes[F])
-            val offers = mesh.catchUps(to = F)
-            assertTrue(offers.isNotEmpty(), "F got no CATCH_UP")
-            assertEquals(offers.map { EMPTY_CATCH_UP }, offers)
+            assertEquals(List(MISSED) { "b$it" }, mesh.inboxes[F].map { it.payload.decodeToString() })
+            val grafts = mesh.ends(F).sumOf { (_, end) -> clearFrames(end).count { it[0] == GRAFT } }
+            assertTrue(grafts > 0, "F sent no GRAFT")
         }
 
     private suspend fun TestScope.backWithinAMinute(
@@ -144,13 +144,6 @@ class CatchUpMeshTest {
             platforms
                 .flatMapIndexed { from, platform -> platform.radio.ends.map { from to it } }
                 .filter { (from, _) -> of == null || from == of }
-
-        // The CATCH_UP frames written to node [to], from both sides of each of its links.
-        fun catchUps(to: Int): List<List<Byte>> {
-            val radio = platforms[to].radio
-            val toward = ends().filter { (from, end) -> from != to && end.remote === radio }.map { it.second }
-            return toward.flatMap { end -> clearFrames(end).filter { it[0] == CATCH_UP }.map { it.toList() } }
-        }
     }
 
     private companion object {
@@ -172,7 +165,6 @@ class CatchUpMeshTest {
         const val HOLD_MILLIS = 60_000L
         const val GRAFT: Byte = 0x0C
         const val CATCH_UP: Byte = 0x0A
-        val EMPTY_CATCH_UP = listOf<Byte>(CATCH_UP, 0, 0, 0, 0, 0, 0)
 
         // Crowds at the centers of both cells, 17.7 from each of their corners: every node hears one or two.
         val CELL_CENTERS = listOf(12.5 to 12.5, 37.5 to 12.5)

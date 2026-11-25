@@ -660,6 +660,164 @@ class RouterTest {
             assertContentEquals(certificate.encode(), lookups?.certificate(target)?.encode())
         }
 
+    @Test
+    fun aSmallMessageOrReceiptRelayedWithoutARouteIsHeldAsRelayed() =
+        runTest {
+            // Arrange
+            val router = router()
+            val frames = listOf(message(hopLimit = 2, id = 1), receipt(2, tag(9)), read(3, tag(9)))
+
+            // Act
+            frames.forEach { router.received(a, it) }
+
+            // Assert
+            val held = floods.holding.unicasts(wallMillis())
+            assertEquals(listOf(1, 2, 3).map { messageId(it).toList() }, held.map { it.messageId.toList() })
+            assertContentEquals(frames[0].copyOf().also { it[1] = 1 }, held[0].bytes)
+            assertTrue(held.all { it.from == a })
+        }
+
+    @Test
+    fun aFrameRelayedOnARouteARouteReplyAndAnUnknownTypeAreNotHeld() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.received(b, message(id = 1, source = tag(9), destination = OWN))
+            val header = UnicastHeader(5, messageId(3), (nowSeconds() + 60).toUInt(), tag(6), tag(4))
+            val reply = RouteReply(header, tag(4), 5u, 0)
+
+            // Act
+            router.received(a, message(id = 2, destination = tag(9)))
+            router.received(a, reply.encode())
+            router.received(a, unicast(UNKNOWN_TYPE, 5, messageId(4), nowSeconds() + 60, tag(9), tag(8)))
+
+            // Assert
+            assertEquals(emptyList(), floods.holding.unicasts(wallMillis()))
+        }
+
+    @Test
+    fun aCatchUpIsClaimedForOwnTagsAndActiveRoutesNotThroughItsSenderOnceEach() =
+        runTest {
+            // Arrange: a route to tag 9 through B and to tag 6 through A; message 5 was delivered here.
+            // From A, tag 6 is not claimed: its route leads back through A.
+            val router = router()
+            router.received(b, message(id = 1, source = tag(9), destination = tag(2)))
+            router.received(a, message(id = 2, source = tag(6), destination = tag(2)))
+            router.received(b, message(id = 5, destination = OWN))
+            waiting()
+            val held = listOf(OWN, tag(9), tag(7), tag(6), OWN).mapIndexed { i, tag -> held(10 + i, tag) }
+            val delivered = LinkFrame.CatchUp.Held(messageId(5), OWN)
+
+            // Act
+            router.handOver.caughtUp(a, held + delivered)
+            router.handOver.caughtUp(c, held)
+
+            // Assert
+            val grafts = waiting()
+            assertEquals(
+                listOf(10, 11, 14).map { LinkFrame.Graft(messageId(it)).encode().toList() },
+                grafts.getValue(a).map { it.toList() },
+            )
+            val graft = LinkFrame.Graft(messageId(13)).encode().toList()
+            assertEquals(listOf(graft), grafts.getValue(c).map { it.toList() })
+        }
+
+    @Test
+    fun aClaimIsRepeatedOnceTheCatchUpWindowPassed() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.handOver.caughtUp(a, listOf(held(1, OWN)))
+            waiting()
+            advanceTimeBy(HandOver.CLAIM_WINDOW_MILLIS - 1)
+            router.handOver.caughtUp(a, listOf(held(1, OWN)))
+            val within = waiting().getValue(a)
+            advanceTimeBy(1)
+
+            // Act
+            router.handOver.caughtUp(a, listOf(held(1, OWN)))
+
+            // Assert
+            assertEquals(emptyList(), within)
+            assertEquals(1, waiting().getValue(a).size)
+        }
+
+    @Test
+    fun aHeldFrameGoesOnARouteFoundToItsDestinationOnceAndNeverBackToItsLink() =
+        runTest {
+            // Arrange: the frame came from A, which then shows a reverse route to tag 9.
+            val router = router()
+            router.received(a, message(id = 1, destination = tag(9)))
+            router.received(a, message(id = 2, source = tag(9), destination = tag(2)))
+            waiting()
+            val held =
+                floods.holding
+                    .toward(tag(9), wallMillis())
+                    .single()
+                    .bytes
+            val header = UnicastHeader(5, messageId(3), (nowSeconds() + 60).toUInt(), OWN, tag(9))
+            val reply = RouteReply(header, tag(9), 5u, 0)
+
+            // Act
+            router.received(c, reply.encode())
+            val found = waiting()
+            router.received(c, message(id = 4, source = tag(9), destination = tag(2)))
+
+            // Assert
+            assertEquals(emptyList(), found.getValue(a))
+            assertContentEquals(held, found.getValue(c).single())
+            assertTrue(waiting().getValue(c).none { it.contentEquals(held) })
+        }
+
+    @Test
+    fun aHeldFrameGoesAtOnceWhenItsDestinationsRouteRequestPasses() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.received(a, message(id = 1, destination = tag(9)))
+            waiting()
+            val held =
+                floods.holding
+                    .unicasts(wallMillis())
+                    .single()
+                    .bytes
+            val header = FloodHeader(5, messageId(2), (nowSeconds() + 60).toUInt())
+            val request = RouteRequest(header, tag(4), tag(9), 4u, 0u, 2)
+
+            // Act
+            router.received(b, request.encode())
+
+            // Assert
+            assertContentEquals(held, waiting().getValue(b).single())
+        }
+
+    @Test
+    fun aHeldFrameGoesAtOnceWhenAFrameFromItsDestinationPassesOrArrives() =
+        runTest {
+            // Arrange
+            val router = router()
+            router.received(a, message(id = 1, destination = tag(9)))
+            router.received(a, message(id = 2, destination = tag(7)))
+            waiting()
+            val held = floods.holding.unicasts(wallMillis()).map { it.bytes }
+
+            // Act
+            router.received(b, message(id = 3, source = tag(9), destination = tag(2)))
+            router.received(c, message(id = 4, source = tag(7), destination = OWN))
+
+            // Assert
+            val waiting = waiting()
+            assertTrue(waiting.getValue(b).any { it.contentEquals(held[0]) })
+            assertTrue(waiting.getValue(c).any { it.contentEquals(held[1]) })
+        }
+
+    private fun TestScope.wallMillis() = SchedulerClock(testScheduler).wallClockMillis()
+
+    private fun held(
+        id: Int,
+        destination: ByteArray,
+    ) = LinkFrame.CatchUp.Held(messageId(id), destination)
+
     private companion object {
         val SALT = tag(0x5a)
         val OWN = tag(0x55)
