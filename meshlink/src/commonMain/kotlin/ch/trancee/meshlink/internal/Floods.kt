@@ -37,7 +37,10 @@ internal class Floods(
     /** The frames this node holds for others (spec "Holding"). */
     val holding: Holding = Holding()
 
-    /** The tombstones kept (spec "Tombstones"); they open [holding]'s `MESSAGE` commitments with the `commitment` function. */
+    /**
+     * The tombstones kept (spec "Tombstones"); they open [holding]'s `MESSAGE` commitments with the `commitment`
+     * function.
+     */
     val tombstones: Tombstones = Tombstones(holding, commitment)
     private val seen = MessageIds()
     private val waiting = mutableListOf<Parcel>()
