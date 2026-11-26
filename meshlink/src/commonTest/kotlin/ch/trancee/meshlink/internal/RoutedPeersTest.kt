@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Reachability
@@ -35,7 +36,7 @@ class RoutedPeersTest {
         val clock = SchedulerClock(testScheduler)
         val lookups =
             Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, Lanes()) {
-                DensityClass.MEDIUM
+                DensityClass.Medium
             }
         lookups.begin {}
         return RoutedPeers(clock, this, routes, roster, SecuredPeerTags(SodiumCryptoProvider, lookups)) to lookups

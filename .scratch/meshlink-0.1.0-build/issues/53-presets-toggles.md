@@ -21,17 +21,27 @@ An app builds its config with `meshLinkConfig(preset, securityProfile) { … }` 
 
 ## Acceptance criteria
 
-- [ ] `Preset` is sealed with `OfflineChat`, `EmergencyBroadcast`, `ProximityDiscovery`, `LocalMultiplayer`, `FieldTeams` and `Custom(name, base, overrides)`. Each built-in carries exactly the values of ADR 0011 decision 12 as amended: density, sending, holding, read receipts, default lifetime, unicast and broadcast caps, and `power`.
-- [ ] One test per built-in preset asserts every value it sets. One test proves `Custom` inherits from `base` and applies its overrides.
-- [ ] The toggles of ADR 0011 decision 10 as amended exist, each with its default: routed unicast, broadcast origination, `readReceipts.requestByDefault`, `readReceipts.send`, holding for others, L2CAP CoC upgrade, density (automatic or a pinned class), default message lifetime, `limits.*` and `power`.
-- [ ] `build()` throws a declared `MeshLinkException` subtype (with `@Throws`) for a lifetime under 120 s or over 1 h, and for limits outside their bounds. Each bound has a test on both sides of the edge (T10).
-- [ ] `describe()` lists every effective value with source `preset`, `override` or `default`, including the effective `config.limits`. A test covers each source.
-- [ ] Toggle rule, on `VirtualAir` in `:meshlink-testing`'s `commonTest`: a node with routed unicast, broadcast origination, holding or `readReceipts.send` off still relays other nodes' frames of that feature. One test per toggle.
-- [ ] Routed unicast off makes `send` direct-only. Broadcast origination off rejects local `broadcast` with a typed `SendResult.Rejected` reason. Tests cover both.
-- [ ] No extended-advertising or Live Activity toggle exists in the config, the presets or `describe()`; no test or doc claims background behavior.
-- [ ] If a preset value such as `EmergencyBroadcast`'s "broadcast first" needs behavior beyond what the ADRs define, stop and ask. Do not invent it; an ADR 0011 amendment comes first.
-- [ ] A JVM test generates `docs/reference/configuration.md` (options, defaults, bounds) and `docs/reference/presets.md` (the preset table) from the Kotlin source. It fails when the committed files differ. `./gradlew updateReference` rewrites them.
+- [x] `Preset` is sealed with `OfflineChat`, `EmergencyBroadcast`, `ProximityDiscovery`, `LocalMultiplayer`, `FieldTeams` and `Custom(name, base, overrides)`. Each built-in carries exactly the values of ADR 0011 decision 12 as amended: density, sending, holding, read receipts, default lifetime, unicast and broadcast caps, and `power`.
+- [x] One test per built-in preset asserts every value it sets. One test proves `Custom` inherits from `base` and applies its overrides.
+- [x] The toggles of ADR 0011 decision 10 as amended exist, each with its default: routed unicast, broadcast origination, `readReceipts.requestByDefault`, `readReceipts.send`, holding for others, L2CAP CoC upgrade, density (automatic or a pinned class), default message lifetime, `limits.*` and `power`.
+- [x] `build()` throws a declared `MeshLinkException` subtype (with `@Throws`) for a lifetime under 120 s or over 1 h, and for limits outside their bounds. Each bound has a test on both sides of the edge (T10).
+- [x] `describe()` lists every effective value with source `preset`, `override` or `default`, including the effective `config.limits`. A test covers each source.
+- [x] Toggle rule, on `VirtualAir` in `:meshlink-testing`'s `commonTest`: a node with routed unicast, broadcast origination, holding or `readReceipts.send` off still relays other nodes' frames of that feature. One test per toggle.
+- [x] Routed unicast off makes `send` direct-only. Broadcast origination off rejects local `broadcast` with a typed `SendResult.Rejected` reason. Tests cover both.
+- [x] No extended-advertising or Live Activity toggle exists in the config, the presets or `describe()`; no test or doc claims background behavior.
+- [x] If a preset value such as `EmergencyBroadcast`'s "broadcast first" needs behavior beyond what the ADRs define, stop and ask. Do not invent it; an ADR 0011 amendment comes first.
+- [x] A JVM test generates `docs/reference/configuration.md` (options, defaults, bounds) and `docs/reference/presets.md` (the preset table) from the Kotlin source. It fails when the committed files differ. `./gradlew updateReference` rewrites them.
 - [ ] The public API is in the ABI dump with KDoc on every declaration. Kover stays at 100%. `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `./gradlew dokkaGenerate` pass.
+
+## Prototype: broadcast priority under a flood
+
+Question: what per-incoming-link token bucket should limit which relayed broadcasts get priority? Answer: none. The eligibility bucket brought no measurable benefit. The owner chose (2026-11-25) to ship `broadcastPriority` with only the bound of three overtakes per waiting message.
+
+- A flood does about the same harm with priority on or off. The likely cause, not instrumented: one member's broadcasts fill each lane's 32 relayed slots, so honest frames are dropped before ordering matters.
+- Priority helps honest congestion. With saturated low density, honest broadcast coverage went from 0.80, 0.50 and 0.38 to 0.96, 0.85 and 0.53. Unicasts delivered moved by −5% to +9%, with no consistent loss.
+- Only dropping over-budget relayed broadcasts per link restored delivery. That moved to [ticket 74](74-neighbor-rate-limits.md).
+
+Evidence page: [`docs/evidence/2026-11-broadcast-priority/`](../../../docs/evidence/2026-11-broadcast-priority/README.md). Primary source: branch [`proto/broadcast-flood`](https://github.com/trancee/MeshLink/tree/proto/broadcast-flood), commit `723e83a`. The commit message holds the setup and the result tables. The branch is never merged.
 
 ## Proof commands
 

@@ -1,7 +1,6 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
-import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.ReadReceiptRequest
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendOptions
@@ -157,14 +156,13 @@ private fun StepsBuilder.batchThens(line: SecuredLine) {
     }
 }
 
-@OptIn(InternalMeshLinkApi::class)
 private suspend fun SecuredLine.startReading(
     name: String,
     sends: (index: Int) -> Boolean,
 ) {
     configure = { index ->
-        readReceiptsSend = sends(index)
-        readReceiptsRequestByDefault = index == ALICE
+        readReceipts.send = sends(index)
+        readReceipts.requestByDefault = index == ALICE
     }
     start(PROFILES.getValue(name))
 }

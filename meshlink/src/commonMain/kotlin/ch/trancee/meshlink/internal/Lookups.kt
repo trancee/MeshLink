@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart

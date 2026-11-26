@@ -76,7 +76,15 @@ public class MeshLink private constructor(
     private val meshId = config.meshId.encodeToByteArray()
     private val profile = config.securityProfile.wireProfile
     private val meshKey = config.meshKey
-    private val scanner = Scanner(port.radio, port.clock, port.random, Discovery(crypto, meshId, profile, meshKey))
+    private val scanner =
+        Scanner(
+            port.radio,
+            port.clock,
+            port.random,
+            Discovery(crypto, meshId, profile, meshKey),
+            config.power,
+            (config.density as? Density.Pinned)?.densityClass,
+        )
     private val links = MutableStateFlow<Links?>(null)
     private val diagnostics = MutableSharedFlow<LinkDiagnostic>(extraBufferCapacity = DIAGNOSTICS_BUFFER)
     private val post = Post(crypto, port.clock, scope, config, { scanner.density }) { diagnostics.tryEmit(it) }
@@ -275,15 +283,6 @@ public class MeshLink private constructor(
     @HiddenFromObjC
     public var restrictedLinkRole: LinkRole? = null
 
-    /**
-     * Whether this node moves its links to L2CAP CoC where both ends can (spec "Bearer switch"),
-     * from its next start: as peripheral it listens and offers its PSM, as central it opens a
-     * channel to a peer that offers one. Off, it links over GATT only. Ticket 53 makes it a toggle.
-     */
-    @InternalMeshLinkApi
-    @HiddenFromObjC
-    public var coc: Boolean = true
-
     /** This node's role on each of its current links, by peer; for the lab apps. */
     @InternalMeshLinkApi
     @HiddenFromObjC
@@ -375,7 +374,7 @@ public class MeshLink private constructor(
                 }
             val handshakes = secured?.first
             val policy = LinkPolicy(digest, identity.nodeId)
-            val admission = LinkAdmission(policy, handshakes, coc) { diagnostics.tryEmit(it) }
+            val admission = LinkAdmission(policy, handshakes, config.l2capUpgrade) { diagnostics.tryEmit(it) }
             val session = Links(port, admission, this, post.roster, post) { scanner.density.links }
             links.value = session
             try {
@@ -394,7 +393,7 @@ public class MeshLink private constructor(
                 val recognition = Recognition(keys, session.neighbors) { session.handles }
                 val centralOnly = limitations.any { it is Limitation.CentralOnly }
                 val role = if (centralOnly) LinkRole.CENTRAL else restrictedLinkRole
-                scanner.run(role, recognition, coc, session::accept, session.proximities::sighted)
+                scanner.run(role, recognition, config.l2capUpgrade, session::accept, session.proximities::sighted)
                 linking.cancel()
                 announcing.cancel()
                 rotating.cancel()

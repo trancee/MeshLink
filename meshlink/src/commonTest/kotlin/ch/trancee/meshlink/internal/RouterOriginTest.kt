@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -15,7 +16,7 @@ class RouterOriginTest {
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
 
     private fun TestScope.router(): Router {
-        val floods = Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment) {}
+        val floods = Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment, holds = true) {}
         val endpoint = FakeEndpoint(OWN).apply { kinds = setOf(Container.UNSECURED) }
         return Router(SchedulerClock(testScheduler), lanes, Routes(), { ByteArray(it) }, endpoint, Handoff(floods))
     }
@@ -68,7 +69,7 @@ class RouterOriginTest {
             waiting()
 
             // Act
-            router.send(2, tag(9), Reach.of(DensityClass.LOW))
+            router.send(2, tag(9), Reach.of(DensityClass.Low))
 
             // Assert
             assertEquals(listOf(255, 255, 255), waiting().values.map { it.single()[0].toInt() and 0xFF })
@@ -83,9 +84,9 @@ class RouterOriginTest {
             waiting()
 
             // Act
-            router.send(2, tag(9), Reach.of(DensityClass.MEDIUM))
+            router.send(2, tag(9), Reach.of(DensityClass.Medium))
             val routed = waiting()
-            router.send(3, tag(6), Reach.of(DensityClass.HIGH))
+            router.send(3, tag(6), Reach.of(DensityClass.High))
 
             // Assert: without a route, a route request goes first on every link.
             val hopLimits = routed.values.map { frames -> frames.map { it[0].toInt() and 0xFF } }
@@ -102,9 +103,9 @@ class RouterOriginTest {
             waiting()
 
             // Act
-            router.send(2, tag(9), Reach.receipt(DensityClass.LOW))
+            router.send(2, tag(9), Reach.receipt(DensityClass.Low))
             val routed = waiting()
-            router.send(3, tag(6), Reach.receipt(DensityClass.LOW))
+            router.send(3, tag(6), Reach.receipt(DensityClass.Low))
 
             // Assert: the maximum hop limit either way, and no route request.
             val hopLimits = routed.values.map { frames -> frames.map { it[0].toInt() and 0xFF } }
@@ -122,7 +123,7 @@ class RouterOriginTest {
         runTest {
             assertEquals(
                 listOf(Reach.ROUTE_OR_FLOOD, Reach.ROUTE_OR_FLOOD),
-                listOf(DensityClass.MEDIUM, DensityClass.HIGH).map { Reach.receipt(it) },
+                listOf(DensityClass.Medium, DensityClass.High).map { Reach.receipt(it) },
             )
         }
 

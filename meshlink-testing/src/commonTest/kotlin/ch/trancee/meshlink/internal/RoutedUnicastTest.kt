@@ -152,33 +152,13 @@ class RoutedUnicastTest {
     @Test
     fun aDirectOnlyMessageGoesWithHopLimitOneOnlyOverALinkToItsDestination() =
         runTest(timeout = 5.minutes) {
-            // Arrange: C, apart from A, is reachable only through B.
-            val line = apart(air())
-            val inbox = inbox(line.nodes.last())
-            val status = statuses(line.nodes.first().send(line.c, PAYLOAD, SendOptions(directOnly = true)))
-            advanceTimeBy(SETTLE_MILLIS)
-            val relayed = inbox.size
+            assertOnlyDirect(routedUnicast = true, SendOptions(directOnly = true))
+        }
 
-            // Act
-            line.moveC(0.0)
-            advanceTimeBy(SETTLE_MILLIS)
-
-            // Assert
-            assertEquals(0, relayed)
-            assertEquals(1, inbox.size)
-            assertEquals(listOf(DeliveryStatus.Held, DeliveryStatus.Sent, DeliveryStatus.Delivered), status)
-            val toC =
-                line.platforms
-                    .first()
-                    .radio.ends
-                    .filter { it.remote == line.platforms.last().radio }
-            val hopLimits =
-                toC
-                    .flatMap(::bodies)
-                    .filter { it[0] == MESSAGE_TYPE }
-                    .map { it[1].toInt() }
-                    .toSet()
-            assertEquals(setOf(1), hopLimits)
+    @Test
+    fun withRoutedUnicastOffEveryMessageGoesOnlyOverALinkToItsDestination() =
+        runTest(timeout = 5.minutes) {
+            assertOnlyDirect(routedUnicast = false, SendOptions())
         }
 
     @Test
@@ -234,6 +214,43 @@ class RoutedUnicastTest {
             assertEquals(listOf(PAYLOAD.toList()), inbox.map { it.toList() })
         }
 
+    /**
+     * Asserts that a message A sends to C with [options] waits while only B could relay it, then goes with
+     * hop limit 1 once C comes beside A.
+     */
+    private suspend fun TestScope.assertOnlyDirect(
+        routedUnicast: Boolean,
+        options: SendOptions,
+    ) {
+        // Arrange: C, apart from A, is reachable only through B.
+        val line = apart(air(), routedUnicast)
+        val inbox = inbox(line.nodes.last())
+        val status = statuses(line.nodes.first().send(line.c, PAYLOAD, options))
+        advanceTimeBy(SETTLE_MILLIS)
+        val relayed = inbox.size
+
+        // Act
+        line.moveC(0.0)
+        advanceTimeBy(SETTLE_MILLIS)
+
+        // Assert
+        assertEquals(0, relayed)
+        assertEquals(1, inbox.size)
+        assertEquals(listOf(DeliveryStatus.Held, DeliveryStatus.Sent, DeliveryStatus.Delivered), status)
+        val toC =
+            line.platforms
+                .first()
+                .radio.ends
+                .filter { it.remote == line.platforms.last().radio }
+        val hopLimits =
+            toC
+                .flatMap(::bodies)
+                .filter { it[0] == MESSAGE_TYPE }
+                .map { it[1].toInt() }
+                .toSet()
+        assertEquals(setOf(1), hopLimits)
+    }
+
     /** [LINE] platforms [SPACING] apart along x, but the last beside the first at the origin. */
     private fun TestScope.line(
         air: VirtualAir,
@@ -244,10 +261,16 @@ class RoutedUnicastTest {
             air.move(platform.radio, if (beside) 0.0 else index * SPACING, 0.0)
         }
 
-    /** Three started short-lived nodes A, B and C, linked while side by side, then [SPACING] apart in a line. */
-    private suspend fun TestScope.apart(air: VirtualAir): Apart {
+    /**
+     * Three started short-lived nodes A, B and C, linked while side by side, then [SPACING] apart in a
+     * line; each with [routedUnicast].
+     */
+    private suspend fun TestScope.apart(
+        air: VirtualAir,
+        routedUnicast: Boolean = true,
+    ): Apart {
         val platforms = List(3) { air.platform(StandardTestDispatcher(testScheduler)) }
-        val nodes = platforms.map(::shortLivedNode).onEach { it.start() }
+        val nodes = platforms.map { shortLivedNode(it, routedUnicast) }.onEach { it.start() }
         advanceTimeBy(SETTLE_MILLIS)
         val c = nodes.first().peerOn(platforms.last())
         platforms.forEachIndexed { index, platform -> air.move(platform.radio, index * SPACING, 0.0) }
@@ -277,10 +300,16 @@ class RoutedUnicastTest {
         }
     }
 
-    /** A stopped `unsecured` node whose messages live 120 s. */
-    private fun shortLivedNode(platform: VirtualPlatform): MeshLink =
+    /** A stopped `unsecured` node whose messages live 120 s, with [routedUnicast]. */
+    private fun shortLivedNode(
+        platform: VirtualPlatform,
+        routedUnicast: Boolean = true,
+    ): MeshLink =
         MeshLink.create(
-            meshLinkConfig(Preset.ProximityDiscovery, SecurityProfile.Unsecured) { meshId = MESH }.build(),
+            meshLinkConfig(LINE_PRESET, SecurityProfile.Unsecured) {
+                meshId = MESH
+                this.routedUnicast = routedUnicast
+            }.build(),
             meshPlatform(platform),
         )
 

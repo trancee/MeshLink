@@ -19,7 +19,10 @@ class LanesTest {
     private fun parcel(
         id: Int,
         relayed: Boolean = true,
-    ) = Parcel(messageId(id), relayed, { byteArrayOf(id.toByte()) }) {}
+        kind: Parcel.Kind = Parcel.Kind.OTHER,
+    ) = Parcel(messageId(id), relayed, { byteArrayOf(id.toByte()) }, kind = kind) {}
+
+    private suspend fun Lanes.order(): List<Int> = drain(peer).map { it.render()[0].toInt() }
 
     @Test
     fun aFullLaneDropsANewFrame() =
@@ -221,5 +224,82 @@ class LanesTest {
 
             // Assert
             assertFalse(lanes.writing(messageId(1)))
+        }
+
+    @Test
+    fun withPriorityABroadcastGoesAheadOfWaitingMessagesBehindOtherFrames() =
+        runTest {
+            // Arrange
+            val lanes = Lanes(broadcastPriority = true).apply { open(peer) }
+            lanes.put(peer, parcel(1))
+            lanes.put(peer, parcel(2, kind = Parcel.Kind.MESSAGE))
+            lanes.put(peer, parcel(3, kind = Parcel.Kind.BROADCAST))
+            lanes.put(peer, parcel(4, kind = Parcel.Kind.MESSAGE))
+
+            // Act
+            lanes.put(peer, parcel(5, relayed = false, kind = Parcel.Kind.BROADCAST))
+
+            // Assert
+            assertEquals(listOf(1, 3, 5, 2, 4), lanes.order())
+        }
+
+    @Test
+    fun withoutPriorityABroadcastWaitsBehindMessages() =
+        runTest {
+            // Arrange
+            lanes.open(peer)
+            lanes.put(peer, parcel(1, kind = Parcel.Kind.MESSAGE))
+
+            // Act
+            lanes.put(peer, parcel(2, kind = Parcel.Kind.BROADCAST))
+
+            // Assert
+            assertEquals(listOf(1, 2), lanes.order())
+        }
+
+    @Test
+    fun aWaitingMessageIsOvertakenByAtMostThreeBroadcasts() =
+        runTest {
+            // Arrange
+            val lanes = Lanes(broadcastPriority = true).apply { open(peer) }
+            lanes.put(peer, parcel(0, kind = Parcel.Kind.MESSAGE))
+
+            // Act
+            (1..5).forEach { lanes.put(peer, parcel(it, kind = Parcel.Kind.BROADCAST)) }
+
+            // Assert
+            assertEquals(listOf(1, 2, 3, 0, 4, 5), lanes.order())
+        }
+
+    @Test
+    fun aMessageQueuedLaterCanStillBeOvertaken() =
+        runTest {
+            // Arrange
+            val lanes = Lanes(broadcastPriority = true).apply { open(peer) }
+            lanes.put(peer, parcel(0, kind = Parcel.Kind.MESSAGE))
+            (1..3).forEach { lanes.put(peer, parcel(it, kind = Parcel.Kind.BROADCAST)) }
+            lanes.put(peer, parcel(4, kind = Parcel.Kind.MESSAGE))
+
+            // Act
+            lanes.put(peer, parcel(5, kind = Parcel.Kind.BROADCAST))
+
+            // Assert
+            assertEquals(listOf(1, 2, 3, 0, 5, 4), lanes.order())
+        }
+
+    @Test
+    fun aMessageReplacedInPlaceKeepsItsOvertakenCount() =
+        runTest {
+            // Arrange
+            val lanes = Lanes(broadcastPriority = true).apply { open(peer) }
+            lanes.put(peer, parcel(0, kind = Parcel.Kind.MESSAGE))
+            (1..3).forEach { lanes.put(peer, parcel(it, kind = Parcel.Kind.BROADCAST)) }
+
+            // Act
+            lanes.put(peer, parcel(0, kind = Parcel.Kind.MESSAGE))
+            lanes.put(peer, parcel(4, kind = Parcel.Kind.BROADCAST))
+
+            // Assert
+            assertEquals(listOf(1, 2, 3, 0, 4), lanes.order())
         }
 }

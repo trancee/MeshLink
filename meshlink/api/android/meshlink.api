@@ -63,6 +63,36 @@ public final class ch/trancee/meshlink/DeliveryStatus$Sent : ch/trancee/meshlink
 	public fun toString ()Ljava/lang/String;
 }
 
+public abstract interface class ch/trancee/meshlink/Density {
+}
+
+public final class ch/trancee/meshlink/Density$Automatic : ch/trancee/meshlink/Density {
+	public static final field INSTANCE Lch/trancee/meshlink/Density$Automatic;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/Density$Pinned : ch/trancee/meshlink/Density {
+	public fun <init> (Lch/trancee/meshlink/DensityClass;)V
+	public final fun component1 ()Lch/trancee/meshlink/DensityClass;
+	public final fun copy (Lch/trancee/meshlink/DensityClass;)Lch/trancee/meshlink/Density$Pinned;
+	public static synthetic fun copy$default (Lch/trancee/meshlink/Density$Pinned;Lch/trancee/meshlink/DensityClass;ILjava/lang/Object;)Lch/trancee/meshlink/Density$Pinned;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDensityClass ()Lch/trancee/meshlink/DensityClass;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class ch/trancee/meshlink/DensityClass : java/lang/Enum {
+	public static final field High Lch/trancee/meshlink/DensityClass;
+	public static final field Low Lch/trancee/meshlink/DensityClass;
+	public static final field Medium Lch/trancee/meshlink/DensityClass;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DensityClass;
+	public static fun values ()[Lch/trancee/meshlink/DensityClass;
+}
+
 public final class ch/trancee/meshlink/FailureReason : java/lang/Enum {
 	public static final field Stopped Lch/trancee/meshlink/FailureReason;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -106,7 +136,6 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public static synthetic fun broadcast$default (Lch/trancee/meshlink/MeshLink;[BIILjava/lang/Object;)Lch/trancee/meshlink/SendResult;
 	public fun close ()V
 	public final fun getCertificateLookups ()Lch/trancee/meshlink/internal/CertificateLookups;
-	public final fun getCoc ()Z
 	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
 	public final fun getLinkDiagnostics ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getLinkRoles ()Ljava/util/Map;
@@ -119,7 +148,6 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public final fun resetIdentity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun send (Lch/trancee/meshlink/NodeId;[BLch/trancee/meshlink/SendOptions;)Lch/trancee/meshlink/SendResult;
 	public static synthetic fun send$default (Lch/trancee/meshlink/MeshLink;Lch/trancee/meshlink/NodeId;[BLch/trancee/meshlink/SendOptions;ILjava/lang/Object;)Lch/trancee/meshlink/SendResult;
-	public final fun setCoc (Z)V
 	public final fun setRestrictedLinkRole (Lch/trancee/meshlink/internal/LinkRole;)V
 	public final fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -131,27 +159,30 @@ public final class ch/trancee/meshlink/MeshLink$Companion {
 
 public final class ch/trancee/meshlink/MeshLinkConfig {
 	public final fun describe ()Ljava/lang/String;
+	public final fun getBroadcastOrigination ()Z
+	public final fun getBroadcastPriority ()Z
+	public final fun getDensity ()Lch/trancee/meshlink/Density;
+	public final fun getHolding ()Z
+	public final fun getL2capUpgrade ()Z
 	public final fun getLimits ()Lch/trancee/meshlink/Limits;
 	public final fun getMeshId ()Ljava/lang/String;
 	public final fun getMeshKey ()[B
 	public final fun getMessageLifetimeSeconds ()I
+	public final fun getPower ()Lch/trancee/meshlink/Power;
 	public final fun getPreset ()Lch/trancee/meshlink/Preset;
-	public final fun getReadReceiptsRequestByDefault ()Z
-	public final fun getReadReceiptsSend ()Z
+	public final fun getReadReceipts ()Lch/trancee/meshlink/ReadReceipts;
+	public final fun getRoutedUnicast ()Z
 	public final fun getSecurityProfile ()Lch/trancee/meshlink/SecurityProfile;
 }
 
-public final class ch/trancee/meshlink/MeshLinkConfigBuilder {
+public final class ch/trancee/meshlink/MeshLinkConfigBuilder : ch/trancee/meshlink/PresetSettings {
 	public final fun build ()Lch/trancee/meshlink/MeshLinkConfig;
-	public final fun getLimits ()Lch/trancee/meshlink/LimitsBuilder;
+	public final fun getL2capUpgrade ()Z
 	public final fun getMeshId ()Ljava/lang/String;
 	public final fun getMeshKey ()[B
-	public final fun getReadReceiptsRequestByDefault ()Z
-	public final fun getReadReceiptsSend ()Z
+	public final fun setL2capUpgrade (Z)V
 	public final fun setMeshId (Ljava/lang/String;)V
 	public final fun setMeshKey ([B)V
-	public final fun setReadReceiptsRequestByDefault (Z)V
-	public final fun setReadReceiptsSend (Z)V
 }
 
 public final class ch/trancee/meshlink/MeshLinkConfigKt {
@@ -271,8 +302,23 @@ public final class ch/trancee/meshlink/PermissionKind : java/lang/Enum {
 	public static fun values ()[Lch/trancee/meshlink/PermissionKind;
 }
 
+public final class ch/trancee/meshlink/Power : java/lang/Enum {
+	public static final field Balanced Lch/trancee/meshlink/Power;
+	public static final field Responsive Lch/trancee/meshlink/Power;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/Power;
+	public static fun values ()[Lch/trancee/meshlink/Power;
+}
+
 public abstract class ch/trancee/meshlink/Preset {
-	public synthetic fun <init> (ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lch/trancee/meshlink/PresetValues;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class ch/trancee/meshlink/Preset$Custom : ch/trancee/meshlink/Preset {
+	public fun <init> (Ljava/lang/String;Lch/trancee/meshlink/Preset;Lkotlin/jvm/functions/Function1;)V
+	public final fun getBase ()Lch/trancee/meshlink/Preset;
+	public final fun getName ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class ch/trancee/meshlink/Preset$EmergencyBroadcast : ch/trancee/meshlink/Preset {
@@ -308,6 +354,25 @@ public final class ch/trancee/meshlink/Preset$ProximityDiscovery : ch/trancee/me
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public class ch/trancee/meshlink/PresetSettings {
+	public final fun getBroadcastOrigination ()Z
+	public final fun getBroadcastPriority ()Z
+	public final fun getDensity ()Lch/trancee/meshlink/Density;
+	public final fun getHolding ()Z
+	public final fun getLimits ()Lch/trancee/meshlink/LimitsBuilder;
+	public final fun getMessageLifetimeSeconds ()I
+	public final fun getPower ()Lch/trancee/meshlink/Power;
+	public final fun getReadReceipts ()Lch/trancee/meshlink/ReadReceiptsBuilder;
+	public final fun getRoutedUnicast ()Z
+	public final fun setBroadcastOrigination (Z)V
+	public final fun setBroadcastPriority (Z)V
+	public final fun setDensity (Lch/trancee/meshlink/Density;)V
+	public final fun setHolding (Z)V
+	public final fun setMessageLifetimeSeconds (I)V
+	public final fun setPower (Lch/trancee/meshlink/Power;)V
+	public final fun setRoutedUnicast (Z)V
 }
 
 public final class ch/trancee/meshlink/Proximity {
@@ -356,6 +421,18 @@ public final class ch/trancee/meshlink/ReadReceiptRequest : java/lang/Enum {
 	public static fun values ()[Lch/trancee/meshlink/ReadReceiptRequest;
 }
 
+public final class ch/trancee/meshlink/ReadReceipts {
+	public final fun getRequestByDefault ()Z
+	public final fun getSend ()Z
+}
+
+public final class ch/trancee/meshlink/ReadReceiptsBuilder {
+	public final fun getRequestByDefault ()Z
+	public final fun getSend ()Z
+	public final fun setRequestByDefault (Z)V
+	public final fun setSend (Z)V
+}
+
 public final class ch/trancee/meshlink/ReceivedMessage {
 	public final fun getBroadcast ()Z
 	public final fun getPayload ()[B
@@ -365,6 +442,7 @@ public final class ch/trancee/meshlink/ReceivedMessage {
 }
 
 public final class ch/trancee/meshlink/RejectionReason : java/lang/Enum {
+	public static final field BroadcastDisabled Lch/trancee/meshlink/RejectionReason;
 	public static final field InvalidHopLimit Lch/trancee/meshlink/RejectionReason;
 	public static final field NotRunning Lch/trancee/meshlink/RejectionReason;
 	public static final field QueueFull Lch/trancee/meshlink/RejectionReason;

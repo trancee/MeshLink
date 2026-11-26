@@ -58,6 +58,18 @@ final enum class ch.trancee.meshlink/CentralOnlyReason : kotlin/Enum<ch.trancee.
     final fun values(): kotlin/Array<ch.trancee.meshlink/CentralOnlyReason> // ch.trancee.meshlink/CentralOnlyReason.values|values#static(){}[0]
 }
 
+final enum class ch.trancee.meshlink/DensityClass : kotlin/Enum<ch.trancee.meshlink/DensityClass> { // ch.trancee.meshlink/DensityClass|null[0]
+    enum entry High // ch.trancee.meshlink/DensityClass.High|null[0]
+    enum entry Low // ch.trancee.meshlink/DensityClass.Low|null[0]
+    enum entry Medium // ch.trancee.meshlink/DensityClass.Medium|null[0]
+
+    final val entries // ch.trancee.meshlink/DensityClass.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DensityClass> // ch.trancee.meshlink/DensityClass.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink/DensityClass // ch.trancee.meshlink/DensityClass.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink/DensityClass> // ch.trancee.meshlink/DensityClass.values|values#static(){}[0]
+}
+
 final enum class ch.trancee.meshlink/FailureReason : kotlin/Enum<ch.trancee.meshlink/FailureReason> { // ch.trancee.meshlink/FailureReason|null[0]
     enum entry Stopped // ch.trancee.meshlink/FailureReason.Stopped|null[0]
 
@@ -80,6 +92,17 @@ final enum class ch.trancee.meshlink/PermissionKind : kotlin/Enum<ch.trancee.mes
 
     final fun valueOf(kotlin/String): ch.trancee.meshlink/PermissionKind // ch.trancee.meshlink/PermissionKind.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<ch.trancee.meshlink/PermissionKind> // ch.trancee.meshlink/PermissionKind.values|values#static(){}[0]
+}
+
+final enum class ch.trancee.meshlink/Power : kotlin/Enum<ch.trancee.meshlink/Power> { // ch.trancee.meshlink/Power|null[0]
+    enum entry Balanced // ch.trancee.meshlink/Power.Balanced|null[0]
+    enum entry Responsive // ch.trancee.meshlink/Power.Responsive|null[0]
+
+    final val entries // ch.trancee.meshlink/Power.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/Power> // ch.trancee.meshlink/Power.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): ch.trancee.meshlink/Power // ch.trancee.meshlink/Power.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<ch.trancee.meshlink/Power> // ch.trancee.meshlink/Power.values|values#static(){}[0]
 }
 
 final enum class ch.trancee.meshlink/ProximityBucket : kotlin/Enum<ch.trancee.meshlink/ProximityBucket> { // ch.trancee.meshlink/ProximityBucket|null[0]
@@ -108,6 +131,7 @@ final enum class ch.trancee.meshlink/ReadReceiptRequest : kotlin/Enum<ch.trancee
 }
 
 final enum class ch.trancee.meshlink/RejectionReason : kotlin/Enum<ch.trancee.meshlink/RejectionReason> { // ch.trancee.meshlink/RejectionReason|null[0]
+    enum entry BroadcastDisabled // ch.trancee.meshlink/RejectionReason.BroadcastDisabled|null[0]
     enum entry InvalidHopLimit // ch.trancee.meshlink/RejectionReason.InvalidHopLimit|null[0]
     enum entry NotRunning // ch.trancee.meshlink/RejectionReason.NotRunning|null[0]
     enum entry QueueFull // ch.trancee.meshlink/RejectionReason.QueueFull|null[0]
@@ -261,6 +285,27 @@ sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/Del
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/DeliveryStatus.Sent.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/DeliveryStatus.Sent.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // ch.trancee.meshlink/DeliveryStatus.Sent.toString|toString(){}[0]
+    }
+}
+
+sealed interface ch.trancee.meshlink/Density { // ch.trancee.meshlink/Density|null[0]
+    final class Pinned : ch.trancee.meshlink/Density { // ch.trancee.meshlink/Density.Pinned|null[0]
+        constructor <init>(ch.trancee.meshlink/DensityClass) // ch.trancee.meshlink/Density.Pinned.<init>|<init>(ch.trancee.meshlink.DensityClass){}[0]
+
+        final val densityClass // ch.trancee.meshlink/Density.Pinned.densityClass|{}densityClass[0]
+            final fun <get-densityClass>(): ch.trancee.meshlink/DensityClass // ch.trancee.meshlink/Density.Pinned.densityClass.<get-densityClass>|<get-densityClass>(){}[0]
+
+        final fun component1(): ch.trancee.meshlink/DensityClass // ch.trancee.meshlink/Density.Pinned.component1|component1(){}[0]
+        final fun copy(ch.trancee.meshlink/DensityClass = ...): ch.trancee.meshlink/Density.Pinned // ch.trancee.meshlink/Density.Pinned.copy|copy(ch.trancee.meshlink.DensityClass){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Density.Pinned.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Density.Pinned.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Density.Pinned.toString|toString(){}[0]
+    }
+
+    final object Automatic : ch.trancee.meshlink/Density { // ch.trancee.meshlink/Density.Automatic|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Density.Automatic.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Density.Automatic.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Density.Automatic.toString|toString(){}[0]
     }
 }
 
@@ -471,9 +516,6 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
     final val state // ch.trancee.meshlink/MeshLink.state|{}state[0]
         final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<ch.trancee.meshlink/MeshState> // ch.trancee.meshlink/MeshLink.state.<get-state>|<get-state>(){}[0]
 
-    final var coc // ch.trancee.meshlink/MeshLink.coc|{}coc[0]
-        final fun <get-coc>(): kotlin/Boolean // ch.trancee.meshlink/MeshLink.coc.<get-coc>|<get-coc>(){}[0]
-        final fun <set-coc>(kotlin/Boolean) // ch.trancee.meshlink/MeshLink.coc.<set-coc>|<set-coc>(kotlin.Boolean){}[0]
     final var restrictedLinkRole // ch.trancee.meshlink/MeshLink.restrictedLinkRole|{}restrictedLinkRole[0]
         final fun <get-restrictedLinkRole>(): ch.trancee.meshlink.internal/LinkRole? // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<get-restrictedLinkRole>|<get-restrictedLinkRole>(){}[0]
         final fun <set-restrictedLinkRole>(ch.trancee.meshlink.internal/LinkRole?) // ch.trancee.meshlink/MeshLink.restrictedLinkRole.<set-restrictedLinkRole>|<set-restrictedLinkRole>(ch.trancee.meshlink.internal.LinkRole?){}[0]
@@ -493,6 +535,16 @@ final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.
 }
 
 final class ch.trancee.meshlink/MeshLinkConfig { // ch.trancee.meshlink/MeshLinkConfig|null[0]
+    final val broadcastOrigination // ch.trancee.meshlink/MeshLinkConfig.broadcastOrigination|{}broadcastOrigination[0]
+        final fun <get-broadcastOrigination>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.broadcastOrigination.<get-broadcastOrigination>|<get-broadcastOrigination>(){}[0]
+    final val broadcastPriority // ch.trancee.meshlink/MeshLinkConfig.broadcastPriority|{}broadcastPriority[0]
+        final fun <get-broadcastPriority>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.broadcastPriority.<get-broadcastPriority>|<get-broadcastPriority>(){}[0]
+    final val density // ch.trancee.meshlink/MeshLinkConfig.density|{}density[0]
+        final fun <get-density>(): ch.trancee.meshlink/Density // ch.trancee.meshlink/MeshLinkConfig.density.<get-density>|<get-density>(){}[0]
+    final val holding // ch.trancee.meshlink/MeshLinkConfig.holding|{}holding[0]
+        final fun <get-holding>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.holding.<get-holding>|<get-holding>(){}[0]
+    final val l2capUpgrade // ch.trancee.meshlink/MeshLinkConfig.l2capUpgrade|{}l2capUpgrade[0]
+        final fun <get-l2capUpgrade>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.l2capUpgrade.<get-l2capUpgrade>|<get-l2capUpgrade>(){}[0]
     final val limits // ch.trancee.meshlink/MeshLinkConfig.limits|{}limits[0]
         final fun <get-limits>(): ch.trancee.meshlink/Limits // ch.trancee.meshlink/MeshLinkConfig.limits.<get-limits>|<get-limits>(){}[0]
     final val meshId // ch.trancee.meshlink/MeshLinkConfig.meshId|{}meshId[0]
@@ -501,34 +553,30 @@ final class ch.trancee.meshlink/MeshLinkConfig { // ch.trancee.meshlink/MeshLink
         final fun <get-meshKey>(): kotlin/ByteArray? // ch.trancee.meshlink/MeshLinkConfig.meshKey.<get-meshKey>|<get-meshKey>(){}[0]
     final val messageLifetimeSeconds // ch.trancee.meshlink/MeshLinkConfig.messageLifetimeSeconds|{}messageLifetimeSeconds[0]
         final fun <get-messageLifetimeSeconds>(): kotlin/Int // ch.trancee.meshlink/MeshLinkConfig.messageLifetimeSeconds.<get-messageLifetimeSeconds>|<get-messageLifetimeSeconds>(){}[0]
+    final val power // ch.trancee.meshlink/MeshLinkConfig.power|{}power[0]
+        final fun <get-power>(): ch.trancee.meshlink/Power // ch.trancee.meshlink/MeshLinkConfig.power.<get-power>|<get-power>(){}[0]
     final val preset // ch.trancee.meshlink/MeshLinkConfig.preset|{}preset[0]
         final fun <get-preset>(): ch.trancee.meshlink/Preset // ch.trancee.meshlink/MeshLinkConfig.preset.<get-preset>|<get-preset>(){}[0]
-    final val readReceiptsRequestByDefault // ch.trancee.meshlink/MeshLinkConfig.readReceiptsRequestByDefault|{}readReceiptsRequestByDefault[0]
-        final fun <get-readReceiptsRequestByDefault>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.readReceiptsRequestByDefault.<get-readReceiptsRequestByDefault>|<get-readReceiptsRequestByDefault>(){}[0]
-    final val readReceiptsSend // ch.trancee.meshlink/MeshLinkConfig.readReceiptsSend|{}readReceiptsSend[0]
-        final fun <get-readReceiptsSend>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.readReceiptsSend.<get-readReceiptsSend>|<get-readReceiptsSend>(){}[0]
+    final val readReceipts // ch.trancee.meshlink/MeshLinkConfig.readReceipts|{}readReceipts[0]
+        final fun <get-readReceipts>(): ch.trancee.meshlink/ReadReceipts // ch.trancee.meshlink/MeshLinkConfig.readReceipts.<get-readReceipts>|<get-readReceipts>(){}[0]
+    final val routedUnicast // ch.trancee.meshlink/MeshLinkConfig.routedUnicast|{}routedUnicast[0]
+        final fun <get-routedUnicast>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfig.routedUnicast.<get-routedUnicast>|<get-routedUnicast>(){}[0]
     final val securityProfile // ch.trancee.meshlink/MeshLinkConfig.securityProfile|{}securityProfile[0]
         final fun <get-securityProfile>(): ch.trancee.meshlink/SecurityProfile // ch.trancee.meshlink/MeshLinkConfig.securityProfile.<get-securityProfile>|<get-securityProfile>(){}[0]
 
     final fun describe(): kotlin/String // ch.trancee.meshlink/MeshLinkConfig.describe|describe(){}[0]
 }
 
-final class ch.trancee.meshlink/MeshLinkConfigBuilder { // ch.trancee.meshlink/MeshLinkConfigBuilder|null[0]
-    final val limits // ch.trancee.meshlink/MeshLinkConfigBuilder.limits|{}limits[0]
-        final fun <get-limits>(): ch.trancee.meshlink/LimitsBuilder // ch.trancee.meshlink/MeshLinkConfigBuilder.limits.<get-limits>|<get-limits>(){}[0]
-
+final class ch.trancee.meshlink/MeshLinkConfigBuilder : ch.trancee.meshlink/PresetSettings { // ch.trancee.meshlink/MeshLinkConfigBuilder|null[0]
+    final var l2capUpgrade // ch.trancee.meshlink/MeshLinkConfigBuilder.l2capUpgrade|{}l2capUpgrade[0]
+        final fun <get-l2capUpgrade>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfigBuilder.l2capUpgrade.<get-l2capUpgrade>|<get-l2capUpgrade>(){}[0]
+        final fun <set-l2capUpgrade>(kotlin/Boolean) // ch.trancee.meshlink/MeshLinkConfigBuilder.l2capUpgrade.<set-l2capUpgrade>|<set-l2capUpgrade>(kotlin.Boolean){}[0]
     final var meshId // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId|{}meshId[0]
         final fun <get-meshId>(): kotlin/String // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<get-meshId>|<get-meshId>(){}[0]
         final fun <set-meshId>(kotlin/String) // ch.trancee.meshlink/MeshLinkConfigBuilder.meshId.<set-meshId>|<set-meshId>(kotlin.String){}[0]
     final var meshKey // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey|{}meshKey[0]
         final fun <get-meshKey>(): kotlin/ByteArray? // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey.<get-meshKey>|<get-meshKey>(){}[0]
         final fun <set-meshKey>(kotlin/ByteArray?) // ch.trancee.meshlink/MeshLinkConfigBuilder.meshKey.<set-meshKey>|<set-meshKey>(kotlin.ByteArray?){}[0]
-    final var readReceiptsRequestByDefault // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsRequestByDefault|{}readReceiptsRequestByDefault[0]
-        final fun <get-readReceiptsRequestByDefault>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsRequestByDefault.<get-readReceiptsRequestByDefault>|<get-readReceiptsRequestByDefault>(){}[0]
-        final fun <set-readReceiptsRequestByDefault>(kotlin/Boolean) // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsRequestByDefault.<set-readReceiptsRequestByDefault>|<set-readReceiptsRequestByDefault>(kotlin.Boolean){}[0]
-    final var readReceiptsSend // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsSend|{}readReceiptsSend[0]
-        final fun <get-readReceiptsSend>(): kotlin/Boolean // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsSend.<get-readReceiptsSend>|<get-readReceiptsSend>(){}[0]
-        final fun <set-readReceiptsSend>(kotlin/Boolean) // ch.trancee.meshlink/MeshLinkConfigBuilder.readReceiptsSend.<set-readReceiptsSend>|<set-readReceiptsSend>(kotlin.Boolean){}[0]
 
     final fun build(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLinkConfigBuilder.build|build(){}[0]
 }
@@ -576,6 +624,22 @@ final class ch.trancee.meshlink/Proximity { // ch.trancee.meshlink/Proximity|nul
         final fun <get-rssi>(): kotlin/Double? // ch.trancee.meshlink/Proximity.rssi.<get-rssi>|<get-rssi>(){}[0]
 }
 
+final class ch.trancee.meshlink/ReadReceipts { // ch.trancee.meshlink/ReadReceipts|null[0]
+    final val requestByDefault // ch.trancee.meshlink/ReadReceipts.requestByDefault|{}requestByDefault[0]
+        final fun <get-requestByDefault>(): kotlin/Boolean // ch.trancee.meshlink/ReadReceipts.requestByDefault.<get-requestByDefault>|<get-requestByDefault>(){}[0]
+    final val send // ch.trancee.meshlink/ReadReceipts.send|{}send[0]
+        final fun <get-send>(): kotlin/Boolean // ch.trancee.meshlink/ReadReceipts.send.<get-send>|<get-send>(){}[0]
+}
+
+final class ch.trancee.meshlink/ReadReceiptsBuilder { // ch.trancee.meshlink/ReadReceiptsBuilder|null[0]
+    final var requestByDefault // ch.trancee.meshlink/ReadReceiptsBuilder.requestByDefault|{}requestByDefault[0]
+        final fun <get-requestByDefault>(): kotlin/Boolean // ch.trancee.meshlink/ReadReceiptsBuilder.requestByDefault.<get-requestByDefault>|<get-requestByDefault>(){}[0]
+        final fun <set-requestByDefault>(kotlin/Boolean) // ch.trancee.meshlink/ReadReceiptsBuilder.requestByDefault.<set-requestByDefault>|<set-requestByDefault>(kotlin.Boolean){}[0]
+    final var send // ch.trancee.meshlink/ReadReceiptsBuilder.send|{}send[0]
+        final fun <get-send>(): kotlin/Boolean // ch.trancee.meshlink/ReadReceiptsBuilder.send.<get-send>|<get-send>(){}[0]
+        final fun <set-send>(kotlin/Boolean) // ch.trancee.meshlink/ReadReceiptsBuilder.send.<set-send>|<set-send>(kotlin.Boolean){}[0]
+}
+
 final class ch.trancee.meshlink/ReceivedMessage { // ch.trancee.meshlink/ReceivedMessage|null[0]
     final val broadcast // ch.trancee.meshlink/ReceivedMessage.broadcast|{}broadcast[0]
         final fun <get-broadcast>(): kotlin/Boolean // ch.trancee.meshlink/ReceivedMessage.broadcast.<get-broadcast>|<get-broadcast>(){}[0]
@@ -596,6 +660,35 @@ final class ch.trancee.meshlink/SendOptions { // ch.trancee.meshlink/SendOptions
         final fun <get-directOnly>(): kotlin/Boolean // ch.trancee.meshlink/SendOptions.directOnly.<get-directOnly>|<get-directOnly>(){}[0]
     final val readReceipt // ch.trancee.meshlink/SendOptions.readReceipt|{}readReceipt[0]
         final fun <get-readReceipt>(): ch.trancee.meshlink/ReadReceiptRequest // ch.trancee.meshlink/SendOptions.readReceipt.<get-readReceipt>|<get-readReceipt>(){}[0]
+}
+
+open class ch.trancee.meshlink/PresetSettings { // ch.trancee.meshlink/PresetSettings|null[0]
+    final val limits // ch.trancee.meshlink/PresetSettings.limits|{}limits[0]
+        final fun <get-limits>(): ch.trancee.meshlink/LimitsBuilder // ch.trancee.meshlink/PresetSettings.limits.<get-limits>|<get-limits>(){}[0]
+    final val readReceipts // ch.trancee.meshlink/PresetSettings.readReceipts|{}readReceipts[0]
+        final fun <get-readReceipts>(): ch.trancee.meshlink/ReadReceiptsBuilder // ch.trancee.meshlink/PresetSettings.readReceipts.<get-readReceipts>|<get-readReceipts>(){}[0]
+
+    final var broadcastOrigination // ch.trancee.meshlink/PresetSettings.broadcastOrigination|{}broadcastOrigination[0]
+        final fun <get-broadcastOrigination>(): kotlin/Boolean // ch.trancee.meshlink/PresetSettings.broadcastOrigination.<get-broadcastOrigination>|<get-broadcastOrigination>(){}[0]
+        final fun <set-broadcastOrigination>(kotlin/Boolean) // ch.trancee.meshlink/PresetSettings.broadcastOrigination.<set-broadcastOrigination>|<set-broadcastOrigination>(kotlin.Boolean){}[0]
+    final var broadcastPriority // ch.trancee.meshlink/PresetSettings.broadcastPriority|{}broadcastPriority[0]
+        final fun <get-broadcastPriority>(): kotlin/Boolean // ch.trancee.meshlink/PresetSettings.broadcastPriority.<get-broadcastPriority>|<get-broadcastPriority>(){}[0]
+        final fun <set-broadcastPriority>(kotlin/Boolean) // ch.trancee.meshlink/PresetSettings.broadcastPriority.<set-broadcastPriority>|<set-broadcastPriority>(kotlin.Boolean){}[0]
+    final var density // ch.trancee.meshlink/PresetSettings.density|{}density[0]
+        final fun <get-density>(): ch.trancee.meshlink/Density // ch.trancee.meshlink/PresetSettings.density.<get-density>|<get-density>(){}[0]
+        final fun <set-density>(ch.trancee.meshlink/Density) // ch.trancee.meshlink/PresetSettings.density.<set-density>|<set-density>(ch.trancee.meshlink.Density){}[0]
+    final var holding // ch.trancee.meshlink/PresetSettings.holding|{}holding[0]
+        final fun <get-holding>(): kotlin/Boolean // ch.trancee.meshlink/PresetSettings.holding.<get-holding>|<get-holding>(){}[0]
+        final fun <set-holding>(kotlin/Boolean) // ch.trancee.meshlink/PresetSettings.holding.<set-holding>|<set-holding>(kotlin.Boolean){}[0]
+    final var messageLifetimeSeconds // ch.trancee.meshlink/PresetSettings.messageLifetimeSeconds|{}messageLifetimeSeconds[0]
+        final fun <get-messageLifetimeSeconds>(): kotlin/Int // ch.trancee.meshlink/PresetSettings.messageLifetimeSeconds.<get-messageLifetimeSeconds>|<get-messageLifetimeSeconds>(){}[0]
+        final fun <set-messageLifetimeSeconds>(kotlin/Int) // ch.trancee.meshlink/PresetSettings.messageLifetimeSeconds.<set-messageLifetimeSeconds>|<set-messageLifetimeSeconds>(kotlin.Int){}[0]
+    final var power // ch.trancee.meshlink/PresetSettings.power|{}power[0]
+        final fun <get-power>(): ch.trancee.meshlink/Power // ch.trancee.meshlink/PresetSettings.power.<get-power>|<get-power>(){}[0]
+        final fun <set-power>(ch.trancee.meshlink/Power) // ch.trancee.meshlink/PresetSettings.power.<set-power>|<set-power>(ch.trancee.meshlink.Power){}[0]
+    final var routedUnicast // ch.trancee.meshlink/PresetSettings.routedUnicast|{}routedUnicast[0]
+        final fun <get-routedUnicast>(): kotlin/Boolean // ch.trancee.meshlink/PresetSettings.routedUnicast.<get-routedUnicast>|<get-routedUnicast>(){}[0]
+        final fun <set-routedUnicast>(kotlin/Boolean) // ch.trancee.meshlink/PresetSettings.routedUnicast.<set-routedUnicast>|<set-routedUnicast>(kotlin.Boolean){}[0]
 }
 
 sealed class ch.trancee.meshlink/MeshLinkException : kotlin/Exception { // ch.trancee.meshlink/MeshLinkException|null[0]
@@ -623,6 +716,17 @@ sealed class ch.trancee.meshlink/MeshLinkException : kotlin/Exception { // ch.tr
 }
 
 sealed class ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset|null[0]
+    final class Custom : ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset.Custom|null[0]
+        constructor <init>(kotlin/String, ch.trancee.meshlink/Preset, kotlin/Function1<ch.trancee.meshlink/PresetSettings, kotlin/Unit>) // ch.trancee.meshlink/Preset.Custom.<init>|<init>(kotlin.String;ch.trancee.meshlink.Preset;kotlin.Function1<ch.trancee.meshlink.PresetSettings,kotlin.Unit>){}[0]
+
+        final val base // ch.trancee.meshlink/Preset.Custom.base|{}base[0]
+            final fun <get-base>(): ch.trancee.meshlink/Preset // ch.trancee.meshlink/Preset.Custom.base.<get-base>|<get-base>(){}[0]
+        final val name // ch.trancee.meshlink/Preset.Custom.name|{}name[0]
+            final fun <get-name>(): kotlin/String // ch.trancee.meshlink/Preset.Custom.name.<get-name>|<get-name>(){}[0]
+
+        final fun toString(): kotlin/String // ch.trancee.meshlink/Preset.Custom.toString|toString(){}[0]
+    }
+
     final object EmergencyBroadcast : ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset.EmergencyBroadcast|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // ch.trancee.meshlink/Preset.EmergencyBroadcast.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // ch.trancee.meshlink/Preset.EmergencyBroadcast.hashCode|hashCode(){}[0]

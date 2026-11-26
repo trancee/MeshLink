@@ -1,6 +1,6 @@
 # 0011: Modules, feature toggles and presets
 
-Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 14 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision; 2026-11-13, 0.1.0 scope; 2026-11-14, libsodium size; 2026-11-14, test-only edge; 2026-11-15, dependency-only internal artifacts; 2026-11-19, density classes built).
+Status: accepted (2026-11-03; ticket "How are modules cut, and how do feature toggles and presets work?"). Version: 15 (amended 2026-11-02, ADR 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, ADRs 0017 and 0019, and the stage F simulation; 2026-11-13, coordinates and names; 2026-11-13, toolchain decision; 2026-11-13, 0.1.0 scope; 2026-11-14, libsodium size; 2026-11-14, test-only edge; 2026-11-15, dependency-only internal artifacts; 2026-11-19, density classes built; 2026-11-25, presets and toggles built).
 
 ## Context
 
@@ -176,3 +176,18 @@ Consequence of the second source: a separate `meshlink-testing` Kotlin framework
 2026-11-19, density classes built (ticket 36; ADR 0008):
 
 - **Built-in presets (decision 12):** `Responsive` low scans 4 s on / 2.5 s off, so `LocalMultiplayer`, pinned to the low class, scans 4 s on / 2.5 s off, not 4/2. Scan starts stay under AOSP's limit of 5 per 30 s (library rule R11).
+
+2026-11-25, presets and toggles built (ticket 53; owner decisions):
+
+- **Broadcast priority (decision 12):** `EmergencyBroadcast`'s "broadcast first" is the new toggle `broadcastPriority`. It is off by default, on in `EmergencyBroadcast`, and an app may set it either way.
+  - With it on, a node queues each broadcast, its own or relayed, just ahead of the first unicast message waiting on a link. It stays behind every frame queued ahead of that message, such as earlier broadcasts, receipts and control frames.
+  - A waiting message lets at most 3 broadcasts go ahead of it, so unicast messages keep at least one write in four on a busy link.
+  - It only reorders this node's writes. Nothing is dropped and the wire is unchanged, so decision 8 holds.
+- **Flood (decision 12):** a seeded `VirtualAir` prototype tested whether one member flooding broadcasts can turn priority against unicast ([evidence](../evidence/2026-11-broadcast-priority/README.md), simulated only).
+  - It can't. A flood harmed unicast and honest broadcasts about equally with priority on or off.
+  - A per-link budget deciding which relayed broadcasts get priority changed nothing measurable, so it is not built.
+  - Only dropping relayed broadcasts over a per-link budget restored delivery. It also cut honest broadcasts that share the flooded link, so per-neighbor admission control is decided separately (ticket 74).
+  - Priority does help honest broadcasts on an overloaded mesh: in low-density cells their coverage rose from 0.38–0.80 to 0.53–0.96.
+- **Toggles (decision 10):** the L2CAP CoC upgrade is the public `l2capUpgrade` setting, on by default and not a preset value; the internal `MeshLink.coc` switch is removed. The read receipt values are `readReceipts.requestByDefault` and `readReceipts.send`. Density is `Density.Automatic` or `Density.Pinned(DensityClass)`.
+- **Preset mechanism (decision 11):** `Preset.Custom(name, base) { … }` starts from `base`'s values, and its block sets them with the same `PresetSettings` properties as the `meshLinkConfig` block. `describe()` labels a value `default` only for settings that no preset sets (`meshKey`, `l2capUpgrade`).
+- **Generated reference (decision 12 and Consequences):** `ConfigReferenceTest` generates [`configuration.md`](../reference/configuration.md) and [`presets.md`](../reference/presets.md) from the Kotlin source and fails when they differ; `./gradlew updateReference` rewrites them. [`presets.md`](../reference/presets.md) replaces the draft table of decision 12, and the "Draft presets" risk is closed.

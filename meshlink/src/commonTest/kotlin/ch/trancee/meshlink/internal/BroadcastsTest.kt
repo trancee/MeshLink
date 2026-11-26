@@ -34,25 +34,31 @@ class BroadcastsTest {
     private val lanes = Lanes()
     private val received = mutableListOf<ReceivedMessage>()
     private val codec = broadcastCodec(nodeId = SELF, random = ::nextId)
-    private val floods = Floods(lanes, codec, lowTree(lanes), ::tombstoneCommitment) { received += it }
+    private val floods = Floods(lanes, codec, lowTree(lanes), ::tombstoneCommitment, holds = true) { received += it }
 
     private fun TestScope.broadcasts(
         secured: Boolean = false,
         payloadMax: Int = BroadcastFrame.PAYLOAD_MAX,
+        origination: Boolean = true,
     ): Broadcasts {
         val clock = SchedulerClock(testScheduler)
         val writing = if (secured) broadcastCodec(secured = true, random = ::nextId) else codec
-        val flooding = if (secured) Floods(lanes, writing, lowTree(lanes), ::tombstoneCommitment) {} else floods
-        val broadcasts = Broadcasts(clock, backgroundScope, capacity, flooding, writing, config(payloadMax))
+        val flooding =
+            if (secured) Floods(lanes, writing, lowTree(lanes), ::tombstoneCommitment, holds = true) {} else floods
+        val broadcasts =
+            Broadcasts(clock, backgroundScope, capacity, flooding, writing, config(payloadMax, origination))
         broadcasts.begin()
         return broadcasts
     }
 
-    private fun config(payloadMax: Int = BroadcastFrame.PAYLOAD_MAX) =
-        meshLinkConfig(PRESET, SecurityProfile.Unsecured) {
-            meshId = "Broadcasts"
-            limits.maxBroadcastPayload = payloadMax
-        }.build()
+    private fun config(
+        payloadMax: Int = BroadcastFrame.PAYLOAD_MAX,
+        origination: Boolean = true,
+    ) = meshLinkConfig(PRESET, SecurityProfile.Unsecured) {
+        meshId = "Broadcasts"
+        limits.maxBroadcastPayload = payloadMax
+        broadcastOrigination = origination
+    }.build()
 
     private fun TestScope.accepted(
         broadcasts: Broadcasts,
@@ -175,6 +181,24 @@ class BroadcastsTest {
             assertEquals(emptyList(), rejected)
             assertEquals(listOf(1, 255), lanes.drain(a).map { it.render()[1].toInt() and 0xff })
             assertEquals(2, edges.size)
+        }
+
+    @Test
+    fun withBroadcastOriginationOffARunningNodeRejectsEveryBroadcastAsDisabled() =
+        runTest {
+            // Arrange
+            lanes.open(a)
+            val broadcasts = broadcasts(origination = false)
+
+            // Act
+            val results = listOf(RUNNING, MeshState.Stopped).map { broadcasts.send(ByteArray(1), 255, it) }
+            runCurrent()
+
+            // Assert
+            val reasons = listOf(RejectionReason.BroadcastDisabled, RejectionReason.NotRunning)
+            assertEquals(reasons, results.map { (it as SendResult.Rejected).reason })
+            assertEquals(emptyList(), lanes.drain(a))
+            assertTrue(capacity.empty())
         }
 
     @Test
@@ -310,7 +334,7 @@ class BroadcastsTest {
     private companion object {
         val RUNNING: MeshState = MeshState.Running(emptySet())
         val PRESET = Preset.ProximityDiscovery
-        val LIFETIME = PRESET.messageLifetimeSeconds
+        val LIFETIME = PRESET.values.messageLifetimeSeconds
         const val SKEW = 30
         val SELF = ByteArray(32) { 9 }
     }

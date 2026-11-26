@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
@@ -41,7 +42,7 @@ internal fun TestScope.securedNode(
     val clock = SchedulerClock(testScheduler)
     val node = SecuredNode(keys)
     node.lanes.open(neighbor)
-    node.lookups = Lookups(crypto, clock, backgroundScope, WireProfile.CLASSICAL, node.lanes) { DensityClass.MEDIUM }
+    node.lookups = Lookups(crypto, clock, backgroundScope, WireProfile.CLASSICAL, node.lanes) { DensityClass.Medium }
     node.lookups.begin {}
     val read = { from: NodeId, ids: List<ByteArray> -> node.read += from to ids.map { it.toList() } }
     val receipts =

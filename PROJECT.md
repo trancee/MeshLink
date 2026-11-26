@@ -46,6 +46,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
   | Static analysis | `detekt<SourceSet>SourceSet` and `detektMainAndroid` (type resolution, `commonMain` plus `androidMain`) in every module | Any detekt finding. Config: detekt defaults plus [`config/detekt/detekt.yml`](config/detekt/detekt.yml), which widens the test-code excludes and forbids ambient time and randomness in `commonMain` (`ForbiddenImport`, `ForbiddenMethodCall`; only `RandomSource.kt` may import `kotlin.random`). No baseline; no suppressions except the `checkSuppressions` exception below. `:meshlink-crypto-sodium` logs 9 analysis-only `expect`/`actual` errors and `:meshlink` logs 6 analysis-only `@OptionalExpectation` errors, because `detektMainAndroid` analyzes `commonMain` and `androidMain` as one module ([detekt/detekt#9602](https://github.com/detekt/detekt/issues/9602)); call resolution, which the forbidden-call rule needs, is unaffected |
   | Formatting | `spotlessCheck` (root) | A `.kt` or `.gradle.kts` file differs from ktlint 1.8.0 formatting; fix with `./gradlew spotlessApply` |
   | Public ABI | `checkKotlinAbi` in the published modules | The ABI differs from the committed dumps in `<module>/api/`; update with `./gradlew updateKotlinAbi` |
+  | Generated reference | `ConfigReferenceTest` in `:meshlink:testAndroidHostTest` | `docs/reference/configuration.md` or `presets.md` differs from the page generated from the Kotlin source; update with `./gradlew updateReference` |
   | Changelog | `checkChangelog` (root) | An `api/**/*.api` dump changed since the merge base with `origin/main` (override: `-Pmeshlink.changelog.base=<ref>`) without a `CHANGELOG.md` change; fails closed if the base ref is missing |
   | Native symbols | `checkSodiumJniSymbols` in `:meshlink-crypto-sodium` | An Android JNI shim exports a `sodium_`, `crypto_` or `randombytes_` symbol, or exports or imports a symbol matching `aes`, `aegis` or `ipcrypt` ([ADR 0004](docs/adr/0004-crypto-provider-libsodium.md) 2026-11-14 amendment) |
   | Native size | `checkSodiumJniSize` in `:meshlink-crypto-sodium` | An Android JNI shim is over 1,000,000 bytes |
@@ -105,6 +106,7 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Maven consumer of the published artifacts (macOS only: the iOS klibs; needs the pinned NDK and `buildLibsodiumAndroid`; never writes `~/.m2`) | `tools/maven-consumer/test.sh` |
 | SwiftPM consumer of the XCFramework on an iOS Simulator (macOS only; set `DEVELOPER_DIR` to the Xcode of ADR 0005; `MESHLINK_SIMULATOR_DESTINATION` overrides the destination) | `tools/swiftpm-consumer/test.sh` |
 | Update the ABI dumps after an intended API change | `./gradlew updateKotlinAbi`, then add a `CHANGELOG.md` entry |
+| Regenerate the configuration and preset reference after a config KDoc or preset change | `./gradlew updateReference` |
 | API reference (HTML in `build/dokka/html/`) | `./gradlew dokkaGenerate` |
 | Markdown lint | `npx -y markdownlint-cli2@0.24.0` |
 | Spelling (US English) | `typos` |
