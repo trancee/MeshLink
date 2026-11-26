@@ -84,7 +84,7 @@ internal enum class Settled {
  * `MESSAGE` frames for this node into [inbox] (ADR 0007 decisions 7 and 9, ADR 0013, spec "Unicast
  * forwarding"), and floods [broadcasts] (spec "Flood forwarding"). [density] is the node's current
  * density class. Sends and takes read receipts as [config] allows (spec "Read receipts"), and
- * [diagnose]s each sent message it stops tracking for one.
+ * reports to [diagnostics] each sent message it stops tracking for one.
  *
  * A secured profile's mesh may not carry the unsecured container (spec "End-to-end"): it sends each
  * message with its end-to-end session to the destination, else as a first message sealed to the
@@ -100,14 +100,14 @@ internal class Post(
     private val scope: CoroutineScope,
     private val config: MeshLinkConfig,
     private val density: () -> DensityClass,
-    diagnose: (DiagnosticEvent) -> Unit,
+    diagnostics: DiagnosticsHub,
 ) : Mail {
     private val lifetimeSeconds = config.messageLifetimeSeconds
     private val profile = config.securityProfile.wireProfile
     private val secured = profile != WireProfile.UNSECURED
     private val capacity = Capacity()
     private val lanes = Lanes(config.broadcastPriority)
-    private val reading = ReadTracking { diagnose(DiagnosticEvent.ReadTrackingEvicted(it)) }
+    private val reading = ReadTracking { diagnostics.report(DiagnosticEvent.ReadTrackingEvicted(it)) }
     private val outbox =
         Outbox(clock, scope, capacity, density, reading) { entry, retry ->
             // A large message's timed retry searches its route anew (D-58).
@@ -119,18 +119,18 @@ internal class Post(
     private val routes = Routes()
 
     /** Messages received for this node. */
-    val inbox = Inbox()
+    val inbox = Inbox(diagnostics::report)
 
     /** The peers this node lists. */
     val roster = Roster()
 
-    private val certificates = Lookups(crypto, clock, scope, profile, lanes, density)
+    private val certificates = Lookups(crypto, Pace(clock, density), scope, profile, lanes, diagnostics)
 
     /** A secured node's certificate lookups; an `unsecured` node has none. */
     val lookups = certificates.takeIf { secured }
 
     private val tags = if (secured) SecuredPeerTags(crypto, certificates) else UnsecuredPeerTags(crypto)
-    private val routed = RoutedPeers(clock, scope, routes, roster, tags)
+    private val routed = RoutedPeers(clock, scope, routes, roster, tags, diagnostics)
     private val releases = Releases(outbox, routed, density) { end.destination(it) }
 
     // A delivery receipt goes back on the reverse route its messages came on, else like any unicast.
@@ -179,18 +179,19 @@ internal class Post(
             SecuredHooks(routed::heard, releases::found, releases::arrived, posting::originate),
         )
     private val end: Origin = if (secured) securedEnd else unsecuredEnd
-    private val codec = BroadcastCodec(crypto, secured)
+    private val codec = BroadcastCodec(crypto, secured, diagnostics::report)
     private val floods =
         Floods(
             lanes,
             codec,
             Plumtree(lanes, clock, scope, density),
-            Derivations(crypto)::tombstoneCommitment,
-            config.holding,
+            Tombstones(Holding(config.holding, diagnostics::report), Derivations(crypto)::tombstoneCommitment),
+            diagnostics::report,
         ) {
             inbox.offer(it)
         }
-    private val router: Router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
+    private val router: Router =
+        Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups, diagnostics::report))
     private val origins = Origins(clock, lanes, routes, router, outbox, end)
 
     /** This node's broadcasts. */

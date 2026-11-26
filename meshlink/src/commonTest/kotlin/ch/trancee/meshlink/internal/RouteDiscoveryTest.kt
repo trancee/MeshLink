@@ -29,7 +29,7 @@ class RouteDiscoveryTest {
             Routes(),
             ::sevens,
             endpoint,
-            Handoff(Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment, holds = true) {}),
+            Handoff(Floods(lanes, broadcastCodec(), lowTree(lanes), keptTombstones()) {}),
         )
 
     private fun sevens(size: Int) = ByteArray(size) { 7 }
@@ -425,9 +425,14 @@ class RouteDiscoveryTest {
             // Arrange: a secured node whose route to TARGET a relayed reply from b taught.
             val clock = SchedulerClock(testScheduler)
             val lookups =
-                Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, lanes) {
-                    DensityClass.Medium
-                }
+                Lookups(
+                    SodiumCryptoProvider,
+                    Pace(clock) { DensityClass.Medium },
+                    backgroundScope,
+                    WireProfile.CLASSICAL,
+                    lanes,
+                    DiagnosticsHub(backgroundScope, debug = true, crypto = SodiumCryptoProvider),
+                )
             val receipts = Receipts<Reply>(clock, backgroundScope, { _, _, _ -> }, { _, _ -> }, reads())
             val end = SecuredEnd(SodiumCryptoProvider, clock, Inbox(), lookups, receipts, SecuredHooks({}, {}, {}) {})
             val keys = securedKeys(clock, seed = 3)

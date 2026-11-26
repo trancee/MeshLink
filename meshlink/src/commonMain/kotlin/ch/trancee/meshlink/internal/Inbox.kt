@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
+import ch.trancee.meshlink.DiagnosticEvent.InboxFull.Bound
 import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
@@ -13,9 +15,11 @@ import kotlinx.coroutines.flow.update
 /**
  * Received messages waiting for the app (ADR 0007 decision 9): at most [MAX_COUNT] messages and
  * [MAX_BYTES] payload bytes, of which one sender may hold [SENDER_BYTES]. A message beyond a bound
- * is dropped. Thread-safe.
+ * is dropped and reported (ML7003) to [diagnose]. Thread-safe.
  */
-internal class Inbox {
+internal class Inbox(
+    private val diagnose: (DiagnosticEvent) -> Unit = {},
+) {
     private val channel = Channel<Waiting>(Channel.UNLIMITED)
     private val usage = MutableStateFlow(Usage())
     private val collecting = MutableStateFlow(false)
@@ -46,9 +50,9 @@ internal class Inbox {
         message: ReceivedMessage,
         taken: () -> Unit = {},
     ): Boolean {
-        val fits = usage.getAndUpdate { if (it.fits(message)) it + message else it }.fits(message)
-        if (fits) channel.trySend(Waiting(message, taken))
-        return fits
+        val crossed = usage.getAndUpdate { if (it.crossed(message) == null) it + message else it }.crossed(message)
+        if (crossed == null) channel.trySend(Waiting(message, taken)) else diagnose(DiagnosticEvent.InboxFull(crossed))
+        return crossed == null
     }
 
     /** Ends [messages] once the waiting messages are taken. */
@@ -66,11 +70,15 @@ internal class Inbox {
         val bytes: Long = 0,
         val bySender: Map<NodeId, Long> = emptyMap(),
     ) {
-        fun fits(message: ReceivedMessage): Boolean {
+        // The bound [message] would cross, or null if it fits.
+        fun crossed(message: ReceivedMessage): Bound? {
             val size = message.payload.size
-            return count < MAX_COUNT &&
-                bytes + size <= MAX_BYTES &&
-                (bySender[message.sender] ?: 0) + size <= SENDER_BYTES
+            return when {
+                count >= MAX_COUNT -> Bound.Count
+                bytes + size > MAX_BYTES -> Bound.Bytes
+                (bySender[message.sender] ?: 0) + size > SENDER_BYTES -> Bound.Sender
+                else -> null
+            }
         }
 
         operator fun plus(message: ReceivedMessage): Usage = change(message, 1)

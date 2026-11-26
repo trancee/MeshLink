@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DiagnosticEvent
+import ch.trancee.meshlink.DiagnosticEvent.BusyReply
+import ch.trancee.meshlink.DiagnosticEvent.LinkOpened
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Proximity
@@ -229,7 +231,7 @@ internal class Links(
                     ?.let { CapabilityRecord.decode(it.value) as? Decoded.Valid }
                     ?.value
             val vetted = vet?.invoke(record?.advertisement) != false
-            selection = record?.takeIf { vetted }?.let { r -> policy.selectVersion(r)?.let { it to r } }
+            selection = record?.takeIf { vetted }?.let { policy.select(it, diagnostics) }
         } finally {
             if (selection == null) link.disconnect()
         }
@@ -320,7 +322,7 @@ internal class Links(
         ) {
             when (val records = reader.read(chunk)) {
                 is Decoded.Invalid -> {
-                    conn.close(null)
+                    conn.close(null, CloseReason.PROTOCOL_ERROR)
                 }
 
                 is Decoded.Valid -> {
@@ -342,7 +344,7 @@ internal class Links(
             conn.peer?.let { conn.lastSeen = clock.now() }
             when (opened) {
                 is LinkCipher.Opened.Frame -> dispatch(conn, opened.bytes)
-                LinkCipher.Opened.Failed -> conn.close(null)
+                LinkCipher.Opened.Failed -> conn.close(null, CloseReason.PROTOCOL_ERROR)
                 LinkCipher.Opened.Overdue -> conn.close(CloseReason.PROTOCOL_ERROR)
             }
             if (table[conn.peer] === conn) publish()
@@ -399,6 +401,11 @@ internal class Links(
                 }
 
                 is Reassembled.Refused -> {
+                    val reason = result.busy.reason
+                    diagnostics.report(BusyReply(BusyReply.Direction.Sent, reason.busyReason()))
+                    if (reason == BusyReason.LARGE_BUDGET) {
+                        diagnostics.report(DiagnosticEvent.ReassemblyBudgetExhausted())
+                    }
                     post(conn, result.busy)
                 }
 
@@ -432,6 +439,7 @@ internal class Links(
                 }
 
                 frame is LinkFrame.Busy -> {
+                    diagnostics.report(BusyReply(BusyReply.Direction.Received, frame.reason.busyReason()))
                     conn.refused(frame.streamId)
                 }
 
@@ -447,16 +455,27 @@ internal class Links(
                 }
 
                 frame is LinkFrame.PlainHello && conn.peer == null -> {
-                    val reason = policy.checkHello(frame, conn.selected)
-                    if (reason != null) return conn.close(reason)
-                    if (conn.selected == null) conn.send(policy.hello(frame.version))
-                    open(conn, NodeId(frame.nodeId))
+                    hello(conn, frame)
                 }
 
                 else -> {
                     other(conn, frame)
                 }
             }
+        }
+
+        // An `unsecured` peer's `HELLO`: a version this node does not support is reported and refused.
+        private suspend fun hello(
+            conn: Link,
+            frame: LinkFrame.PlainHello,
+        ) {
+            val reason = policy.checkHello(frame, conn.selected)
+            if (reason == CloseReason.UNSUPPORTED_VERSION) {
+                diagnostics.report(DiagnosticEvent.ProtocolVersionRejected(frame.version))
+            }
+            if (reason != null) return conn.close(reason)
+            if (conn.selected == null) conn.send(policy.hello(frame.version))
+            open(conn, NodeId(frame.nodeId))
         }
 
         /**
@@ -510,7 +529,7 @@ internal class Links(
                 }
 
                 LinkFrame.BearerSwitch -> {
-                    channels.switched(conn)
+                    channels.switched(conn, peer)
                 }
 
                 else -> {
@@ -566,7 +585,10 @@ internal class Links(
          * with its own switch. A second switch, a switch from a peripheral first, or no channel
          * close the link with `PROTOCOL_ERROR`.
          */
-        suspend fun switched(conn: Link) {
+        suspend fun switched(
+            conn: Link,
+            peer: NodeId,
+        ) {
             val bearer = conn.bearer
             val ready =
                 when {
@@ -574,7 +596,12 @@ internal class Links(
                     conn.central -> bearer.channel != null
                     else -> claim(conn)
                 }
-            if (ready) bearer.moved = true else conn.close(CloseReason.PROTOCOL_ERROR)
+            if (ready) {
+                bearer.moved = true
+                diagnostics.report(DiagnosticEvent.BearerSwitched(diagnostics.peer(peer)))
+            } else {
+                conn.close(CloseReason.PROTOCOL_ERROR)
+            }
         }
 
         /**
@@ -661,6 +688,8 @@ internal class Links(
     ) {
         conn.peer = id
         conn.lastSeen = clock.now()
+        val role = if (conn.central) LinkOpened.Role.Central else LinkOpened.Role.Peripheral
+        diagnostics.report(DiagnosticEvent.LinkOpened(diagnostics.peer(id), role, conn.link.attMtu))
         if (conn.central && dialing === conn.link.peer) {
             dialing = null
             views.kept(conn.link.peer, id, busy.values.sum())
@@ -703,6 +732,9 @@ internal class Links(
         conn.reassembly.clear()
         val id = conn.peer
         if (id == null) opening--
+        id?.let {
+            diagnostics.report(DiagnosticEvent.LinkClosed(diagnostics.peer(it), conn.ended.closedReason(), conn.byPeer))
+        }
         if (id != null && table[id] === conn) {
             table.remove(id)
             mail.unlinked(id)
@@ -749,6 +781,14 @@ internal class Links(
         var lastSeen: Instant = Instant.fromEpochMilliseconds(0)
         var received: CloseReason? = null
         private var closing = false
+
+        /** Why the link closed, set by its first close: the peer's reason, else this node's; `null` if lost. */
+        var ended: CloseReason? = null
+            private set
+
+        /** Whether the peer closed the link, set by its first close. */
+        var byPeer = false
+            private set
 
         // Closed as a duplicate: still reading the peer's frames until its CLOSE or the timeout.
         private var draining = false
@@ -894,9 +934,13 @@ internal class Links(
         /**
          * Sends `CLOSE` with [reason] unless it is `null`, then disconnects; once only. A
          * `DUPLICATE_LINK` close drains instead: it disconnects at the next close, which the peer's
-         * `CLOSE`, a fatal frame or the drain timeout makes.
+         * `CLOSE`, a fatal frame or the drain timeout makes. The first close records why the link
+         * [ended]: the peer's reason if it sent one, else [cause].
          */
-        suspend fun close(reason: CloseReason?) {
+        suspend fun close(
+            reason: CloseReason?,
+            cause: CloseReason? = reason,
+        ) {
             if (closing) {
                 if (draining) {
                     draining = false
@@ -905,6 +949,8 @@ internal class Links(
                 return
             }
             closing = true
+            byPeer = received != null
+            ended = received ?: cause
             credits.stop()
             if (reason == CloseReason.DUPLICATE_LINK) {
                 draining = true
@@ -968,6 +1014,17 @@ internal class LinkAdmission(
     /** The hub the session's links report diagnostics to. */
     val diagnostics: DiagnosticsHub,
 )
+
+// The version selected from [record], with the record; a record offering no version this node
+// supports is reported to [diagnostics].
+private fun LinkPolicy.select(
+    record: CapabilityRecord,
+    diagnostics: DiagnosticsHub,
+): Pair<Int, CapabilityRecord>? {
+    val version = selectVersion(record)
+    if (version == null) diagnostics.report(DiagnosticEvent.ProtocolVersionRejected(record.versions.max()))
+    return version?.let { it to record }
+}
 
 private fun Clock.now(): Instant = Instant.fromEpochMilliseconds(wallClockMillis())
 

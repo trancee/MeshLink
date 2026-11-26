@@ -55,14 +55,37 @@ class DiagnosticRedactionTest {
             DiagnosticEvent.Started(SecurityProfile.PostQuantum, Preset.Custom("Quiet chat", Preset.OfflineChat) {}),
             DiagnosticEvent.Stopped(DiagnosticEvent.Stopped.Reason.IdentityReset),
             DiagnosticEvent.UnsecuredProfile(),
+            DiagnosticEvent.OwnCertificateRenewed(),
+            DiagnosticEvent.ScanWindow(DiagnosticEvent.ScanWindow.Phase.Started),
+            DiagnosticEvent.StaleAddressMarked(),
+            DiagnosticEvent.DensityClassChanged(DensityClass.Low, DensityClass.High),
+            DiagnosticEvent.LinkOpened(peer, DiagnosticEvent.LinkOpened.Role.Central, mtu = 517),
+            DiagnosticEvent.LinkClosed(peer, DiagnosticEvent.LinkClosed.Reason.WrongMesh, byPeer = true),
             DiagnosticEvent.ConnectFailed(link, DiagnosticEvent.ConnectFailed.Reason.PeerUnreachable, attempt = 3),
             DiagnosticEvent.LinkCapReached(cap = 7),
             DiagnosticEvent.BearerFallback(peer, DiagnosticEvent.BearerFallback.Reason.RadioError),
             DiagnosticEvent.UnknownLinkFrameDropped(type = 0x7f),
+            DiagnosticEvent.ProtocolVersionRejected(theirVersion = 2),
+            DiagnosticEvent.BusyReply(
+                DiagnosticEvent.BusyReply.Direction.Sent,
+                DiagnosticEvent.BusyReply.Reason.Budget,
+            ),
+            DiagnosticEvent.BearerSwitched(peer),
             DiagnosticEvent.HandshakeFailed(link, DiagnosticEvent.HandshakeFailed.Reason.Certificate),
             DiagnosticEvent.HandshakeLimitDropped(DiagnosticEvent.HandshakeLimitDropped.Limit.Global),
+            DiagnosticEvent.BroadcastSignatureInvalid(),
+            DiagnosticEvent.RouteFound(peer, hops = 4),
+            DiagnosticEvent.RouteLost(peer),
+            DiagnosticEvent.UnknownRoutedFrameRelayed(type = 0xbf),
+            DiagnosticEvent.ExpiryFarFromLocalTime(skewSeconds = -31),
+            DiagnosticEvent.HeldMessageEvicted(DiagnosticEvent.HeldMessageEvicted.Reason.LinkShare),
+            DiagnosticEvent.CertificateLookup(peer, attempts = 2),
+            DiagnosticEvent.CertificateLookupUnanswered(peer, attempts = 5),
+            DiagnosticEvent.InvalidCertificateReply(),
             DiagnosticEvent.DiagnosticsDropped(dropped = 43),
             DiagnosticEvent.ReadTrackingEvicted(ByteArray(MESSAGE_ID_BYTES) { it.toByte() }),
+            DiagnosticEvent.InboxFull(DiagnosticEvent.InboxFull.Bound.Sender),
+            DiagnosticEvent.ReassemblyBudgetExhausted(),
         )
 
     private companion object {
@@ -72,9 +95,15 @@ class DiagnosticRedactionTest {
         val FIELD = Regex(", (?=[a-z][A-Za-z]*=)")
         val EVENT = Regex("""ML\d{4} [A-Z][A-Za-z]*\((.*)\) x\d+""")
 
-        /** A name, a number, a reference, or the app's own name for a custom preset. */
+        /** A name, a flag, a signed number, a reference, or the app's own name for a custom preset. */
         val VALUE =
-            Regex("""[A-Z][A-Za-z]*|\d+|peer-[0-9a-f]{8}|link-\d+|Custom\("[^"]*", base = [A-Z][A-Za-z]*\)""")
+            Regex(
+                listOf(
+                    """[A-Z][A-Za-z]*|true|false|-?\d+""",
+                    """peer-[0-9a-f]{8}|link-\d+""",
+                    """Custom\("[^"]*", base = [A-Z][A-Za-z]*\)""",
+                ).joinToString("|"),
+            )
 
         /** A 12-byte message id, which the app already holds from its send. */
         val MESSAGE_ID = Regex("[0-9a-f]{24}")

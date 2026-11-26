@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.CoroutineStart
@@ -55,7 +56,7 @@ internal fun broadcastCodec(
     nodeId: ByteArray = Derivations(SodiumCryptoProvider).nodeId(identityKey(1).publicKey),
     random: (Int) -> ByteArray = SodiumCryptoProvider::randomBytes,
 ): BroadcastCodec {
-    val codec = BroadcastCodec(SodiumCryptoProvider, secured, random)
+    val codec = BroadcastCodec(SodiumCryptoProvider, secured, random = random)
     codec.begin(InstallationIdentity(identityKey(1), nodeId))
     return codec
 }
@@ -89,6 +90,12 @@ internal fun messageBody(
 
 /** `trunc_16(H("tombstone", k))`, as a node's floods verify tombstones with. */
 internal fun tombstoneCommitment(k: ByteArray): ByteArray = Derivations(SodiumCryptoProvider).tombstoneCommitment(k)
+
+/** The tombstones of a node that holds frames for others if [holds], reporting to [diagnose]. */
+internal fun keptTombstones(
+    holds: Boolean = true,
+    diagnose: (DiagnosticEvent) -> Unit = {},
+) = Tombstones(Holding(holds, diagnose), ::tombstoneCommitment)
 
 /** A broadcast tree on [lanes] in the low class, which floods; its grafts run on [scope] and [clock]. */
 @OptIn(ExperimentalCoroutinesApi::class)

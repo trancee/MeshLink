@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Reachability
@@ -25,21 +26,31 @@ class RoutedPeersTest {
     private val routes = Routes()
     private val roster = Roster()
     private val derivations = Derivations(SodiumCryptoProvider)
+    private var hub: DiagnosticsHub? = null
+
+    private fun TestScope.diagnostics(): DiagnosticsHub =
+        hub ?: DiagnosticsHub(backgroundScope, debug = true, crypto = SodiumCryptoProvider).also { hub = it }
 
     private fun TestScope.routed(): RoutedPeers {
         val clock = SchedulerClock(testScheduler)
-        return RoutedPeers(clock, this, routes, roster, UnsecuredPeerTags(SodiumCryptoProvider))
+        return RoutedPeers(clock, this, routes, roster, UnsecuredPeerTags(SodiumCryptoProvider), diagnostics())
     }
 
     // A secured node's routed peers, and the lookups whose certificates they are listed by.
     private fun TestScope.securedRouted(): Pair<RoutedPeers, Lookups> {
         val clock = SchedulerClock(testScheduler)
         val lookups =
-            Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, Lanes()) {
-                DensityClass.Medium
-            }
+            Lookups(
+                SodiumCryptoProvider,
+                Pace(clock) { DensityClass.Medium },
+                backgroundScope,
+                WireProfile.CLASSICAL,
+                Lanes(),
+                diagnostics(),
+            )
         lookups.begin {}
-        return RoutedPeers(clock, this, routes, roster, SecuredPeerTags(SodiumCryptoProvider, lookups)) to lookups
+        val tags = SecuredPeerTags(SodiumCryptoProvider, lookups)
+        return RoutedPeers(clock, this, routes, roster, tags, diagnostics()) to lookups
     }
 
     private fun TestScope.certificate(
@@ -151,6 +162,37 @@ class RoutedPeersTest {
 
             assertEquals(listOf(nodeId(2) to Reachability.Routed(3)), first)
             assertEquals(emptyList(), listed())
+        }
+
+    @Test
+    fun aPeerEnteringTheRoutedListIsReportedFoundWithItsHopsAndLeavingItLost() =
+        runTest {
+            // Arrange
+            val hub = diagnostics()
+            val seen = mutableListOf<DiagnosticEvent>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { hub.events.collect { seen += it } }
+            val peers = routed()
+            found(nodeId(1), hops = 4, lifeMillis = 10_000)
+            found(nodeId(2), lifeMillis = 20_000)
+
+            // Act
+            peers.heard(nodeId(1))
+            peers.heard(nodeId(2))
+            peers.heard(nodeId(1))
+            advanceTimeBy(10_000)
+            runCurrent()
+            peers.end()
+
+            // Assert
+            val (one, two) = listOf(nodeId(1), nodeId(2)).map(hub::peer)
+            assertEquals(
+                listOf(
+                    "ML5001 RouteFound(peer=$one, hops=4) x1",
+                    "ML5001 RouteFound(peer=$two, hops=3) x1",
+                    "ML5002 RouteLost(peer=$one) x1",
+                ),
+                seen.map { it.toString() },
+            )
         }
 
     @Test

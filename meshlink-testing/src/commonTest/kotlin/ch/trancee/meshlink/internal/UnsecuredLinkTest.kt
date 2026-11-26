@@ -257,7 +257,7 @@ class UnsecuredLinkTest {
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val node = node(alice).also { it.start() }
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML3007")
             val fake = connectFake(air, alice)
             fake.write(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID)))
             advanceTimeBy(SETTLE_MILLIS)
@@ -292,7 +292,7 @@ class UnsecuredLinkTest {
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val node = node(alice).also { it.start() }
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML3007")
             val received = mutableListOf<ReceivedMessage>()
             backgroundScope.launch { node.messages.collect { received += it } }
             val fake = connectFake(air, alice)

@@ -95,7 +95,7 @@ class ScannerScheduleTest {
         val bluetooth = FakeCoreBluetooth()
         val radio = AppleRadio(bluetooth).also { bluetooth.events = FakeEvents(it.delegates) }
         val clock = SchedulerClock(scope)
-        val scanner = Scanner(radio, clock, SeededRandom(1L), discovery, policy, pinned)
+        val scanner = Scanner(radio, clock, SeededRandom(1L), discovery, ScanSchedule(policy, pinned))
     }
 
     /**

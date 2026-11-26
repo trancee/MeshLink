@@ -117,6 +117,44 @@ public final class ch/trancee/meshlink/DiagnosticEvent$BearerFallback$Reason : j
 	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$BearerFallback$Reason;
 }
 
+public final class ch/trancee/meshlink/DiagnosticEvent$BearerSwitched : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$BroadcastSignatureInvalid : ch/trancee/meshlink/DiagnosticEvent {
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$BusyReply : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getDirection ()Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Direction;
+	public final fun getReason ()Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Reason;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$BusyReply$Direction : java/lang/Enum {
+	public static final field Received Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Direction;
+	public static final field Sent Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Direction;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Direction;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Direction;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$BusyReply$Reason : java/lang/Enum {
+	public static final field Budget Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Reason;
+	public static final field Slots Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Reason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Reason;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$BusyReply$Reason;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$CertificateLookup : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getAttempts ()I
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$CertificateLookupUnanswered : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getAttempts ()I
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+}
+
 public final class ch/trancee/meshlink/DiagnosticEvent$ConnectFailed : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getAttempt ()I
 	public final fun getLink ()Lch/trancee/meshlink/LinkRef;
@@ -136,8 +174,17 @@ public final class ch/trancee/meshlink/DiagnosticEvent$ConnectFailed$Reason : ja
 	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$ConnectFailed$Reason;
 }
 
+public final class ch/trancee/meshlink/DiagnosticEvent$DensityClassChanged : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getFrom ()Lch/trancee/meshlink/DensityClass;
+	public final fun getTo ()Lch/trancee/meshlink/DensityClass;
+}
+
 public final class ch/trancee/meshlink/DiagnosticEvent$DiagnosticsDropped : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getDropped ()I
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$ExpiryFarFromLocalTime : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getSkewSeconds ()J
 }
 
 public final class ch/trancee/meshlink/DiagnosticEvent$HandshakeFailed : ch/trancee/meshlink/DiagnosticEvent {
@@ -168,12 +215,106 @@ public final class ch/trancee/meshlink/DiagnosticEvent$HandshakeLimitDropped$Lim
 	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$HandshakeLimitDropped$Limit;
 }
 
+public final class ch/trancee/meshlink/DiagnosticEvent$HeldMessageEvicted : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getReason ()Lch/trancee/meshlink/DiagnosticEvent$HeldMessageEvicted$Reason;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$HeldMessageEvicted$Reason : java/lang/Enum {
+	public static final field ClosestToExpiry Lch/trancee/meshlink/DiagnosticEvent$HeldMessageEvicted$Reason;
+	public static final field LinkShare Lch/trancee/meshlink/DiagnosticEvent$HeldMessageEvicted$Reason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$HeldMessageEvicted$Reason;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$HeldMessageEvicted$Reason;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$InboxFull : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getBound ()Lch/trancee/meshlink/DiagnosticEvent$InboxFull$Bound;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$InboxFull$Bound : java/lang/Enum {
+	public static final field Bytes Lch/trancee/meshlink/DiagnosticEvent$InboxFull$Bound;
+	public static final field Count Lch/trancee/meshlink/DiagnosticEvent$InboxFull$Bound;
+	public static final field Sender Lch/trancee/meshlink/DiagnosticEvent$InboxFull$Bound;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$InboxFull$Bound;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$InboxFull$Bound;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$InvalidCertificateReply : ch/trancee/meshlink/DiagnosticEvent {
+}
+
 public final class ch/trancee/meshlink/DiagnosticEvent$LinkCapReached : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getCap ()I
 }
 
+public final class ch/trancee/meshlink/DiagnosticEvent$LinkClosed : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getByPeer ()Z
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+	public final fun getReason ()Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason : java/lang/Enum {
+	public static final field ConnectionLost Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field DuplicateLink Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field HandshakeFailed Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field Normal Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field ProtocolError Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field ResourceLimit Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field ShuttingDown Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field UnsupportedVersion Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static final field WrongMesh Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$LinkClosed$Reason;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$LinkOpened : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getMtu ()I
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+	public final fun getRole ()Lch/trancee/meshlink/DiagnosticEvent$LinkOpened$Role;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$LinkOpened$Role : java/lang/Enum {
+	public static final field Central Lch/trancee/meshlink/DiagnosticEvent$LinkOpened$Role;
+	public static final field Peripheral Lch/trancee/meshlink/DiagnosticEvent$LinkOpened$Role;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$LinkOpened$Role;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$LinkOpened$Role;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$OwnCertificateRenewed : ch/trancee/meshlink/DiagnosticEvent {
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$ProtocolVersionRejected : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getTheirVersion ()I
+}
+
 public final class ch/trancee/meshlink/DiagnosticEvent$ReadTrackingEvicted : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getMessageId ()[B
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$ReassemblyBudgetExhausted : ch/trancee/meshlink/DiagnosticEvent {
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$RouteFound : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getHops ()I
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$RouteLost : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$ScanWindow : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getPhase ()Lch/trancee/meshlink/DiagnosticEvent$ScanWindow$Phase;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$ScanWindow$Phase : java/lang/Enum {
+	public static final field Started Lch/trancee/meshlink/DiagnosticEvent$ScanWindow$Phase;
+	public static final field Stopped Lch/trancee/meshlink/DiagnosticEvent$ScanWindow$Phase;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$ScanWindow$Phase;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$ScanWindow$Phase;
 }
 
 public final class ch/trancee/meshlink/DiagnosticEvent$Severity : java/lang/Enum {
@@ -184,6 +325,9 @@ public final class ch/trancee/meshlink/DiagnosticEvent$Severity : java/lang/Enum
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$Severity;
 	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$Severity;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$StaleAddressMarked : ch/trancee/meshlink/DiagnosticEvent {
 }
 
 public final class ch/trancee/meshlink/DiagnosticEvent$Started : ch/trancee/meshlink/DiagnosticEvent {
@@ -204,6 +348,10 @@ public final class ch/trancee/meshlink/DiagnosticEvent$Stopped$Reason : java/lan
 }
 
 public final class ch/trancee/meshlink/DiagnosticEvent$UnknownLinkFrameDropped : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getType ()I
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$UnknownRoutedFrameRelayed : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getType ()I
 }
 

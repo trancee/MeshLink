@@ -79,7 +79,7 @@ class BearerSwitchTest {
                     air.platform(StandardTestDispatcher(testScheduler)),
                 )
             val nodes = platforms.mapIndexed { index, platform -> node(platform) { l2capUpgrade = index != 1 } }
-            val diagnostics = nodes.flatMap { diagnostics(it) }
+            val diagnostics = nodes.flatMap { diagnostics(it, "ML3005") }
 
             // Act
             nodes.forEach { it.start() }
@@ -100,7 +100,7 @@ class BearerSwitchTest {
             platforms.forEach { it.radio.refuseChannels = true }
             val nodes = platforms.map { node(it) }
             val received = nodes.map { inbox(it) }
-            val seen = nodes.map { diagnostics(it) }
+            val seen = nodes.map { diagnostics(it, "ML3005") }
 
             // Act
             nodes.forEach { it.start() }

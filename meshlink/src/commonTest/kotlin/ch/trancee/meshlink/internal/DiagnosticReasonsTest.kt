@@ -1,7 +1,9 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DiagnosticEvent.BearerFallback
+import ch.trancee.meshlink.DiagnosticEvent.BusyReply
 import ch.trancee.meshlink.DiagnosticEvent.ConnectFailed
+import ch.trancee.meshlink.DiagnosticEvent.LinkClosed
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -41,6 +43,43 @@ class DiagnosticReasonsTest {
                 RadioFailure.UNSUPPORTED to null,
                 RadioFailure.RADIO_ERROR to BearerFallback.Reason.RadioError,
                 RadioFailure.TRANSIENT to BearerFallback.Reason.Transient,
+            ),
+            reasons,
+        )
+    }
+
+    @Test
+    fun everyCloseReasonHasItsPublicReasonAndNoReasonIsALostConnection() {
+        // Act
+        val reasons = (CloseReason.entries + null).map { it.closedReason() }
+
+        // Assert
+        assertEquals(
+            listOf(
+                LinkClosed.Reason.Normal,
+                LinkClosed.Reason.DuplicateLink,
+                LinkClosed.Reason.ProtocolError,
+                LinkClosed.Reason.HandshakeFailed,
+                LinkClosed.Reason.UnsupportedVersion,
+                LinkClosed.Reason.WrongMesh,
+                LinkClosed.Reason.ResourceLimit,
+                LinkClosed.Reason.ShuttingDown,
+                LinkClosed.Reason.ConnectionLost,
+            ),
+            reasons,
+        )
+    }
+
+    @Test
+    fun everyBusyReasonHasItsPublicReason() {
+        // Act
+        val reasons = BusyReason.entries.associateWith { it.busyReason() }
+
+        // Assert
+        assertEquals(
+            mapOf(
+                BusyReason.REASSEMBLY_SLOTS to BusyReply.Reason.Slots,
+                BusyReason.LARGE_BUDGET to BusyReply.Reason.Budget,
             ),
             reasons,
         )

@@ -1,16 +1,19 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
+import ch.trancee.meshlink.DiagnosticEvent.HeldMessageEvicted.Reason
 import ch.trancee.meshlink.NodeId
 
 /**
  * The frames a relay holds for others (spec "Holding"): small unicasts toward an absent destination
  * and broadcasts, at most [MESSAGES_MAX] and [BYTES_MAX] together, each incoming link at most a
  * [LINK_SHARE_DIVISOR]th of either. A frame is live until its expiry; times are wall-clock
- * milliseconds. A node with holding off ([enabled] `false`, ADR 0011 decision 8) holds nothing. Runs on the
- * node's serial dispatcher.
+ * milliseconds. A node with holding off ([enabled] `false`, ADR 0011 decision 8) holds nothing. Reports each
+ * frame evicted for room (ML6001) to [diagnose]. Runs on the node's serial dispatcher.
  */
 internal class Holding(
     private val enabled: Boolean,
+    private val diagnose: (DiagnosticEvent) -> Unit = {},
 ) {
     private val frames = LinkedHashMap<String, HeldFrame>()
 
@@ -28,7 +31,10 @@ internal class Holding(
         val key = frame.messageId.toHexString()
         val admitted = enabled && admits(frame, hopLimit, nowMillis) && key !in frames
         val victims = if (admitted) Eviction(frames.values).victims(frame) else null
-        victims?.forEach { frames -= it.messageId.toHexString() }
+        victims?.forEach { (victim, reason) ->
+            frames -= victim.messageId.toHexString()
+            diagnose(DiagnosticEvent.HeldMessageEvicted(reason))
+        }
         victims?.let { frames[key] = frame }
         return victims != null
     }
@@ -112,8 +118,8 @@ internal class Holding(
 private class Eviction(
     private val held: Collection<HeldFrame>,
 ) {
-    /** The frames [frame] would evict, or null if it finds no room. */
-    fun victims(frame: HeldFrame): List<HeldFrame>? = ownVictims(frame)?.let { shared(frame, it) }
+    /** The frames [frame] would evict, each with why, or null if it finds no room. */
+    fun victims(frame: HeldFrame): List<Pair<HeldFrame, Reason>>? = ownVictims(frame)?.let { shared(frame, it) }
 
     // The frames of [frame]'s own link it evicts to stay within its link's share, or null.
     private fun ownVictims(frame: HeldFrame): List<HeldFrame>? {
@@ -128,21 +134,28 @@ private class Eviction(
         return own.take(replaced)
     }
 
-    // [victims] and the frames [frame] evicts besides them to fit within the hold, or null.
+    // [victims] and the frames [frame] evicts besides them to fit within the hold, each with why, or null.
     private fun shared(
         frame: HeldFrame,
         victims: List<HeldFrame>,
-    ): List<HeldFrame>? {
+    ): List<Pair<HeldFrame, Reason>>? {
         val remaining = held.toMutableList().apply { removeAll(victims) }
-        val evicted = victims.toMutableList()
+        val evicted = victims.mapTo(mutableListOf()) { it to Reason.LinkShare }
         while (remaining.size + 1 > Holding.MESSAGES_MAX ||
             remaining.sumOf { it.bytes.size } + frame.bytes.size > Holding.BYTES_MAX
         ) {
             val victim =
-                furthestOverShare(remaining, frame.from)
-                    ?: remaining.minBy { it.expiry }.takeIf { it.expiry < frame.expiry }
-                    ?: return null
-            remaining -= victim
+                when (val over = furthestOverShare(remaining, frame.from)) {
+                    null -> {
+                        val closest = remaining.minBy { it.expiry }
+                        if (closest.expiry < frame.expiry) closest to Reason.ClosestToExpiry else return null
+                    }
+
+                    else -> {
+                        over to Reason.LinkShare
+                    }
+                }
+            remaining -= victim.first
             evicted += victim
         }
         return evicted

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
 import kotlinx.coroutines.flow.first
@@ -10,10 +11,12 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InboxTest {
+    private val diagnosed = mutableListOf<DiagnosticEvent>()
+
     @Test
     fun holdsAtMost1024Messages() {
         // Arrange
-        val inbox = Inbox()
+        val inbox = Inbox(diagnosed::add)
         val accepted = List(Inbox.MAX_COUNT) { inbox.offer(message(senderId = it % SENDERS, size = 0)) }
 
         // Act
@@ -22,12 +25,13 @@ class InboxTest {
         // Assert
         assertTrue(accepted.all { it })
         assertFalse(extra)
+        assertEquals(listOf("ML7003 InboxFull(bound=Count) x1"), diagnosed.map { it.toString() })
     }
 
     @Test
     fun holdsAtMost1MiBOfPayload() {
         // Arrange
-        val inbox = Inbox()
+        val inbox = Inbox(diagnosed::add)
         val accepted = List(SENDERS) { inbox.offer(message(senderId = it, size = Inbox.SENDER_BYTES.toInt())) }
 
         // Act
@@ -36,12 +40,13 @@ class InboxTest {
         // Assert
         assertTrue(accepted.all { it })
         assertFalse(extra)
+        assertEquals(listOf("ML7003 InboxFull(bound=Bytes) x1"), diagnosed.map { it.toString() })
     }
 
     @Test
     fun oneSenderHoldsAtMostAQuarterOfThePayloadBytes() {
         // Arrange
-        val inbox = Inbox()
+        val inbox = Inbox(diagnosed::add)
         val filled = inbox.offer(message(senderId = 0, size = Inbox.SENDER_BYTES.toInt()))
 
         // Act
@@ -50,6 +55,7 @@ class InboxTest {
 
         // Assert
         assertEquals(listOf(true, false, true), listOf(filled, sameSender, otherSender))
+        assertEquals(listOf("ML7003 InboxFull(bound=Sender) x1"), diagnosed.map { it.toString() })
     }
 
     @Test

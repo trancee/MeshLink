@@ -215,7 +215,7 @@ abstract class SecuredLinkTest(
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
                 val node = securedNode(alice, MESH_KEY).also { it.start() }
-                val diagnostics = diagnostics(node)
+                val diagnostics = diagnostics(node, "ML4001", "ML4002")
                 val fake = peer(TestClock(testScheduler))
                 val link = connectFake(air, alice)
                 val end = alice.radio.ends.single()
@@ -247,7 +247,7 @@ abstract class SecuredLinkTest(
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val radio = advertise(air)
             val node = securedNode(alice, null)
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML4001", "ML4002")
             val fake = FakePeer(wire, TestClock(testScheduler), digest = digestOf("Elsewhere", wire))
             node.start()
             advanceTimeBy(SETTLE_MILLIS)
@@ -272,7 +272,7 @@ abstract class SecuredLinkTest(
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val radio = advertise(air)
             val node = securedNode(alice, null)
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML4001", "ML4002")
             val fake = FakePeer(wire, TestClock(testScheduler))
             node.start()
             advanceTimeBy(SETTLE_MILLIS)
@@ -325,7 +325,7 @@ abstract class SecuredLinkTest(
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
                 val node = securedNode(alice, null).also { it.start() }
-                val diagnostics = diagnostics(node)
+                val diagnostics = diagnostics(node, "ML4001", "ML4002")
                 val fake = FakePeer(wire, TestClock(testScheduler))
                 fake.payload = payload(fake)
                 val link = connectFake(air, alice)
@@ -380,7 +380,7 @@ abstract class SecuredLinkTest(
                 val air = air()
                 val alice = air.platform(StandardTestDispatcher(testScheduler))
                 val node = securedNode(alice, null).also { it.start() }
-                val diagnostics = diagnostics(node)
+                val diagnostics = diagnostics(node, "ML4001", "ML4002")
                 val noise = FakePeer(wire, TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
                 val link = connectFake(air, alice)
                 val end = alice.radio.ends.single()
@@ -406,7 +406,7 @@ abstract class SecuredLinkTest(
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val node = securedNode(alice, null).also { it.start() }
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML4001", "ML4002")
             val noise = FakePeer(wire, TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
             val link = connectFake(air, alice)
             val end = alice.radio.ends.single()
@@ -431,7 +431,7 @@ abstract class SecuredLinkTest(
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val node = securedNode(alice, null).also { it.start() }
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML4001", "ML4002")
             val noise = FakePeer(wire, TestClock(testScheduler)).noise(NoiseRole.INITIATOR)
             val link = connectFake(air, alice)
             val end = alice.radio.ends.single()
@@ -456,7 +456,7 @@ abstract class SecuredLinkTest(
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val node = securedNode(alice, null).also { it.start() }
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML4001", "ML4002")
             val neighbor = air.radio()
             val first = connect(neighbor, alice)
             first.write(message1(freshInitiator()))
@@ -558,7 +558,7 @@ abstract class SecuredLinkTest(
             val air = air()
             val alice = air.platform(StandardTestDispatcher(testScheduler))
             val node = securedNode(alice, null).also { it.start() }
-            val diagnostics = diagnostics(node)
+            val diagnostics = diagnostics(node, "ML3007")
             val link = connectFake(air, alice)
             val end = alice.radio.ends.single()
             val transport = initiateGranting(FakePeer(wire, TestClock(testScheduler)), link, end)

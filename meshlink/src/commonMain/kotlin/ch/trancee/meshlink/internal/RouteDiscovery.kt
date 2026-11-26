@@ -33,9 +33,9 @@ internal class RouteDiscovery(
     }
 
     /**
-     * [request] arrived from [peer] at Unix second [nowSeconds]. Unless it is untimely, seen, or its
-     * hop count can't grow, it teaches a route back to its origin; then this node answers it as its
-     * target, answers it from a fresh enough route, or floods it on.
+     * Timely [request] arrived from [peer] at Unix second [nowSeconds] (the router drops untimely
+     * ones). Unless it is seen or its hop count can't grow, it teaches a route back to its origin;
+     * then this node answers it as its target, answers it from a fresh enough route, or floods it on.
      */
     fun requested(
         peer: NodeId,
@@ -44,8 +44,7 @@ internal class RouteDiscovery(
     ) {
         val header = request.header
         val hops = request.hopCount + 1
-        val stale = !timely(header.expiry.toLong(), nowSeconds) || floods.has(header.messageId, clock.wallClockMillis())
-        if (stale || hops > HOPS_MAX) return
+        if (floods.has(header.messageId, clock.wallClockMillis()) || hops > HOPS_MAX) return
         floods.put(header.messageId, remembered(header.expiry.toLong()))
         val now = clock.monotonicMillis()
         val back =

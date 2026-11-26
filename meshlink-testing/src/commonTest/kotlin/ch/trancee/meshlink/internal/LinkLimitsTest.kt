@@ -42,7 +42,7 @@ class LinkLimitsTest {
                 }
             advertiseFake(air, versions = listOf(1))
             val node = node(platformWith(virtual, radio))
-            val seen = diagnostics(node)
+            val seen = diagnostics(node, "ML3003")
 
             // Act
             node.start()
@@ -74,7 +74,7 @@ class LinkLimitsTest {
                 }
             advertiseFake(air, versions = listOf(1))
             val node = node(platformWith(virtual, radio))
-            val seen = diagnostics(node)
+            val seen = diagnostics(node, "ML3003")
 
             // Act
             node.start()
@@ -150,7 +150,7 @@ class LinkLimitsTest {
                 val capped = air.platform(StandardTestDispatcher(testScheduler), peripheralLinkCap = CAP)
                 val others = List(NODES - 1) { air.platform(StandardTestDispatcher(testScheduler)) }
                 val nodes = (listOf(capped) + others).map(::node)
-                val seen = diagnostics(nodes[0])
+                val seen = diagnostics(nodes[0], "ML3004")
 
                 // Act
                 nodes.forEach { it.start() }
@@ -176,7 +176,7 @@ class LinkLimitsTest {
             val air = air()
             val capped = air.platform(StandardTestDispatcher(testScheduler), peripheralLinkCap = CAP)
             val node = node(capped).also { it.start() }
-            val seen = diagnostics(node)
+            val seen = diagnostics(node, "ML3004")
 
             // Act
             repeat(FLOOD) { connectFake(air, capped) }
@@ -204,7 +204,7 @@ class LinkLimitsTest {
             val air = air()
             val virtual = air.platform(StandardTestDispatcher(testScheduler))
             val node = node(virtual).also { it.start() }
-            val seen = diagnostics(node)
+            val seen = diagnostics(node, "ML3004")
             repeat(BUDGET) { connectFake(air, virtual) }
             advanceTimeBy(SETTLE_MILLIS)
 

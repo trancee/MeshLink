@@ -16,7 +16,7 @@ class RouterOriginTest {
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
 
     private fun TestScope.router(): Router {
-        val floods = Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment, holds = true) {}
+        val floods = Floods(lanes, broadcastCodec(), lowTree(lanes), keptTombstones()) {}
         val endpoint = FakeEndpoint(OWN).apply { kinds = setOf(Container.UNSECURED) }
         return Router(SchedulerClock(testScheduler), lanes, Routes(), { ByteArray(it) }, endpoint, Handoff(floods))
     }

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
 
@@ -7,12 +8,13 @@ import ch.trancee.meshlink.ReceivedMessage
  * The `BROADCAST` container of this node's profile (spec "BROADCAST"): the `unsecured` profile
  * writes and opens kind `0x04`, which names its sender unauthenticated; a [secured] profile writes
  * kind `0x05`, signed by the installation identity, and opens only a kind `0x05` whose signature
- * verifies, from the NodeId of its `origin_key`. Each frame it writes gets a `message_id` from
- * [random].
+ * verifies, from the NodeId of its `origin_key`, and [diagnose]s every other kind `0x05`. Each frame
+ * it writes gets a `message_id` from [random].
  */
 internal class BroadcastCodec(
     private val crypto: CryptoProvider,
     private val secured: Boolean,
+    private val diagnose: (DiagnosticEvent) -> Unit = {},
     private val random: (size: Int) -> ByteArray = crypto::randomBytes,
 ) {
     private lateinit var identity: InstallationIdentity
@@ -50,11 +52,19 @@ internal class BroadcastCodec(
             }
 
             else -> {
-                val origin = if (secured) frame.verifiedOrigin(crypto) else null
-                val signed = container as Container.SignedBroadcast
-                origin?.let { ReceivedMessage(NodeId(it), signed.payload, broadcast = true) }
+                if (secured) signed(frame, container as Container.SignedBroadcast) else null
             }
         }
+    }
+
+    // The message in a kind `0x05` [frame] if its signature verifies; if not, the frame is diagnosed.
+    private fun signed(
+        frame: BroadcastFrame,
+        container: Container.SignedBroadcast,
+    ): ReceivedMessage? {
+        val origin = frame.verifiedOrigin(crypto)
+        if (origin == null) diagnose(DiagnosticEvent.BroadcastSignatureInvalid())
+        return origin?.let { ReceivedMessage(NodeId(it), container.payload, broadcast = true) }
     }
 
     private companion object {

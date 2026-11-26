@@ -1,6 +1,6 @@
 # 0020: Diagnostics catalog
 
-Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 2 (amended 2026-11-26, ticket 54a).
+Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 3 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b).
 
 ## Context
 
@@ -84,36 +84,37 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML1004 | `OwnCertificateRenewed` | I |
    | ML2001 | `ScanWindow(started or stopped)` | D |
    | ML2002 | `ScanFailed(platformCode)` | W |
-   | ML2003 ★ | `ScanRestarted(reason)` | I |
+   | ~~ML2003~~ | retired: `ScanRestarted` (amended 2026-11-26) | |
    | ML2004 ★ | `BackgroundDiscoveryDegraded` | W |
    | ML2005 | `AdvertisingFailed(platformCode)` | W |
    | ML2006 ★ | `StaleAddressMarked` | D |
    | ML2007 ★ | `DensityClassChanged(from, to)` | I |
-   | ML3001 | `LinkOpened(peer, bearer, phy, mtu, role)` | I |
-   | ML3002 | `LinkClosed(peer, reason, platformCode)` | I |
+   | ML3001 | `LinkOpened(peer, role, mtu)`; `phy` arrives with the platform codes (amended 2026-11-26) | I |
+   | ML3002 | `LinkClosed(peer, reason, byPeer)`; `platformCode` arrives with the platform codes (amended 2026-11-26) | I |
    | ML3003 | `ConnectFailed(link, reason, attempt)`; `platformCode` arrives with the platform codes (amended 2026-11-26) | W |
    | ML3004 | `LinkCapReached(cap)` | D |
    | ML3005 | `BearerFallback(peer, reason)`, L2CAP CoC to GATT | I |
    | ML3006 | `GattOperationRetried(platformCode)` | D |
    | ML3007 ★ | `UnknownLinkFrameDropped(type)` | D |
    | ML3008 | `ProtocolVersionRejected(theirVersion)` | W |
-   | ML3009 | `BusyReply(sent or received)` | D |
+   | ML3009 | `BusyReply(direction, reason)` (amended 2026-11-26) | D |
+   | ML3010 | `BearerSwitched(peer)`, GATT to L2CAP CoC (amended 2026-11-26) | D |
    | ML4001 | `HandshakeFailed(link, reason)`. Reasons: `Timeout`, `Decrypt`, `Certificate`, `Protocol` (amended 2026-11-26) | W |
    | ML4002 ★ | `HandshakeLimitDropped(limit)` | W |
-   | ML4003 | `IdentityKeyChanged(peer)` | W |
+   | ~~ML4003~~ | retired: `IdentityKeyChanged` (amended 2026-11-26) | |
    | ML4004 | `BroadcastSignatureInvalid` | D |
-   | ML4005 | `ReplayDropped` | D |
+   | ~~ML4005~~ | retired: `ReplayDropped` (amended 2026-11-26) | |
    | ML5001 | `RouteFound(peer, hops)` | D |
    | ML5002 | `RouteLost(peer)` | D |
    | ML5003 | `UnknownRoutedFrameRelayed(type)` | D |
    | ML5004 ★ | `ExpiryFarFromLocalTime(skewSeconds)` | W |
    | ML6001 | `HeldMessageEvicted(reason)` | I |
-   | ML6002 | `CertificateLookup(peer, answered, fromCache, hops)` | D |
+   | ML6002 | `CertificateLookup(peer, attempts)` (amended 2026-11-26) | D |
    | ML6003 | `CertificateLookupUnanswered(peer, attempts)` | W |
    | ML6004 | `InvalidCertificateReply` | D |
    | ML7001 ★ | `DiagnosticsDropped(dropped)` (amended 2026-11-26) | W |
    | ML7002 ★ | `ReadTrackingEvicted(messageId)` | I |
-   | ML7003 | `InboxFull` | W |
+   | ML7003 | `InboxFull(bound)` (amended 2026-11-26) | W |
    | ML7004 | `ReassemblyBudgetExhausted` | D |
    | ML8001 | `ScannerRegistrationFailed`, the leaked-registration symptom on Android | W |
    | ML8002 | `AppSuspendedByOs` | I |
@@ -139,6 +140,23 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
     - An event about neither a peer nor a link coalesces by its code alone.
     - `diagnostics` is a hot flow without replay. Each collector has its own 256-event buffer, so a slow collector loses only its own events, and the flow completes on `close()`.
 - **Status:** decisions 4 and 7 are updated to match; the generated index is [`docs/reference/diagnostics.md`](../reference/diagnostics.md).
+
+2026-11-26, common codes (ticket 54b; user decisions on the ticket's six questions):
+
+- **Context:** the codes the common code can emit are implemented. Three codes of decision 7 describe nothing the protocol can observe, and five field lists did not fit the code as written.
+- **Decision:**
+  - **Three codes are retired** and never reused (decision 1):
+    - `ML2003 ScanRestarted`: every scan window starts a fresh scan, so `ML2001 ScanWindow` already marks each restart. ADR 0010's promise of scan-restart diagnostics is met by `ML2001`.
+    - `ML4003 IdentityKeyChanged`: a NodeId derives from its identity key, so a peer cannot change its key and keep its NodeId.
+    - `ML4005 ReplayDropped`: the protocol has no replay window. A replayed link frame fails its AEAD check and closes the link as `ML3002` with reason `ProtocolError`.
+  - **`LinkOpened(peer, role, mtu)`:** each link opens on GATT, so `bearer` is gone, and the new Debug code `ML3010 BearerSwitched(peer)` reports a successful switch to L2CAP CoC. `phy` arrives with the platform codes.
+  - **`LinkClosed(peer, reason, byPeer)`:** only for links that opened. `reason` is a close reason of the spec, or `ConnectionLost` when the bearer dropped without one. `platformCode` arrives with the platform codes.
+  - **`BusyReply(direction, reason)`:** every `BUSY` sent or received, with reason `Slots` or `Budget`. `ML7004` is emitted only when this node refuses for its own large-frame budget.
+  - **`CertificateLookup(peer, attempts)`:** emitted when a lookup succeeds, with the requests it sent. It is emitted only on success, and the requester cannot tell whether the target or a node's cache answered, nor how many hops the reply crossed, so `answered`, `fromCache` and `hops` are gone. `ML6003` reports the requests sent by the deadline.
+  - **`HeldMessageEvicted(reason)`:** only capacity evictions, with reason `LinkShare` or `ClosestToExpiry`. An expired frame is not reported.
+  - **`InboxFull(bound)`:** the bound the message would have crossed: `Count`, `Bytes` or `Sender`.
+  - **Booleans and negative numbers are allowed field values** (decision 3), for `byPeer` and `skewSeconds`.
+- **Status:** decision 7 is updated to match.
 
 ## Alternatives
 

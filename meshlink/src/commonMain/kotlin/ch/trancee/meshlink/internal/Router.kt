@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 
 /** What [Router] needs from the node's end-to-end layer; called on the node's dispatcher. */
@@ -55,12 +56,14 @@ internal interface Acknowledger {
 }
 
 /**
- * Where [Router] hands the frames it does not route itself: flood types other than route requests
- * to [floods], and a secured node's lookup frames to its [lookups]; an `unsecured` node has none.
+ * Where [Router] hands what it does not handle itself: flood types other than route requests to
+ * [floods], a secured node's lookup frames to its [lookups] (an `unsecured` node has none), and
+ * diagnostic events to [diagnose].
  */
 internal class Handoff(
     val floods: Floods,
     val lookups: Lookups? = null,
+    val diagnose: (DiagnosticEvent) -> Unit = {},
 )
 
 /**
@@ -74,7 +77,9 @@ internal class Handoff(
  * route of its salt only, the first per salt (spec "Certificate lookup"). An `unsecured` node has
  * no lookups, and relays lookup frames by their headers.
  *
- * [routes] are the node's routes; [random] makes message ids. Runs on the node's serial dispatcher.
+ * [routes] are the node's routes; [random] makes message ids. It reports each frame dropped as
+ * untimely and each relayed unicast of a type it does not know to the [handoff]'s diagnose. Runs on
+ * the node's serial dispatcher.
  */
 internal class Router(
     private val clock: Clock,
@@ -86,6 +91,7 @@ internal class Router(
 ) {
     private val floods = handoff.floods
     private val lookups = handoff.lookups
+    private val diagnose = handoff.diagnose
     private val seen = MessageIds()
     private val attempts = Attempts()
     private val delivered = MessageIds()
@@ -169,23 +175,34 @@ internal class Router(
         return when {
             decoded !is Decoded.Valid -> null
 
-            timely(
+            fresh(
                 decoded.value.header.expiry
                     .toLong(),
                 nowSeconds,
+                diagnose,
             ) && carried(decoded.value.type, bytes) -> decoded.value
 
             else -> null
         }
     }
 
-    // A flood frame: route requests go to route discovery, a secured node's lookup requests to its
-    // lookups, other flood types to flood forwarding.
+    // A flood frame, dropped unless timely: route requests go to route discovery, a secured node's
+    // lookup requests to its lookups, other flood types to flood forwarding.
     private fun flooded(
         peer: NodeId,
         bytes: ByteArray,
         nowSeconds: Long,
     ) {
+        val decoded = FloodFrame.decode(bytes) as? Decoded.Valid ?: return
+        if (!fresh(
+                decoded.value.header.expiry
+                    .toLong(),
+                nowSeconds,
+                diagnose,
+            )
+        ) {
+            return
+        }
         val type = bytes[0].toInt() and BYTE
         when {
             type == RouteRequest.TYPE -> {
@@ -226,6 +243,7 @@ internal class Router(
         seen.put(sighting, now + SEEN_WINDOW_MILLIS)
         val kind = if (frame.type == MessageFrame.TYPE) Parcel.Kind.MESSAGE else Parcel.Kind.OTHER
         targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }, kind = kind) {}) }
+        if (frame.type !in UNICAST_TYPES) diagnose(DiagnosticEvent.UnknownRoutedFrameRelayed(frame.type))
         handOver.relayed(peer, frame, relayed)
     }
 
@@ -357,6 +375,10 @@ internal class Router(
         private const val FLOOD_MASK = 0xc0
         private const val FLOOD_TYPES = 0x80
         private const val BYTE = 0xff
+
+        // The unicast types this version knows.
+        private val UNICAST_TYPES =
+            setOf(MessageFrame.TYPE, DeliveryReceipt.TYPE, ReadReceipt.TYPE, RouteReply.TYPE, LookupReply.TYPE)
     }
 }
 
@@ -376,6 +398,21 @@ internal fun timely(
 ): Boolean =
     nowSeconds <= expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS &&
         expiry <= nowSeconds + UnsecuredMessaging.LIFETIME_MAX_SECONDS + UnsecuredMessaging.CLOCK_SKEW_SECONDS
+
+// Whether a frame of [expiry] is [timely] at Unix second [nowSeconds]; if not, [diagnose]s the least the
+// sender's clock and this node's differ by: how far the expiry lies past the longest lifetime, else from now.
+private fun fresh(
+    expiry: Long,
+    nowSeconds: Long,
+    diagnose: (DiagnosticEvent) -> Unit,
+): Boolean {
+    val timely = timely(expiry, nowSeconds)
+    if (!timely) {
+        val ahead = expiry - UnsecuredMessaging.LIFETIME_MAX_SECONDS - nowSeconds
+        diagnose(DiagnosticEvent.ExpiryFarFromLocalTime(if (ahead > 0) ahead else expiry - nowSeconds))
+    }
+    return timely
+}
 
 /** The wall-clock millisecond until which a frame of [expiry] is [timely]: the end of its last timely second. */
 internal fun remembered(expiry: Long): Long = (expiry + UnsecuredMessaging.CLOCK_SKEW_SECONDS + 1) * MILLIS_PER_SECOND
