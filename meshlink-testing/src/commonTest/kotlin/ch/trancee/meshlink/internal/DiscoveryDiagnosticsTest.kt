@@ -72,6 +72,128 @@ class DiscoveryDiagnosticsTest {
             assertEquals(expected, switches.map { events -> events.map { it.toString() } })
         }
 
+    @Test
+    fun eachRefusedStartIsReportedWithItsPlatformCode() =
+        runTest {
+            // Arrange
+            val error = RadioFailure.RADIO_ERROR
+            val starts =
+                listOf<(RadioPort) -> RadioPort>(
+                    { virtual ->
+                        object : RadioPort by virtual {
+                            override fun startScanning() = RadioResult.Failed(error, platformCode = 6)
+                        }
+                    },
+                    { virtual ->
+                        object : RadioPort by virtual {
+                            override fun startAdvertising(payload: ByteArray) = RadioResult.Failed(error, 3)
+                        }
+                    },
+                    { virtual ->
+                        object : RadioPort by virtual {
+                            override fun serveCapability(record: ByteArray) = RadioResult.Failed(error)
+                        }
+                    },
+                )
+
+            // Act
+            val seen =
+                starts.map { refuse ->
+                    val virtual = air().platform(StandardTestDispatcher(testScheduler))
+                    val node = node(platformWith(virtual, refuse(virtual.radio)))
+                    diagnostics(node, "ML2002", "ML2005", "ML2008", "ML8001").also {
+                        node.start()
+                        runCurrent()
+                    }
+                }
+
+            // Assert
+            val expected =
+                listOf(
+                    listOf("ML2002 ScanFailed(platformCode=6) x1"),
+                    listOf("ML2005 AdvertisingFailed(platformCode=3) x1"),
+                    listOf("ML2008 GattServiceFailed() x1"),
+                )
+            assertEquals(expected, seen.map { events -> events.map { it.toString() } })
+        }
+
+    @Test
+    fun theEmittedEventsAreWrittenToThePlatformLogOnlyWhenItIsOn() =
+        runTest {
+            // Arrange
+            val platforms = List(2) { air().platform(StandardTestDispatcher(testScheduler)) }
+            val nodes = platforms.mapIndexed { on, platform -> node(platform) { diagnostics.platformLog = on == 1 } }
+
+            // Act
+            nodes.forEach { it.start() }
+            runCurrent()
+            platforms.forEach { it.radio.emit(RadioEvent.ScanFailed(RadioFailure.RADIO_ERROR, platformCode = 6)) }
+            runCurrent()
+
+            // Assert
+            val expected =
+                listOf(
+                    "Info|ML1001 Started count=1|profile=Unsecured preset=OfflineChat",
+                    "Warning|ML2002 ScanFailed count=1 platformCode=6|",
+                )
+            val logged = platforms.map { platform -> platform.logged.filter { "ML1001" in it || "ML2002" in it } }
+            assertEquals(listOf(emptyList(), expected), logged)
+        }
+
+    @Test
+    fun aBusyRetriedGattRequestIsReportedWithItsPlatformCode() =
+        runTest {
+            // Arrange
+            val platform = air().platform(StandardTestDispatcher(testScheduler))
+            val node = node(platform)
+            val seen = diagnostics(node, "ML3006")
+            node.start()
+            runCurrent()
+
+            // Act
+            platform.radio.emit(RadioEvent.GattRetried(platformCode = 201))
+            runCurrent()
+
+            // Assert
+            assertEquals(listOf("ML3006 GattOperationRetried(platformCode=201) x1"), seen.map { it.toString() })
+        }
+
+    @Test
+    fun eachLateRadioFailureIsReportedAndALeakedScannerRegistrationIsNamed() =
+        runTest {
+            // Arrange
+            val failures =
+                listOf(
+                    RadioEvent.ScanFailed(RadioFailure.RADIO_ERROR, platformCode = 2, registrationFailed = true),
+                    RadioEvent.ScanFailed(RadioFailure.RADIO_ERROR),
+                    RadioEvent.AdvertisingFailed(RadioFailure.RADIO_ERROR, platformCode = 4),
+                    RadioEvent.ServeFailed(RadioFailure.RADIO_ERROR, platformCode = 133),
+                )
+
+            // Act
+            val seen =
+                failures.map { failure ->
+                    val platform = air().platform(StandardTestDispatcher(testScheduler))
+                    val node = node(platform)
+                    diagnostics(node, "ML2002", "ML2005", "ML2008", "ML8001").also {
+                        node.start()
+                        runCurrent()
+                        platform.radio.emit(failure)
+                        runCurrent()
+                    }
+                }
+
+            // Assert
+            val expected =
+                listOf(
+                    listOf("ML2002 ScanFailed(platformCode=2) x1", "ML8001 ScannerRegistrationFailed() x1"),
+                    listOf("ML2002 ScanFailed() x1"),
+                    listOf("ML2005 AdvertisingFailed(platformCode=4) x1"),
+                    listOf("ML2008 GattServiceFailed(platformCode=133) x1"),
+                )
+            assertEquals(expected, seen.map { events -> events.map { it.toString() } })
+        }
+
     private companion object {
         const val COALESCING_MILLIS = 10_000L
         const val MINUTE_MILLIS = 60_000L

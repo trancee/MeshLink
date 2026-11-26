@@ -54,6 +54,9 @@ internal object AndroidGatt {
      */
     fun losesTransiently(status: Int): Boolean = failsTransiently(status) || status == TERMINATED_BY_LOCAL_HOST
 
+    /** [status] as a platform code: `null` for success, which reports no failure. */
+    fun platformCode(status: Int): Int? = status.takeUnless { it == BluetoothGatt.GATT_SUCCESS }
+
     /** Writes [value] to [characteristic] without response. */
     fun write(
         gatt: BluetoothGatt,

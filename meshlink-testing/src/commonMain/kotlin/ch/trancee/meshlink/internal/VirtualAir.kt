@@ -545,10 +545,18 @@ internal open class VirtualLinkEnd(
         pipe.send { target.close(false) }
     }
 
-    /** Closes both ends at once as a transient loss, as a platform reports an unanswered ATT request. */
-    fun drop() {
+    override var platformCode: Int? = null
+
+    /**
+     * Closes both ends at once as a transient loss, as a platform reports an unanswered ATT request;
+     * each end reports [platformCode] as the platform's status.
+     */
+    fun drop(platformCode: Int? = null) {
+        val opposite = connection.oppositeOf(this)
+        this.platformCode = platformCode
+        opposite.platformCode = platformCode
         close(true)
-        connection.oppositeOf(this).close(true)
+        opposite.close(true)
     }
 
     private fun close(transient: Boolean) {

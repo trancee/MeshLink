@@ -733,7 +733,10 @@ internal class Links(
         val id = conn.peer
         if (id == null) opening--
         id?.let {
-            diagnostics.report(DiagnosticEvent.LinkClosed(diagnostics.peer(it), conn.ended.closedReason(), conn.byPeer))
+            val lost = conn.ended == null
+            val code = if (lost) conn.link.platformCode else null
+            val closed = DiagnosticEvent.LinkClosed(diagnostics.peer(it), conn.ended.closedReason(), conn.byPeer, code)
+            diagnostics.report(closed)
         }
         if (id != null && table[id] === conn) {
             table.remove(id)

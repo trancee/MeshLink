@@ -22,13 +22,17 @@ Repeats of a code for the same peer or link within 10 s arrive as one event whos
 | [ML1003](#ml1003) | `UnsecuredProfile` | `Warning` | none. |
 | [ML1004](#ml1004) | `OwnCertificateRenewed` | `Info` | none. |
 | [ML2001](#ml2001) | `ScanWindow` | `Debug` | high battery use. |
+| [ML2002](#ml2002) | `ScanFailed` | `Warning` | peers not found. |
 | [ML2006](#ml2006) | `StaleAddressMarked` | `Debug` | peers not found. |
 | [ML2007](#ml2007) | `DensityClassChanged` | `Info` | high battery use. |
+| [ML2005](#ml2005) | `AdvertisingFailed` | `Warning` | peers not found. |
+| [ML2008](#ml2008) | `GattServiceFailed` | `Warning` | peers not found. |
 | [ML3001](#ml3001) | `LinkOpened` | `Info` | none. |
 | [ML3002](#ml3002) | `LinkClosed` | `Info` | messages not delivered. |
 | [ML3003](#ml3003) | `ConnectFailed` | `Warning` | peers not found. |
 | [ML3004](#ml3004) | `LinkCapReached` | `Debug` | peers not found. |
 | [ML3005](#ml3005) | `BearerFallback` | `Info` | messages not delivered. |
+| [ML3006](#ml3006) | `GattOperationRetried` | `Debug` | messages delivered slowly. |
 | [ML3007](#ml3007) | `UnknownLinkFrameDropped` | `Debug` | none. |
 | [ML3008](#ml3008) | `ProtocolVersionRejected` | `Warning` | peers not found. |
 | [ML3009](#ml3009) | `BusyReply` | `Debug` | messages not delivered. |
@@ -48,6 +52,7 @@ Repeats of a code for the same peer or link within 10 s arrive as one event whos
 | [ML7002](#ml7002) | `ReadTrackingEvicted` | `Info` | messages not delivered. |
 | [ML7003](#ml7003) | `InboxFull` | `Warning` | messages not delivered. |
 | [ML7004](#ml7004) | `ReassemblyBudgetExhausted` | `Debug` | messages not delivered. |
+| [ML8001](#ml8001) | `ScannerRegistrationFailed` | `Warning` | peers not found. |
 
 ## ML1001
 
@@ -117,6 +122,19 @@ Fields:
 - `Started`: The window started: the node scans.
 - `Stopped`: The window stopped: the node rests.
 
+## ML2002
+
+`DiagnosticEvent.ScanFailed`, severity `Warning`: The platform refused or stopped a scan, so the node stopped discovery; `platformCode` is Android's scan error or iOS's `CBError` code, if the platform gave one.
+
+- Cause: Bluetooth turned off, the app lacks scan permission, or the platform ran out of scanners; Android error 2 also reports `ML8001`.
+- Fix: check that Bluetooth is on and the app holds its permissions, then call `MeshLink.start` again.
+- Related: `MeshLink.radioFailure`.
+- Symptom: peers not found.
+
+Fields:
+
+- `platformCode` (`Int`): The platform's error code, or `null` if it gave none.
+
 ## ML2006
 
 `DiagnosticEvent.StaleAddressMarked`, severity `Debug`: An address sighted without an advertisement, as a backgrounded iPhone advertises, failed vetting: the node couldn't connect to it or read its capability record, or the record's advertisement belongs to no peer of this mesh. Its sightings add no candidate until it goes unseen for 10 min.
@@ -139,6 +157,32 @@ Fields:
 
 - `from` (`DensityClass`): The class before the switch.
 - `to` (`DensityClass`): The class after the switch.
+
+## ML2005
+
+`DiagnosticEvent.AdvertisingFailed`, severity `Warning`: The platform refused or stopped advertising, so centrals can't find the node for the rest of the run, as `CentralOnlyReason.AdvertisingFailed` shows; `platformCode` is Android's advertise error or iOS's `CBError` code, if the platform gave one. The node still scans and links as central.
+
+- Cause: the platform ran out of advertisers, or another app holds them; Android error 1 means the advertisement is too large, a MeshLink defect.
+- Fix: close other Bluetooth apps, then call `MeshLink.start` again.
+- Related: `CentralOnlyReason.AdvertisingFailed`.
+- Symptom: peers not found.
+
+Fields:
+
+- `platformCode` (`Int`): The platform's error code, or `null` if it gave none.
+
+## ML2008
+
+`DiagnosticEvent.GattServiceFailed`, severity `Warning`: The platform failed to publish the GATT service that serves the capability record, so the node stopped discovery; `platformCode` is Android's GATT status or iOS's `CBError` code, if the platform gave one.
+
+- Cause: Bluetooth turned off, or the platform's GATT server failed.
+- Fix: turn Bluetooth off and on, then call `MeshLink.start` again.
+- Related: `MeshLink.radioFailure`.
+- Symptom: peers not found.
+
+Fields:
+
+- `platformCode` (`Int`): The platform's error code, or `null` if it gave none.
 
 ## ML3001
 
@@ -174,6 +218,7 @@ Fields:
 - `peer` (`PeerRef`): The peer of the link.
 - `reason` (`LinkClosed.Reason`): Why the link closed.
 - `byPeer` (`Boolean`): Whether the peer closed the link; `false` if this node did or the connection was lost.
+- `platformCode` (`Int`): For `Reason.ConnectionLost`, the platform's status: Android's GATT status, such as 8 for a supervision timeout, or iOS's `CBError` code; otherwise, or if the platform gave none, `null`.
 
 `LinkClosed.Reason` values:
 
@@ -201,6 +246,7 @@ Fields:
 - `link` (`LinkRef`): The link the connect was for.
 - `reason` (`ConnectFailed.Reason`): Why the connect failed.
 - `attempt` (`Int`): The attempt that failed, from 1.
+- `platformCode` (`Int`): The platform's status: Android's GATT status, such as 133, or the `CBError` code of iOS's `didFailToConnect`; `null` if the platform gave none.
 
 `ConnectFailed.Reason` values:
 
@@ -246,6 +292,19 @@ Fields:
 - `LinkClosed`: The link closed before the channel opened.
 - `RadioError`: The platform radio refused or failed the channel.
 - `Transient`: A cause that often clears on retry.
+
+## ML3006
+
+`DiagnosticEvent.GattOperationRetried`, severity `Debug`: An Android GATT request found the stack busy and is being retried, every 10 ms for up to 1 s; reported once per request. `platformCode` is the busy status, 201, on Android 13 and later; older Android gives none.
+
+- Cause: another app or the stack itself holds the phone's GATT queue.
+- Fix: none needed unless it repeats; then close other Bluetooth apps on the phone.
+- Related: `LinkClosed`.
+- Symptom: messages delivered slowly.
+
+Fields:
+
+- `platformCode` (`Int`): The platform's busy status, or `null` if it gave none.
 
 ## ML3007
 
@@ -520,3 +579,12 @@ Fields:
 - Fix: none needed; the senders retry later. If it repeats, send fewer large messages at once.
 - Related: spec "Busy reply".
 - Symptom: messages not delivered.
+
+## ML8001
+
+`DiagnosticEvent.ScannerRegistrationFailed`, severity `Warning`: Android refused a scan with error 2, `SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`: the Bluetooth stack holds scanner registrations an earlier process leaked. Reported beside `ML2002`.
+
+- Cause: an app, often this one after a crash, leaked scanner registrations.
+- Fix: turn Bluetooth off and on; if that fails, restart the phone.
+- Related: `MeshLink.radioFailure`.
+- Symptom: peers not found.

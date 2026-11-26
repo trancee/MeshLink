@@ -38,6 +38,8 @@ internal class AndroidPlatformPort(
 
     override val random: RandomSource = SystemRandom
 
+    override val log: PlatformLog = AndroidLog
+
     init {
         RequirementsWatcher(checks, androidRadio).register(app)
     }

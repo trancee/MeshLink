@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -85,6 +86,11 @@ internal class Scanner(
 
     private val mutableAdvertisingLost = MutableStateFlow(false)
 
+    /** Reports a radio failure and returns its reason; see [reportFailure]. */
+    private val failed: (RadioEvent) -> RadioFailure? = { event ->
+        reportFailure(event, diagnose) { radio.lose(mutableAdvertisingLost) }
+    }
+
     /**
      * Whether the radio refused to advertise, or reported a [RadioEvent.AdvertisingFailed], during
      * the current run. The run then goes on without advertising (ADR 0010 decision 6): it keeps
@@ -95,7 +101,8 @@ internal class Scanner(
     /**
      * Serves the capability record, advertises and scans until cancelled, then stops advertising and
      * scanning and forgets the candidates. Passes every link event to [onLinkEvent]. Returns early,
-     * recording [failure], if the radio refuses to serve or scan, or reports a [RadioEvent.Failed]; a
+     * recording [failure], if the radio refuses to serve or scan, or reports a [RadioEvent.ScanFailed]
+     * or [RadioEvent.ServeFailed]; a
      * refused or failed advertisement sets [advertisingLost] instead.
      * Restricted to [role], it neither serves nor advertises as [LinkRole.CENTRAL] and doesn't scan as
      * [LinkRole.PERIPHERAL]. Recognizes peers by [recognition]. With [coc], a peripheral listens
@@ -121,16 +128,14 @@ internal class Scanner(
             if (peripheral) phase = random.nextInt(0, EPOCH_MILLIS.toInt())
             val refused =
                 (if (peripheral) advertise(recognition, null) else null)
-                    ?: (if (central) radio.startScanning() else null) as? RadioResult.Failed
-            failure = refused?.reason
+                    ?: (if (central) radio.startScanning() as? RadioResult.Failed else null)?.scanFailed()
+            failure = refused?.let(failed)
             if (refused == null) {
                 if (central) diagnose(DiagnosticEvent.ScanWindow(DiagnosticEvent.ScanWindow.Phase.Started))
-                val failed =
-                    events(peripheral, central, recognition).firstOrNull {
-                        dispatch(it, recognition, onLinkEvent, onSighting)
-                    }
-                        as RadioEvent.Failed?
-                failure = failed?.reason
+                failure =
+                    events(peripheral, central, recognition)
+                        .map { dispatch(it, recognition, onLinkEvent, onSighting) }
+                        .firstOrNull { it != null }
             }
         } finally {
             radio.stopScanning()
@@ -158,7 +163,7 @@ internal class Scanner(
     private fun advertise(
         recognition: Recognition,
         identifier: ByteArray?,
-    ): RadioResult.Failed? {
+    ): RadioEvent.ServeFailed? {
         val now = clock.wallClockMillis()
         val keys = recognition.keys
         val epoch = epoch(now)
@@ -171,9 +176,10 @@ internal class Scanner(
         val flags = coc or if (radio.supportsLe2MPhy) Advertisement.PHY_2M else 0
         val payload = discovery.advertisement(epoch, flags = flags, identifier = own)
         val capability = CapabilityRecord.of(listOf(LinkPolicy.PROTOCOL_VERSION), payload, psm)
-        val refused = radio.serveCapability(capability.encode()) as? RadioResult.Failed
-        if (refused == null && radio.startAdvertising(payload) is RadioResult.Failed) {
-            radio.lose(mutableAdvertisingLost)
+        val refused = (radio.serveCapability(capability.encode()) as? RadioResult.Failed)?.serveFailed()
+        val advertised = if (refused == null) radio.startAdvertising(payload) else null
+        if (advertised is RadioResult.Failed) {
+            failed(RadioEvent.AdvertisingFailed(advertised.reason, advertised.platformCode))
         }
         return refused
     }
@@ -198,7 +204,7 @@ internal class Scanner(
     /**
      * Ends the scan window [run] started after [Scanner.ON_MILLIS], classifies the node's density,
      * rests as long as [policy] sets for its class and scans again for as long, and so on; emits a
-     * [RadioEvent.Failed] if the radio refuses a start. Counts the links [recognition] knows.
+     * [RadioEvent.ScanFailed] if the radio refuses a start. Counts the links [recognition] knows.
      */
     private fun windows(recognition: Recognition): Flow<RadioEvent> =
         flow {
@@ -215,7 +221,7 @@ internal class Scanner(
                 if (density != before) diagnose(DiagnosticEvent.DensityClassChanged(before, density))
                 delay(policy.offMillis(density))
                 when (val started = radio.startScanning()) {
-                    is RadioResult.Failed -> emit(RadioEvent.Failed(started.reason))
+                    is RadioResult.Failed -> emit(started.scanFailed())
                     is RadioResult.Ok -> diagnose(DiagnosticEvent.ScanWindow(DiagnosticEvent.ScanWindow.Phase.Started))
                 }
             }
@@ -223,7 +229,7 @@ internal class Scanner(
 
     /**
      * Re-advertises at this run's phase in every epoch with the identifier drawn ahead, and sends the
-     * neighbor lists before and after, until advertising is lost; emits a [RadioEvent.Failed] if the
+     * neighbor lists before and after, until advertising is lost; emits a [RadioEvent.ServeFailed] if the
      * radio refuses to serve the capability record.
      */
     private fun rotations(recognition: Recognition): Flow<RadioEvent> =
@@ -234,26 +240,35 @@ internal class Scanner(
                 delay(EPOCH_MILLIS - (now - phase) % EPOCH_MILLIS)
                 if (mutableAdvertisingLost.value) break
                 recognition.neighbors.changed()
-                advertise(recognition, next)?.let { emit(RadioEvent.Failed(it.reason)) }
+                advertise(recognition, next)?.let { emit(it) }
                 recognition.neighbors.changed()
             }
         }
 
-    /** Handles [event]; returns whether it is a failure that ends discovery. */
+    /** Handles [event]; returns the reason if it is a failure that ends discovery. */
     private fun dispatch(
         event: RadioEvent,
         recognition: Recognition,
         onLinkEvent: (RadioEvent) -> Unit,
         onSighting: (PeerHandle, NodeId?, Int) -> Unit,
-    ): Boolean {
+    ): RadioFailure? =
         when (event) {
-            is RadioEvent.Sighted -> sighted(event.sighting, recognition, onSighting)
-            is RadioEvent.Connected, is RadioEvent.Disconnected, is RadioEvent.ChannelOpened -> onLinkEvent(event)
-            is RadioEvent.AdvertisingFailed -> radio.lose(mutableAdvertisingLost)
-            is RadioEvent.Failed -> Unit
+            is RadioEvent.Sighted -> {
+                sighted(event.sighting, recognition, onSighting).let { null }
+            }
+
+            is RadioEvent.Connected, is RadioEvent.Disconnected, is RadioEvent.ChannelOpened -> {
+                onLinkEvent(event).let { null }
+            }
+
+            is RadioEvent.AdvertisingFailed, is RadioEvent.ScanFailed, is RadioEvent.ServeFailed -> {
+                failed(event)
+            }
+
+            is RadioEvent.GattRetried -> {
+                diagnose(DiagnosticEvent.GattOperationRetried(event.platformCode)).let { null }
+            }
         }
-        return event is RadioEvent.Failed
-    }
 
     private fun sighted(
         sighting: Sighting,
@@ -387,3 +402,36 @@ private fun RadioPort.lose(lost: MutableStateFlow<Boolean>) {
     stopAdvertising()
     lost.value = true
 }
+
+private fun RadioResult.Failed.scanFailed() = RadioEvent.ScanFailed(reason, platformCode)
+
+private fun RadioResult.Failed.serveFailed() = RadioEvent.ServeFailed(reason, platformCode)
+
+/**
+ * Reports the radio failure [event] through [diagnose] (ADR 0020 decision 7) and returns its reason.
+ * A lost advertisement calls [loseAdvertising], for the rest of the run, and returns `null`.
+ */
+private fun reportFailure(
+    event: RadioEvent,
+    diagnose: (DiagnosticEvent) -> Unit,
+    loseAdvertising: () -> Unit,
+): RadioFailure? =
+    when (event) {
+        is RadioEvent.ScanFailed -> {
+            diagnose(DiagnosticEvent.ScanFailed(event.platformCode))
+            if (event.registrationFailed) diagnose(DiagnosticEvent.ScannerRegistrationFailed())
+            event.reason
+        }
+
+        is RadioEvent.ServeFailed -> {
+            diagnose(DiagnosticEvent.GattServiceFailed(event.platformCode))
+            event.reason
+        }
+
+        else -> {
+            val lost = event as RadioEvent.AdvertisingFailed
+            diagnose(DiagnosticEvent.AdvertisingFailed(lost.platformCode))
+            loseAdvertising()
+            null
+        }
+    }

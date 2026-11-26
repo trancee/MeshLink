@@ -89,11 +89,12 @@ class AppleRadioPeripheralTest {
             radio.serveCapability(record)
 
             // Act
-            bluetooth.events.serviceAdded(ok = false)
+            bluetooth.events.serviceAdded(CbError(code = 10))
             radio.serveCapability(record)
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.Failed>(seen.single()).reason)
+            val failed = assertIs<RadioEvent.ServeFailed>(seen.single())
+            assertEquals(RadioFailure.RADIO_ERROR to 10, failed.reason to failed.platformCode)
             assertEquals(2, bluetooth.calls.count { it.startsWith("addService") })
         }
 
@@ -105,7 +106,7 @@ class AppleRadioPeripheralTest {
             radio.serveCapability(record)
 
             // Act
-            bluetooth.events.serviceAdded(ok = true)
+            bluetooth.events.serviceAdded(error = null)
             radio.serveCapability(record)
 
             // Assert
@@ -341,7 +342,7 @@ class AppleRadioPeripheralTest {
         runTest {
             // Arrange
             val (link, seen) = linked()
-            bluetooth.events.serviceAdded(ok = true)
+            bluetooth.events.serviceAdded(error = null)
 
             // Act
             bluetooth.events.peripheralState(CbState.POWERED_OFF)

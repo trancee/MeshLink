@@ -63,14 +63,14 @@ internal class ApplePeripheralHost(
     }
 
     /** A failure to advertise matters only while MeshLink advertises. */
-    override fun advertisingStarted(ok: Boolean) {
-        if (advertising && !ok) emit(RadioEvent.AdvertisingFailed(RadioFailure.RADIO_ERROR))
+    override fun advertisingStarted(error: CbError?) {
+        if (advertising && error != null) emit(RadioEvent.AdvertisingFailed(RadioFailure.RADIO_ERROR, error.code))
     }
 
-    override fun serviceAdded(ok: Boolean) {
-        if (!ok) {
+    override fun serviceAdded(error: CbError?) {
+        if (error != null) {
             published = false
-            emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
+            emit(RadioEvent.ServeFailed(RadioFailure.RADIO_ERROR, error.code))
         }
     }
 

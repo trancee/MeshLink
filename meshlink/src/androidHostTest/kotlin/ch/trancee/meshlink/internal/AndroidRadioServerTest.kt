@@ -168,7 +168,7 @@ class AndroidRadioServerTest {
             // Assert
             assertTrue(beforeLastRetry.isEmpty())
             assertEquals(5, ShadowMeshManager.opens)
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.Failed>(events.single()).reason)
+            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.ServeFailed>(events.single()).reason)
         }
 
     @Test
@@ -184,7 +184,8 @@ class AndroidRadioServerTest {
             callback().onServiceAdded(BluetoothGatt.GATT_FAILURE, service)
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.Failed>(events.single()).reason)
+            val failed = assertIs<RadioEvent.ServeFailed>(events.single())
+            assertEquals(RadioFailure.RADIO_ERROR to BluetoothGatt.GATT_FAILURE, failed.reason to failed.platformCode)
         }
 
     @Test
@@ -311,7 +312,7 @@ class AndroidRadioServerTest {
         }
 
     @Test
-    fun aBusyNotificationIsRetried() =
+    fun aBusyNotificationIsRetriedAndReportedOnce() =
         runTest {
             // Arrange
             val radio = AndroidRadio(context, manager, adapter, backgroundScope)
@@ -326,6 +327,7 @@ class AndroidRadioServerTest {
 
             // Assert
             assertIs<RadioResult.Ok<Unit>>(result)
+            assertEquals(listOf(busyCode()), events.filterIsInstance<RadioEvent.GattRetried>().map { it.platformCode })
             assertEquals(1, ShadowMeshGattServer.notified.size)
             assertEquals(2 * GattExchange.BUSY_RETRY_MILLIS, testScheduler.currentTime)
         }
@@ -373,7 +375,7 @@ class AndroidRadioServerTest {
         }
 
     @Test
-    fun aRemoteDisconnectFailsTheLinksPendingAndQueuedWrites() =
+    fun aLostCentralFailsTheLinksPendingAndQueuedWritesAndKeepsItsStatus() =
         runTest {
             // Arrange
             val radio = AndroidRadio(context, manager, adapter, backgroundScope)
@@ -386,9 +388,10 @@ class AndroidRadioServerTest {
 
             // Act
             callback().onConnectionStateChange(central, BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_CONNECTED)
-            remoteDisconnect(central)
+            remoteDisconnect(central, SUPERVISION_TIMEOUT)
 
             // Assert
+            assertEquals(SUPERVISION_TIMEOUT, link.platformCode)
             assertIs<RadioResult.Failed>(pending.await())
             assertIs<RadioResult.Failed>(queued.await())
             assertEquals(1, ShadowMeshGattServer.notified.size)
@@ -433,9 +436,10 @@ class AndroidRadioServerTest {
             // Act
             link.disconnect()
             link.disconnect()
-            remoteDisconnect(central)
+            remoteDisconnect(central, SUPERVISION_TIMEOUT)
 
             // Assert
+            assertNull(link.platformCode)
             assertTrue(serverShadow().isConnectionCancelled(central))
             assertEquals(1, events.count { it is RadioEvent.Disconnected })
             assertTrue(link.incoming.toList().isEmpty())
@@ -449,13 +453,14 @@ class AndroidRadioServerTest {
             val events = collect(radio)
             radio.serveCapability(record)
             callback().onMtuChanged(central, SMALL_MTU)
-            connect(central, events)
+            val first = connect(central, events)
 
             // Act
             remoteDisconnect(central)
             val again = connect(central, events)
 
             // Assert
+            assertNull(first.platformCode)
             assertEquals(MeshGatt.DEFAULT_ATT_MTU, again.attMtu)
             assertEquals(2, events.count { it is RadioEvent.Connected })
         }
@@ -566,14 +571,17 @@ class AndroidRadioServerTest {
         return assertIs<RadioEvent.Connected>(events.last()).link
     }
 
-    private fun remoteDisconnect(device: BluetoothDevice) =
-        callback().onConnectionStateChange(device, BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_DISCONNECTED)
+    private fun remoteDisconnect(
+        device: BluetoothDevice,
+        status: Int = BluetoothGatt.GATT_SUCCESS,
+    ) = callback().onConnectionStateChange(device, status, BluetoothProfile.STATE_DISCONNECTED)
 
     private companion object {
         const val RECORD_SIZE = 12
         const val OFFSET = 5
         const val REQUEST = 7
         const val SMALL_MTU = 8
+        const val SUPERVISION_TIMEOUT = 8
         const val FIRST_RETRY_MILLIS = 250L
         const val SECOND_RETRY_MILLIS = 500L
         const val ALL_RETRIES_MILLIS = 3_750L

@@ -120,6 +120,10 @@ final enum class ch.trancee.meshlink/RejectionReason : kotlin/Enum<ch.trancee.me
     final fun values(): kotlin/Array<ch.trancee.meshlink/RejectionReason> // ch.trancee.meshlink/RejectionReason.values|values#static(){}[0]
 }
 
+abstract fun interface ch.trancee.meshlink.internal/PlatformLog { // ch.trancee.meshlink.internal/PlatformLog|null[0]
+    abstract fun write(ch.trancee.meshlink/DiagnosticEvent.Severity, kotlin/String, kotlin/String) // ch.trancee.meshlink.internal/PlatformLog.write|write(ch.trancee.meshlink.DiagnosticEvent.Severity;kotlin.String;kotlin.String){}[0]
+}
+
 abstract interface ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.meshlink.internal/IdentityStore|null[0]
     abstract fun delete(): kotlin/Boolean // ch.trancee.meshlink.internal/IdentityStore.delete|delete(){}[0]
     abstract fun loadOrCreate(ch.trancee.meshlink.internal/CryptoProvider): ch.trancee.meshlink.internal/Ed25519KeyPair? // ch.trancee.meshlink.internal/IdentityStore.loadOrCreate|loadOrCreate(ch.trancee.meshlink.internal.CryptoProvider){}[0]
@@ -134,6 +138,8 @@ abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.mes
         abstract fun <get-identityStore>(): ch.trancee.meshlink.internal/IdentityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore.<get-identityStore>|<get-identityStore>(){}[0]
     abstract val limitations // ch.trancee.meshlink.internal/PlatformPort.limitations|{}limitations[0]
         abstract fun <get-limitations>(): kotlinx.coroutines.flow/Flow<kotlin.collections/Set<ch.trancee.meshlink/Limitation>> // ch.trancee.meshlink.internal/PlatformPort.limitations.<get-limitations>|<get-limitations>(){}[0]
+    abstract val log // ch.trancee.meshlink.internal/PlatformPort.log|{}log[0]
+        abstract fun <get-log>(): ch.trancee.meshlink.internal/PlatformLog // ch.trancee.meshlink.internal/PlatformPort.log.<get-log>|<get-log>(){}[0]
     abstract val radio // ch.trancee.meshlink.internal/PlatformPort.radio|{}radio[0]
         abstract fun <get-radio>(): ch.trancee.meshlink.internal/RadioPort // ch.trancee.meshlink.internal/PlatformPort.radio.<get-radio>|<get-radio>(){}[0]
     abstract val random // ch.trancee.meshlink.internal/PlatformPort.random|{}random[0]
@@ -390,12 +396,17 @@ final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.mesh
 final class ch.trancee.meshlink/Diagnostics { // ch.trancee.meshlink/Diagnostics|null[0]
     final val debug // ch.trancee.meshlink/Diagnostics.debug|{}debug[0]
         final fun <get-debug>(): kotlin/Boolean // ch.trancee.meshlink/Diagnostics.debug.<get-debug>|<get-debug>(){}[0]
+    final val platformLog // ch.trancee.meshlink/Diagnostics.platformLog|{}platformLog[0]
+        final fun <get-platformLog>(): kotlin/Boolean // ch.trancee.meshlink/Diagnostics.platformLog.<get-platformLog>|<get-platformLog>(){}[0]
 }
 
 final class ch.trancee.meshlink/DiagnosticsBuilder { // ch.trancee.meshlink/DiagnosticsBuilder|null[0]
     final var debug // ch.trancee.meshlink/DiagnosticsBuilder.debug|{}debug[0]
         final fun <get-debug>(): kotlin/Boolean // ch.trancee.meshlink/DiagnosticsBuilder.debug.<get-debug>|<get-debug>(){}[0]
         final fun <set-debug>(kotlin/Boolean) // ch.trancee.meshlink/DiagnosticsBuilder.debug.<set-debug>|<set-debug>(kotlin.Boolean){}[0]
+    final var platformLog // ch.trancee.meshlink/DiagnosticsBuilder.platformLog|{}platformLog[0]
+        final fun <get-platformLog>(): kotlin/Boolean // ch.trancee.meshlink/DiagnosticsBuilder.platformLog.<get-platformLog>|<get-platformLog>(){}[0]
+        final fun <set-platformLog>(kotlin/Boolean) // ch.trancee.meshlink/DiagnosticsBuilder.platformLog.<set-platformLog>|<set-platformLog>(kotlin.Boolean){}[0]
 }
 
 final class ch.trancee.meshlink/Limits { // ch.trancee.meshlink/Limits|null[0]
@@ -648,6 +659,11 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
         final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.Severity> // ch.trancee.meshlink/DiagnosticEvent.Severity.values|values#static(){}[0]
     }
 
+    final class AdvertisingFailed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.AdvertisingFailed|null[0]
+        final val platformCode // ch.trancee.meshlink/DiagnosticEvent.AdvertisingFailed.platformCode|{}platformCode[0]
+            final fun <get-platformCode>(): kotlin/Int? // ch.trancee.meshlink/DiagnosticEvent.AdvertisingFailed.platformCode.<get-platformCode>|<get-platformCode>(){}[0]
+    }
+
     final class BearerFallback : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.BearerFallback|null[0]
         final val peer // ch.trancee.meshlink/DiagnosticEvent.BearerFallback.peer|{}peer[0]
             final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.BearerFallback.peer.<get-peer>|<get-peer>(){}[0]
@@ -724,6 +740,8 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
             final fun <get-attempt>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.attempt.<get-attempt>|<get-attempt>(){}[0]
         final val link // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.link|{}link[0]
             final fun <get-link>(): ch.trancee.meshlink/LinkRef // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.link.<get-link>|<get-link>(){}[0]
+        final val platformCode // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.platformCode|{}platformCode[0]
+            final fun <get-platformCode>(): kotlin/Int? // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.platformCode.<get-platformCode>|<get-platformCode>(){}[0]
         final val reason // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.reason|{}reason[0]
             final fun <get-reason>(): ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.Reason // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.reason.<get-reason>|<get-reason>(){}[0]
 
@@ -759,6 +777,16 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
     final class ExpiryFarFromLocalTime : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime|null[0]
         final val skewSeconds // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime.skewSeconds|{}skewSeconds[0]
             final fun <get-skewSeconds>(): kotlin/Long // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime.skewSeconds.<get-skewSeconds>|<get-skewSeconds>(){}[0]
+    }
+
+    final class GattOperationRetried : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.GattOperationRetried|null[0]
+        final val platformCode // ch.trancee.meshlink/DiagnosticEvent.GattOperationRetried.platformCode|{}platformCode[0]
+            final fun <get-platformCode>(): kotlin/Int? // ch.trancee.meshlink/DiagnosticEvent.GattOperationRetried.platformCode.<get-platformCode>|<get-platformCode>(){}[0]
+    }
+
+    final class GattServiceFailed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.GattServiceFailed|null[0]
+        final val platformCode // ch.trancee.meshlink/DiagnosticEvent.GattServiceFailed.platformCode|{}platformCode[0]
+            final fun <get-platformCode>(): kotlin/Int? // ch.trancee.meshlink/DiagnosticEvent.GattServiceFailed.platformCode.<get-platformCode>|<get-platformCode>(){}[0]
     }
 
     final class HandshakeFailed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.HandshakeFailed|null[0]
@@ -843,6 +871,8 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
             final fun <get-byPeer>(): kotlin/Boolean // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.byPeer.<get-byPeer>|<get-byPeer>(){}[0]
         final val peer // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.peer|{}peer[0]
             final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.peer.<get-peer>|<get-peer>(){}[0]
+        final val platformCode // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.platformCode|{}platformCode[0]
+            final fun <get-platformCode>(): kotlin/Int? // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.platformCode.<get-platformCode>|<get-platformCode>(){}[0]
         final val reason // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.reason|{}reason[0]
             final fun <get-reason>(): ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.reason.<get-reason>|<get-reason>(){}[0]
 
@@ -911,6 +941,11 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
             final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.RouteLost.peer.<get-peer>|<get-peer>(){}[0]
     }
 
+    final class ScanFailed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ScanFailed|null[0]
+        final val platformCode // ch.trancee.meshlink/DiagnosticEvent.ScanFailed.platformCode|{}platformCode[0]
+            final fun <get-platformCode>(): kotlin/Int? // ch.trancee.meshlink/DiagnosticEvent.ScanFailed.platformCode.<get-platformCode>|<get-platformCode>(){}[0]
+    }
+
     final class ScanWindow : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ScanWindow|null[0]
         final val phase // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.phase|{}phase[0]
             final fun <get-phase>(): ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.phase.<get-phase>|<get-phase>(){}[0]
@@ -926,6 +961,8 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
             final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase> // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase.values|values#static(){}[0]
         }
     }
+
+    final class ScannerRegistrationFailed : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.ScannerRegistrationFailed|null[0]
 
     final class StaleAddressMarked : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.StaleAddressMarked|null[0]
 

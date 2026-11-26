@@ -80,12 +80,18 @@ internal class AppleCentral(
         open[peripheral.id]?.let { it.requests.answer() }
     }
 
-    override fun connectFailed(peripheral: CbPeripheral) {
-        open[peripheral.id]?.close()
+    override fun connectFailed(
+        peripheral: CbPeripheral,
+        error: CbError?,
+    ) {
+        open[peripheral.id]?.close(error?.code)
     }
 
-    override fun disconnected(peripheral: CbPeripheral) {
-        open[peripheral.id]?.close()
+    override fun disconnected(
+        peripheral: CbPeripheral,
+        error: CbError?,
+    ) {
+        open[peripheral.id]?.close(error?.code)
     }
 }
 

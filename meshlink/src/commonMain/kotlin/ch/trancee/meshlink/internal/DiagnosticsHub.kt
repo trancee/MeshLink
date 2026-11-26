@@ -20,13 +20,15 @@ import kotlinx.coroutines.launch
 
 /**
  * The diagnostics hub (ADR 0020): filters `Debug` events, coalesces repeats and fans events out to
- * every collector of [events], each with its own bounded buffer. It also names peers and links for
- * events with keys and counters drawn anew by [begin] on each start.
+ * every collector of [events], each with its own bounded buffer, and to [log], if set, whether or
+ * not anyone collects. It also names peers and links for events with keys and counters drawn anew by
+ * [begin] on each start.
  */
 internal class DiagnosticsHub(
     private val scope: CoroutineScope,
     private val debug: Boolean,
     private val crypto: CryptoProvider,
+    private val log: PlatformLog? = null,
 ) {
     private val subscribers = MutableStateFlow<List<Subscriber>>(emptyList())
     private val closed = MutableStateFlow(false)
@@ -109,8 +111,21 @@ internal class DiagnosticsHub(
     }
 
     private fun deliver(event: DiagnosticEvent) {
+        log?.let { write(it, event) }
         subscribers.value.forEach { it.channel.trySend(event) }
     }
+
+    /** Writes [event] to [log]: its code, name, count and numbers shown, every other field hidden. */
+    private fun write(
+        log: PlatformLog,
+        event: DiagnosticEvent,
+    ) {
+        val (numbers, others) = event.fields.partition { it.second is Number }
+        val shown = listOf(event.code, event::class.simpleName, "count=${event.count}") + numbers.map(::field)
+        log.write(event.severity, shown.joinToString(" "), others.joinToString(" ", transform = ::field))
+    }
+
+    private fun field(field: Pair<String, Any>): String = "${field.first}=${field.second}"
 
     private class Repeats(
         val count: Int,

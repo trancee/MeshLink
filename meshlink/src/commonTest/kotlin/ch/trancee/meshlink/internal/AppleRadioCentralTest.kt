@@ -15,6 +15,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -148,16 +149,31 @@ class AppleRadioCentralTest {
         }
 
     @Test
-    fun aFailedConnectionIsAnUnreachablePeer() =
+    fun aFailedConnectionIsAnUnreachablePeerWithItsError() =
         runTest {
             // Arrange
             val connecting = connecting()
 
             // Act
-            bluetooth.events.connectFailed(peripheral)
+            bluetooth.events.connectFailed(peripheral, CbError(CONNECTION_FAILED))
 
             // Assert
-            assertEquals(RadioFailure.PEER_UNREACHABLE, failure(connecting.await()))
+            val failed = assertIs<RadioResult.Failed>(connecting.await())
+            assertEquals(RadioFailure.PEER_UNREACHABLE to CONNECTION_FAILED, failed.reason to failed.platformCode)
+        }
+
+    @Test
+    fun aConnectionFailedWithoutAnErrorHasNoPlatformCode() =
+        runTest {
+            // Arrange
+            val connecting = connecting()
+
+            // Act
+            bluetooth.events.connectFailed(peripheral, error = null)
+
+            // Assert
+            val failed = assertIs<RadioResult.Failed>(connecting.await())
+            assertEquals(RadioFailure.PEER_UNREACHABLE to null, failed.reason to failed.platformCode)
         }
 
     @Test
@@ -191,7 +207,7 @@ class AppleRadioCentralTest {
             bluetooth.events.connected(peripheral)
 
             // Act
-            bluetooth.events.disconnected(peripheral)
+            bluetooth.events.disconnected(peripheral, error = null)
 
             // Assert
             assertEquals(RadioFailure.LINK_CLOSED, failure(failed.await()))
@@ -335,7 +351,7 @@ class AppleRadioCentralTest {
             bluetooth.events.valueUpdated(peripheral, AppleGatt.TO_CENTRAL, null)
             bluetooth.events.valueUpdated(peripheral, AppleGatt.TO_PERIPHERAL, byteArrayOf(8))
             bluetooth.events.valueUpdated(FakePeripheral("B"), AppleGatt.TO_CENTRAL, byteArrayOf(9))
-            bluetooth.events.disconnected(peripheral)
+            bluetooth.events.disconnected(peripheral, error = null)
 
             // Assert
             assertEquals(listOf(listOf<Byte>(7)), incoming.await().map { it.toList() })
@@ -386,25 +402,26 @@ class AppleRadioCentralTest {
             val writing = start { link.write(byteArrayOf(1)) }
 
             // Act
-            bluetooth.events.disconnected(peripheral)
+            bluetooth.events.disconnected(peripheral, error = null)
 
             // Assert
             assertEquals(RadioFailure.LINK_CLOSED, failure(writing.await()))
         }
 
     @Test
-    fun aDisconnectionClosesTheOpenLinkOnce() =
+    fun aDisconnectionClosesTheOpenLinkOnceWithItsFirstError() =
         runTest {
             // Arrange
             val seen = events()
             val link = linked()
 
             // Act
-            bluetooth.events.disconnected(peripheral)
-            bluetooth.events.disconnected(peripheral)
+            bluetooth.events.disconnected(peripheral, CbError(PERIPHERAL_DISCONNECTED))
+            bluetooth.events.disconnected(peripheral, CbError(CONNECTION_FAILED))
 
             // Assert
             assertSame(link, assertIs<RadioEvent.Disconnected>(seen.single()).link)
+            assertEquals(PERIPHERAL_DISCONNECTED, link.platformCode)
         }
 
     @Test
@@ -416,9 +433,11 @@ class AppleRadioCentralTest {
 
             // Act
             link.disconnect()
+            bluetooth.events.disconnected(peripheral, CbError(PERIPHERAL_DISCONNECTED))
             val again = connecting()
 
             // Assert
+            assertNull(link.platformCode)
             assertIs<RadioEvent.Disconnected>(seen.single())
             assertEquals(listOf("cancel A", "connect A"), bluetooth.calls.drop(3))
             assertTrue(again.isActive)
@@ -471,7 +490,7 @@ class AppleRadioCentralTest {
 
             // Act
             bluetooth.events.connected(stranger)
-            bluetooth.events.connectFailed(stranger)
+            bluetooth.events.connectFailed(stranger, error = null)
             bluetooth.events.servicesDiscovered(stranger, emptyList())
             bluetooth.events.servicesDiscovered(stranger, null)
             bluetooth.events.characteristicsDiscovered(stranger, emptyList())
@@ -485,7 +504,7 @@ class AppleRadioCentralTest {
             bluetooth.events.rssiRead(stranger, -55)
             bluetooth.events.rssiRead(stranger, null)
             bluetooth.events.servicesInvalidated(stranger, listOf(AppleGatt.SERVICE))
-            bluetooth.events.disconnected(stranger)
+            bluetooth.events.disconnected(stranger, error = null)
 
             // Assert
             assertEquals(emptyList(), seen)
@@ -507,4 +526,12 @@ class AppleRadioCentralTest {
             assertTrue(reading.isActive)
             reading.cancel()
         }
+
+    private companion object {
+        /** `CBError.Code.peripheralDisconnected`. */
+        const val PERIPHERAL_DISCONNECTED = 7
+
+        /** `CBError.Code.connectionFailed`. */
+        const val CONNECTION_FAILED = 10
+    }
 }

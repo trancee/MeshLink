@@ -137,18 +137,42 @@ public sealed interface RadioEvent {
 
     /**
      * Advertising failed for [reason] after its start returned [RadioResult.Ok], as platforms that
-     * answer through a later callback report it. The node runs on without advertising.
+     * answer through a later callback report it, with the platform's status number, if any, as
+     * [platformCode]. The node runs on without advertising.
      */
     public class AdvertisingFailed(
         public val reason: RadioFailure,
+        public val platformCode: Int? = null,
     ) : RadioEvent
 
     /**
-     * Scanning or serving the capability record failed for [reason] after its start returned
-     * [RadioResult.Ok], as platforms that answer through a later callback report it.
+     * Scanning failed for [reason] after its start returned [RadioResult.Ok], as platforms that
+     * answer through a later callback report it, with the platform's status number, if any, as
+     * [platformCode]. [registrationFailed] marks a platform out of scanner registrations, as Android
+     * reports leaked ones with status 2.
      */
-    public class Failed(
+    public class ScanFailed(
         public val reason: RadioFailure,
+        public val platformCode: Int? = null,
+        public val registrationFailed: Boolean = false,
+    ) : RadioEvent
+
+    /**
+     * Serving the capability record failed for [reason] after its start returned [RadioResult.Ok],
+     * as platforms that answer through a later callback report it, with the platform's status
+     * number, if any, as [platformCode].
+     */
+    public class ServeFailed(
+        public val reason: RadioFailure,
+        public val platformCode: Int? = null,
+    ) : RadioEvent
+
+    /**
+     * A GATT request found the platform's stack busy and is being retried; reported once per
+     * request, with the platform's busy status, if it gave one, as [platformCode].
+     */
+    public class GattRetried(
+        public val platformCode: Int? = null,
     ) : RadioEvent
 }
 
@@ -175,6 +199,13 @@ public interface RadioStream {
 public interface RadioLink : RadioStream {
     /** The negotiated ATT MTU; each chunk of the stream carries at most `attMtu - 3` bytes. */
     public val attMtu: Int
+
+    /**
+     * The platform's status for a connection that ended without a disconnect from this side:
+     * Android's GATT status, or the `CBError` code of iOS's error. `null` while open, after
+     * [disconnect], or if the platform gave none. Set before [incoming] completes.
+     */
+    public val platformCode: Int?
 }
 
 /**
@@ -207,9 +238,13 @@ public sealed interface RadioResult<out T> {
         public val value: T,
     ) : RadioResult<T>
 
-    /** The operation failed for [reason]; nothing changed. */
+    /**
+     * The operation failed for [reason]; nothing changed. [platformCode] is the platform's status
+     * number, such as Android GATT status 133 or an iOS `CBError` code, or `null` if it gave none.
+     */
     public class Failed(
         public val reason: RadioFailure,
+        public val platformCode: Int? = null,
     ) : RadioResult<Nothing>
 }
 

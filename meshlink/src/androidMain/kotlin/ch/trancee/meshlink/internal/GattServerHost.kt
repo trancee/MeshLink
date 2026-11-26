@@ -63,14 +63,14 @@ internal class GattServerHost(
     private fun open(): Boolean {
         val server = manager.openGattServer(context, callback) ?: return false
         val service = MeshGatt.service()
-        served = Served(server, service.getCharacteristic(MeshGatt.TO_CENTRAL))
+        served = Served(server, service.getCharacteristic(MeshGatt.TO_CENTRAL), emit)
         server.addService(service)
         return true
     }
 
     private suspend fun retryOpen() {
         val opened = OPEN_RETRY_MILLIS.any { wait -> delay(wait).let { open() } }
-        if (!opened) emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
+        if (!opened) emit(RadioEvent.ServeFailed(RadioFailure.RADIO_ERROR))
     }
 
     private fun respond(
@@ -87,8 +87,9 @@ internal class GattServerHost(
     private class Served(
         val server: BluetoothGattServer,
         val toCentral: BluetoothGattCharacteristic,
+        emit: (RadioEvent) -> Unit,
     ) {
-        val notifications = GattExchange()
+        val notifications = GattExchange(emit)
     }
 
     /** One central's link to this peripheral, on the server [served] that was open when it began. */
@@ -124,7 +125,7 @@ internal class GattServerHost(
             status: Int,
             service: BluetoothGattService,
         ) {
-            if (status != BluetoothGatt.GATT_SUCCESS) emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
+            if (status != BluetoothGatt.GATT_SUCCESS) emit(RadioEvent.ServeFailed(RadioFailure.RADIO_ERROR, status))
         }
 
         override fun onConnectionStateChange(
@@ -134,7 +135,7 @@ internal class GattServerHost(
         ) {
             if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 mtus.remove(device)
-                links[device]?.close()
+                links[device]?.close(AndroidGatt.platformCode(status))
             }
         }
 

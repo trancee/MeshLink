@@ -207,6 +207,7 @@ Exit: every preset and toggle works and explains itself, every diagnostic is cat
 | 54c | [Emit platform diagnostics and write them to the platform log](issues/54c-platform-diagnostics.md) | AFK | 54b |
 | 54d | [Snapshot and export diagnostics](issues/54d-diagnostics-snapshot-export.md) | AFK | 54c |
 | 54e | [Troubleshoot by diagnostic code](issues/54e-troubleshooting-pages.md) | AFK | 54d |
+| 54f | [Emit the lifecycle diagnostics](issues/54f-lifecycle-diagnostics.md) | AFK | 54c |
 | 55 | [Use MeshLink naturally from Swift](issues/55-swift-overlay.md) | AFK | 54 |
 | 56 | [Generate the agent docs and check the dependency register](issues/56-agent-docs-generators.md) | AFK | 54 |
 | 57 | [Teach MeshLink with a tutorial and how-tos](issues/57-tutorial-and-how-tos.md) | AFK | 55, 56 |

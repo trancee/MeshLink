@@ -81,7 +81,7 @@ internal class BleScanner(
     private fun startDeferred(context: CoroutineContext) {
         context.ensureActive()
         deferred = null
-        adapter.bluetoothLeScanner?.let(::scan) ?: emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
+        adapter.bluetoothLeScanner?.let(::scan) ?: emit(RadioEvent.ScanFailed(RadioFailure.RADIO_ERROR))
     }
 
     private fun scan(leScanner: BluetoothLeScanner) {
@@ -112,7 +112,10 @@ internal class BleScanner(
         }
 
         override fun onScanFailed(errorCode: Int) {
-            if (current === this) emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
+            if (current === this) {
+                val leaked = errorCode == SCAN_FAILED_APPLICATION_REGISTRATION_FAILED
+                emit(RadioEvent.ScanFailed(RadioFailure.RADIO_ERROR, errorCode, registrationFailed = leaked))
+            }
         }
     }
 }

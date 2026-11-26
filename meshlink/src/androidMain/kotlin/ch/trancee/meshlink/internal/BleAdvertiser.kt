@@ -61,7 +61,7 @@ internal class BleAdvertiser(
             status: Int,
         ) {
             if (status != ADVERTISE_SUCCESS && current === this) {
-                emit(RadioEvent.AdvertisingFailed(RadioFailure.RADIO_ERROR))
+                emit(RadioEvent.AdvertisingFailed(RadioFailure.RADIO_ERROR, status))
             }
         }
     }

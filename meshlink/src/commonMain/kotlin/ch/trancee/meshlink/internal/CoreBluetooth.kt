@@ -148,11 +148,17 @@ internal interface CentralManagerEvents {
     /** `didConnect`. */
     fun connected(peripheral: CbPeripheral)
 
-    /** `didFailToConnect`. */
-    fun connectFailed(peripheral: CbPeripheral)
+    /** `didFailToConnect`, with its [error]. */
+    fun connectFailed(
+        peripheral: CbPeripheral,
+        error: CbError?,
+    )
 
-    /** `didDisconnectPeripheral`. */
-    fun disconnected(peripheral: CbPeripheral)
+    /** `didDisconnectPeripheral`, with its [error]: `null` when the app cancelled the connection. */
+    fun disconnected(
+        peripheral: CbPeripheral,
+        error: CbError?,
+    )
 }
 
 /** What the `CBPeripheralDelegate` of a remote peripheral reports. */
@@ -204,16 +210,25 @@ internal interface PeripheralEvents {
     )
 }
 
+/**
+ * An `NSError` a Core Bluetooth delegate reported. [code] is its `CBError` code, or null if the error
+ * belongs to another domain: `CBATTErrorDomain` codes overlap `CBErrorDomain` codes, so only the
+ * latter count as platform codes (ADR 0020).
+ */
+internal class CbError(
+    val code: Int?,
+)
+
 /** What the `CBPeripheralManagerDelegate` reports. */
 internal interface PeripheralManagerEvents {
     /** `peripheralManagerDidUpdateState`, with the raw `CBManagerState`; see [CbState]. */
     fun peripheralState(state: Long)
 
-    /** `peripheralManagerDidStartAdvertising`. */
-    fun advertisingStarted(ok: Boolean)
+    /** `peripheralManagerDidStartAdvertising`, with its error, or null if it started. */
+    fun advertisingStarted(error: CbError?)
 
-    /** `didAdd service`. */
-    fun serviceAdded(ok: Boolean)
+    /** `didAdd service`, with its error, or null if it was added. */
+    fun serviceAdded(error: CbError?)
 
     /** `didReceiveRead`; answer it with [PeripheralManagerCalls.respond]. */
     fun readRequested(request: CbReadRequest)

@@ -58,10 +58,11 @@ class AppleRadioDiscoveryTest {
             radio.startAdvertising(payload)
 
             // Act
-            bluetooth.events.advertisingStarted(ok = false)
+            bluetooth.events.advertisingStarted(CbError(code = 1))
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.AdvertisingFailed>(seen.single()).reason)
+            val failed = assertIs<RadioEvent.AdvertisingFailed>(seen.single())
+            assertEquals(RadioFailure.RADIO_ERROR to 1, failed.reason to failed.platformCode)
         }
 
     @Test
@@ -72,9 +73,9 @@ class AppleRadioDiscoveryTest {
             radio.startAdvertising(payload)
 
             // Act
-            bluetooth.events.advertisingStarted(ok = true)
+            bluetooth.events.advertisingStarted(error = null)
             radio.stopAdvertising()
-            bluetooth.events.advertisingStarted(ok = false)
+            bluetooth.events.advertisingStarted(CbError(code = null))
 
             // Assert
             assertEquals(emptyList(), seen)

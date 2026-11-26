@@ -60,6 +60,35 @@ class LinkDiagnosticsTest {
         }
 
     @Test
+    fun onlyALostConnectionReportsThePlatformStatus() =
+        runTest {
+            // Arrange
+            val lose: suspend (RadioLink) -> Unit = { fake -> (fake as VirtualLinkEnd).drop(SUPERVISION_TIMEOUT) }
+            val closeThenLose: suspend (RadioLink) -> Unit = { fake ->
+                fake.write(record(LinkFrame.Close(CloseReason.NORMAL)))
+                advanceTimeBy(SETTLE_MILLIS)
+                (fake as VirtualLinkEnd).drop(REMOTE_USER_TERMINATED)
+            }
+
+            // Act
+            val ended =
+                listOf(lose, closeThenLose).map { end ->
+                    val (_, fake, seen) = linkedToFake()
+                    end(fake)
+                    advanceTimeBy(SETTLE_MILLIS)
+                    seen.filterIsInstance<DiagnosticEvent.LinkClosed>().map { it.reason to it.platformCode }
+                }
+
+            // Assert
+            val expected =
+                listOf(
+                    listOf(DiagnosticEvent.LinkClosed.Reason.ConnectionLost to SUPERVISION_TIMEOUT),
+                    listOf(DiagnosticEvent.LinkClosed.Reason.Normal to null),
+                )
+            assertEquals(expected, ended)
+        }
+
+    @Test
     fun noVersionInCommonIsReportedWithThePeersHighestAsPeripheralAndAsCentral() =
         runTest {
             // Arrange
@@ -203,6 +232,12 @@ class LinkDiagnosticsTest {
         )
 
     private companion object {
+        /** Android's GATT status for a supervision timeout. */
+        const val SUPERVISION_TIMEOUT = 8
+
+        /** Android's GATT status for a disconnect the peer asked for. */
+        const val REMOTE_USER_TERMINATED = 19
+
         const val SETTLE_MILLIS = 1_000L
         const val COALESCING_MILLIS = 10_000L
         const val MTU = 185

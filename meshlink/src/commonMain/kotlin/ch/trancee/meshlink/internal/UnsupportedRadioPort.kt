@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flowOf
  * every node on it stays blocked by [Requirement.Unsupported].
  */
 internal class UnsupportedRadioPort(
+    override val log: PlatformLog,
     override val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
 ) : PlatformPort {
     override val requirements: StateFlow<Set<Requirement>> = MutableStateFlow(setOf(Requirement.Unsupported))

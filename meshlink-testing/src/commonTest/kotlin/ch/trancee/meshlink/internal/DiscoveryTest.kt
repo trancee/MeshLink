@@ -205,22 +205,30 @@ class DiscoveryTest {
         }
 
     @Test
-    fun lateRadioFailureStopsDiscoveryAndIsRecorded() =
+    fun lateScanOrServeFailureStopsDiscoveryAndIsRecorded() =
         runTest {
             // Arrange
-            val platform = air().platform(StandardTestDispatcher(testScheduler))
-            val node = node(platform, "Festival")
-            node.start()
-            runCurrent()
+            val failures =
+                listOf(
+                    RadioEvent.ScanFailed(RadioFailure.RADIO_ERROR),
+                    RadioEvent.ServeFailed(RadioFailure.UNSUPPORTED),
+                )
 
             // Act
-            platform.radio.emit(RadioEvent.Failed(RadioFailure.RADIO_ERROR))
-            runCurrent()
+            val ended =
+                failures.map { failure ->
+                    val platform = air().platform(StandardTestDispatcher(testScheduler))
+                    val node = node(platform, "Festival")
+                    node.start()
+                    runCurrent()
+                    platform.radio.emit(failure)
+                    runCurrent()
+                    Triple(node.radioFailure, platform.radio.advertisement, platform.radio.scanning)
+                }
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, node.radioFailure)
-            assertNull(platform.radio.advertisement)
-            assertFalse(platform.radio.scanning)
+            val expected = listOf(RadioFailure.RADIO_ERROR, RadioFailure.UNSUPPORTED).map { Triple(it, null, false) }
+            assertEquals(expected, ended)
         }
 
     @Test

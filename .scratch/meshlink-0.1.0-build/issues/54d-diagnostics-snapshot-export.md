@@ -15,7 +15,7 @@ Split from ticket [54](54-diagnostics-catalog.md). `diagnosticsSnapshot()` retur
 
 ## Acceptance criteria
 
-- [ ] `diagnosticsSnapshot()` returns the fields of ADR 0020 decision 5: configuration, profile and density class; each link with bearer, PHY, MTU and role; queue and held-message counts and certificate cache size; cumulative counters. No time series.
+- [ ] `diagnosticsSnapshot()` returns the fields of ADR 0020 decision 5: configuration, profile and density class; each link with bearer, current PHY (null where the platform can't tell, as on iOS; ticket 54c Q7), MTU and role; queue and held-message counts and certificate cache size; cumulative counters. No time series.
 - [ ] `exportDiagnostics()` returns JSON with the snapshot, the last 500 events, the MeshLink and protocol versions, the platform and the OS version. It adds no new dependency (E3).
 - [ ] A golden test fixes the JSON shape, and the generated reference documents it (C5).
 - [ ] The redaction test covers the snapshot and the export (S1).

@@ -21,6 +21,9 @@ internal abstract class StreamLink(
 
     override val incoming: Flow<ByteArray> = inbox.receiveAsFlow()
 
+    final override var platformCode: Int? = null
+        private set
+
     override suspend fun write(bytes: ByteArray): RadioResult<Unit> {
         val size = attMtu - RadioPort.ATT_HEADER
         val chunks = (bytes.indices step size).map { bytes.copyOfRange(it, minOf(it + size, bytes.size)) }
@@ -39,9 +42,13 @@ internal abstract class StreamLink(
         inbox.trySend(chunk)
     }
 
-    /** Closes the link at this end, once: completes [incoming] and calls [closed]. */
-    fun close() {
+    /**
+     * Closes the link at this end, once: records [platformCode], the platform's status if the
+     * platform ended the connection, then completes [incoming] and calls [closed].
+     */
+    fun close(platformCode: Int? = null) {
         if (closing.compareAndSet(false, true)) {
+            this.platformCode = platformCode
             inbox.close()
             closed()
         }

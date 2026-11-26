@@ -18,6 +18,7 @@ internal class ApplePlatformPort(
     bluetooth: CoreBluetooth,
     keychain: Keychain,
     override val dispatcher: CoroutineDispatcher,
+    osLog: OsLog,
 ) : PlatformPort {
     private val apple = AppleRadio(bluetooth)
 
@@ -32,4 +33,6 @@ internal class ApplePlatformPort(
     override val clock: Clock = SystemClock
 
     override val random: RandomSource = SystemRandom
+
+    override val log: PlatformLog = AppleLog(osLog)
 }

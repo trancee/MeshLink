@@ -37,6 +37,10 @@ kotlin {
     // ADR 0011, 2026-11-13 amendment "coordinates and names": Swift module MeshLinkKit, bundle ID ch.trancee.meshlink.kit.
     val meshLinkKit = XCFramework("MeshLinkKit")
     targets.withType<KotlinNativeTarget>().configureEach {
+        // ADR 0020 "Platform log": the os_log wrapper IosOsLog calls.
+        compilations.getByName("main").cinterops.create("oslog") {
+            definitionFile.set(project.file("src/nativeInterop/cinterop/oslog.def"))
+        }
         binaries.framework {
             baseName = "MeshLinkKit"
             // ADR 0004 "Binding": the framework exports only its Objective-C and Swift API, never the

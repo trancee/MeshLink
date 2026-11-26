@@ -52,7 +52,7 @@ internal class AppleCentralLink(
             }
         if (failure != null) disconnect()
         opened = failure == null
-        return failure?.let { RadioResult.Failed(it) } ?: RadioResult.Ok(this)
+        return failure?.let { RadioResult.Failed(it, platformCode) } ?: RadioResult.Ok(this)
     }
 
     override suspend fun readCapability(): RadioResult<ByteArray> {
