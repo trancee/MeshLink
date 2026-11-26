@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
@@ -233,7 +234,7 @@ abstract class SecuredLinkTest(
 
                 // Assert
                 assertEquals(listOf(CloseReason.HANDSHAKE_FAILED), clearCloses(end))
-                assertEquals(listOf("ML4001 DECRYPT"), diagnostics.map { it.label() })
+                assertEquals(listOf("ML4001 Decrypt"), diagnostics.map { it.label() })
                 assertEquals(emptyList(), node.peers.value)
             }
         }
@@ -260,7 +261,7 @@ abstract class SecuredLinkTest(
 
             // Assert
             assertEquals(listOf(CloseReason.HANDSHAKE_FAILED), clearCloses(end))
-            assertEquals(listOf("ML4001 DECRYPT"), diagnostics.map { it.label() })
+            assertEquals(listOf("ML4001 Decrypt"), diagnostics.map { it.label() })
         }
 
     @Test
@@ -290,7 +291,7 @@ abstract class SecuredLinkTest(
             ok(noise.readMessage(handshakeIn(message3).noiseMessage))
             val transport = ok(noise.split())
             assertContentEquals(LinkFrame.Close(CloseReason.HANDSHAKE_FAILED).encode(), open(transport, close))
-            assertEquals(listOf("ML4001 CERTIFICATE"), diagnostics.map { it.label() })
+            assertEquals(listOf("ML4001 Certificate"), diagnostics.map { it.label() })
             assertFalse(end.open)
             assertEquals(emptyList(), node.peers.value)
         }
@@ -336,7 +337,7 @@ abstract class SecuredLinkTest(
                 // Assert
                 val close = open(transport, written(end, 1).second.single())
                 assertContentEquals(LinkFrame.Close(CloseReason.HANDSHAKE_FAILED).encode(), close, case)
-                assertEquals(listOf("ML4001 CERTIFICATE"), diagnostics.map { it.label() }, case)
+                assertEquals(listOf("ML4001 Certificate"), diagnostics.map { it.label() }, case)
                 assertEquals(emptyList(), node.peers.value, case)
                 assertFalse(end.open, case)
                 node.close()
@@ -348,30 +349,30 @@ abstract class SecuredLinkTest(
         runTest {
             val cases =
                 mapOf<String, Pair<(NoiseHandshake) -> List<ByteArray>, String>>(
-                    "hello" to Pair({ listOf(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID))) }, "PROTOCOL"),
-                    "unknown type" to Pair({ listOf(record(byteArrayOf(0x3F, 0x01))) }, "PROTOCOL"),
-                    "step 2 first" to Pair({ listOf(handshake(SECOND, GARBAGE)) }, "PROTOCOL"),
-                    "unspoken version" to Pair({ listOf(handshake(1, GARBAGE, version = 2)) }, "PROTOCOL"),
-                    "zero ephemeral" to Pair({ listOf(handshake(1, ByteArray(message1Bytes))) }, "DECRYPT"),
-                    "repeated step 2" to Pair({ listOf(message1(it), handshake(SECOND, GARBAGE)) }, "PROTOCOL"),
+                    "hello" to Pair({ listOf(record(LinkFrame.PlainHello(1, digest(MESH), FAKE_ID))) }, "Protocol"),
+                    "unknown type" to Pair({ listOf(record(byteArrayOf(0x3F, 0x01))) }, "Protocol"),
+                    "step 2 first" to Pair({ listOf(handshake(SECOND, GARBAGE)) }, "Protocol"),
+                    "unspoken version" to Pair({ listOf(handshake(1, GARBAGE, version = 2)) }, "Protocol"),
+                    "zero ephemeral" to Pair({ listOf(handshake(1, ByteArray(message1Bytes))) }, "Decrypt"),
+                    "repeated step 2" to Pair({ listOf(message1(it), handshake(SECOND, GARBAGE)) }, "Protocol"),
                     "changed version" to
-                        Pair({ listOf(message1(it), handshake(THIRD, GARBAGE, version = 2)) }, "PROTOCOL"),
-                    "garbage message 3" to Pair({ listOf(message1(it), handshake(THIRD, GARBAGE)) }, "DECRYPT"),
-                    "busy" to Pair({ listOf(record(LinkFrame.Busy(0, BusyReason.REASSEMBLY_SLOTS))) }, "PROTOCOL"),
-                    "rekey" to Pair({ listOf(record(LinkFrame.Rekey)) }, "PROTOCOL"),
-                    "bearer switch" to Pair({ listOf(record(LinkFrame.BearerSwitch)) }, "PROTOCOL"),
-                    "rekey after message 1" to Pair({ listOf(message1(it), record(LinkFrame.Rekey)) }, "PROTOCOL"),
+                        Pair({ listOf(message1(it), handshake(THIRD, GARBAGE, version = 2)) }, "Protocol"),
+                    "garbage message 3" to Pair({ listOf(message1(it), handshake(THIRD, GARBAGE)) }, "Decrypt"),
+                    "busy" to Pair({ listOf(record(LinkFrame.Busy(0, BusyReason.REASSEMBLY_SLOTS))) }, "Protocol"),
+                    "rekey" to Pair({ listOf(record(LinkFrame.Rekey)) }, "Protocol"),
+                    "bearer switch" to Pair({ listOf(record(LinkFrame.BearerSwitch)) }, "Protocol"),
+                    "rekey after message 1" to Pair({ listOf(message1(it), record(LinkFrame.Rekey)) }, "Protocol"),
                     "fragmented hello" to
                         Pair(
                             { fragments(0, LinkFrame.PlainHello(1, digest(MESH), FAKE_ID).encode()) },
-                            "PROTOCOL",
+                            "Protocol",
                         ),
                     "nested fragment" to
-                        Pair({ listOf(record(LinkFrame.Fragment(0, 0, false, byteArrayOf(0x01, 0x00)))) }, "PROTOCOL"),
+                        Pair({ listOf(record(LinkFrame.Fragment(0, 0, false, byteArrayOf(0x01, 0x00)))) }, "Protocol"),
                     "fragments above a handshake frame" to
                         Pair(
                             { fragments(0, ByteArray(LinkFrame.Handshake.FRAME_MAX + 1) { 0x02 }, DATA_MAX) },
-                            "PROTOCOL",
+                            "Protocol",
                         ),
                 )
             cases.forEach { (case, script) ->
@@ -419,7 +420,7 @@ abstract class SecuredLinkTest(
 
             // Assert
             assertEquals(SECOND, handshakeIn(clearFrames(end).single()).step)
-            assertEquals(listOf("ML4002 PER_BEARER"), diagnostics.map { it.label() })
+            assertEquals(listOf("ML4002 PerBearer"), diagnostics.map { it.label() })
             assertFalse(end.open)
         }
 
@@ -445,7 +446,7 @@ abstract class SecuredLinkTest(
             assertTrue(openBefore)
             assertFalse(end.open)
             assertEquals(SECOND, handshakeIn(clearFrames(end).single()).step)
-            assertEquals(listOf("ML4001 TIMEOUT"), diagnostics.map { it.label() })
+            assertEquals(listOf("ML4001 Timeout"), diagnostics.map { it.label() })
         }
 
     @Test
@@ -473,7 +474,7 @@ abstract class SecuredLinkTest(
             // Assert
             val written = alice.radio.ends.map { it.written.isNotEmpty() }
             assertEquals(listOf(true, false, true), written)
-            assertEquals(listOf("ML4002 NEIGHBOR_INTERVAL"), diagnostics.map { it.label() })
+            assertEquals(listOf("ML4002 NeighborInterval"), diagnostics.map { it.label() })
         }
 
     @Test
@@ -688,15 +689,16 @@ abstract class SecuredLinkTest(
     /** [noise]'s message 1 as a `HANDSHAKE` record. */
     private fun message1(noise: NoiseHandshake): ByteArray = handshake(1, ok(noise.writeMessage(EMPTY)))
 
-    private fun LinkDiagnostic.label(): String =
+    private fun DiagnosticEvent.label(): String =
         when (this) {
-            is LinkDiagnostic.HandshakeFailed -> "$code $reason"
-            is LinkDiagnostic.HandshakeLimitDropped -> "$code $limit"
-            is LinkDiagnostic.ConnectFailed -> "$code $reason $attempt"
-            is LinkDiagnostic.LinkCapReached -> "$code $cap"
-            is LinkDiagnostic.BearerFallback -> "$code $reason"
-            is LinkDiagnostic.UnknownLinkFrameDropped -> "$code $type"
-            is LinkDiagnostic.ReadTrackingEvicted -> "$code ${messageId.toHexString()}"
+            is DiagnosticEvent.HandshakeFailed -> "$code $reason"
+            is DiagnosticEvent.HandshakeLimitDropped -> "$code $limit"
+            is DiagnosticEvent.ConnectFailed -> "$code $reason $attempt"
+            is DiagnosticEvent.LinkCapReached -> "$code $cap"
+            is DiagnosticEvent.BearerFallback -> "$code $reason"
+            is DiagnosticEvent.UnknownLinkFrameDropped -> "$code $type"
+            is DiagnosticEvent.ReadTrackingEvicted -> "$code ${messageId.toHexString()}"
+            else -> code
         }
 
     /** The cleartext `CLOSE` reasons [end] wrote. */
@@ -737,7 +739,7 @@ abstract class SecuredLinkTest(
             emptyMap()
         }
 
-    /** A stopped node of [MESH] in [profile], gated with [meshKey] if set. */
+    /** A stopped node of [MESH] in [profile] with debug diagnostics on, gated with [meshKey] if set. */
     internal fun securedNode(
         platform: PlatformPort,
         meshKey: ByteArray?,
@@ -747,6 +749,7 @@ abstract class SecuredLinkTest(
             meshLinkConfig(Preset.OfflineChat, profile) {
                 meshId = MESH
                 this.meshKey = meshKey
+                diagnostics.debug = true
             }.build(),
             MeshPlatform.of(platform),
         )

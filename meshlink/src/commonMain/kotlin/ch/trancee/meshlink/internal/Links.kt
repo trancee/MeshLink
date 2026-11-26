@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Proximity
@@ -52,8 +53,8 @@ internal class Links(
     private val policy = admission.policy
     private val handshakes = admission.handshakes
     private val keys = handshakes?.keys
-    private val report = admission.report
-    private val limits = LinkLimits(port.radio, admission.report)
+    private val diagnostics = admission.diagnostics
+    private val limits = LinkLimits(port.radio, diagnostics)
     private val coc = admission.coc
 
     private val mutableRoles = MutableStateFlow<Map<NodeId, LinkRole>>(emptyMap())
@@ -143,7 +144,7 @@ internal class Links(
             is RadioEvent.Connected -> {
                 val link = event.link
                 val within = views.accepts(busy.values.sum())
-                if (!within) report(LinkDiagnostic.LinkCapReached(links()))
+                if (!within) diagnostics.report(DiagnosticEvent.LinkCapReached(links()))
                 if (!within || !limits.admit()) {
                     scope.launch { limits.refuse(link) }
                 } else {
@@ -370,7 +371,7 @@ internal class Links(
 
                 // An unknown link-local frame is dropped; a routed one is mail's once the link is open.
                 (plain[0].toInt() and BYTE_MASK) < ROUTED_FIRST -> {
-                    report(LinkDiagnostic.UnknownLinkFrameDropped(plain[0].toInt() and BYTE_MASK))
+                    diagnostics.report(DiagnosticEvent.UnknownLinkFrameDropped(plain[0].toInt() and BYTE_MASK))
                 }
 
                 else -> {
@@ -479,7 +480,7 @@ internal class Links(
                 }
 
                 conn.cipher == null -> {
-                    report(LinkDiagnostic.UnknownLinkFrameDropped(frame.encode()[0].toInt()))
+                    diagnostics.report(DiagnosticEvent.UnknownLinkFrameDropped(frame.encode()[0].toInt()))
                 }
             }
         }
@@ -542,6 +543,7 @@ internal class Links(
         /** Opens the channel [offer] names for central [conn] and switches to it, or reports why it stayed on GATT. */
         suspend fun upgrade(
             conn: Link,
+            id: NodeId,
             offer: ChannelOffer,
         ) {
             when (val result = offer.link.openChannel(offer.psm)) {
@@ -551,7 +553,9 @@ internal class Links(
 
                 // A radio without L2CAP CoC was never going to switch: nothing fell back.
                 is RadioResult.Failed -> {
-                    if (result.reason != RadioFailure.UNSUPPORTED) report(LinkDiagnostic.BearerFallback(result.reason))
+                    result.reason.fallbackReason()?.let {
+                        diagnostics.report(DiagnosticEvent.BearerFallback(diagnostics.peer(id), it))
+                    }
                 }
             }
         }
@@ -680,7 +684,7 @@ internal class Links(
         // The loser's CLOSE may wait for a message write; closing it apart keeps this link reading.
         // The loser drains until the peer's CLOSE, at most DRAIN_TIMEOUT_MILLIS (spec "Duplicate links").
         val loser = if (keepNew) other else conn
-        conn.offer?.takeIf { keepNew }?.let { scope.launch { channels.upgrade(conn, it) } }
+        conn.offer?.takeIf { keepNew }?.let { scope.launch { channels.upgrade(conn, id, it) } }
         loser?.let {
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 it.close(CloseReason.DUPLICATE_LINK)
@@ -954,15 +958,15 @@ internal class Links(
 
 /**
  * How a session's links open: by [policy]'s hellos, or by [handshakes] in a secured profile; with
- * [coc], a central moves each link it opens to a peer that offers a PSM to L2CAP CoC. They [report]
- * diagnostics.
+ * [coc], a central moves each link it opens to a peer that offers a PSM to L2CAP CoC. They report to
+ * [diagnostics].
  */
 internal class LinkAdmission(
     val policy: LinkPolicy,
     val handshakes: Handshakes?,
     val coc: Boolean,
-    /** Emits the link diagnostics the session's links report. */
-    val report: (LinkDiagnostic) -> Unit,
+    /** The hub the session's links report diagnostics to. */
+    val diagnostics: DiagnosticsHub,
 )
 
 private fun Clock.now(): Instant = Instant.fromEpochMilliseconds(wallClockMillis())

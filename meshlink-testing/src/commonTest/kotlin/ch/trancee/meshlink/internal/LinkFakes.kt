@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshLinkConfigBuilder
@@ -46,7 +47,10 @@ internal fun TestScope.air(
     return air
 }
 
-/** A stopped `unsecured` node of [MESH] on [platform], with any further settings from [configure]. */
+/**
+ * A stopped `unsecured` node of [MESH] on [platform] with debug diagnostics on, with any further settings
+ * from [configure].
+ */
 @OptIn(InternalMeshLinkApi::class)
 internal fun node(
     platform: PlatformPort,
@@ -55,6 +59,7 @@ internal fun node(
     MeshLink.create(
         meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
             meshId = MESH
+            diagnostics.debug = true
             configure()
         }.build(),
         MeshPlatform.of(platform),
@@ -108,13 +113,17 @@ internal fun TestScope.grantCredits(
     }
 }
 
-/** Every link diagnostic [node] reports from now on. */
-@OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
-internal fun TestScope.diagnostics(node: MeshLink): List<LinkDiagnostic> {
-    val seen = mutableListOf<LinkDiagnostic>()
-    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.linkDiagnostics.collect { seen += it } }
+/** Every diagnostic but the lifecycle ones (`ML1xxx`) [node] reports from now on. */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun TestScope.diagnostics(node: MeshLink): List<DiagnosticEvent> {
+    val seen = mutableListOf<DiagnosticEvent>()
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+        node.diagnostics.collect { if (!it.code.startsWith(LIFECYCLE)) seen += it }
+    }
     return seen
 }
+
+private const val LIFECYCLE = "ML1"
 
 /** The MeshIdDigest of [meshId] in the `unsecured` profile. */
 internal fun digest(meshId: String): ByteArray =

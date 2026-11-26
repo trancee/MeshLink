@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import kotlinx.coroutines.delay
 
 /**
@@ -11,7 +12,7 @@ import kotlinx.coroutines.delay
  */
 internal class LinkLimits(
     private val radio: RadioPort,
-    private val report: (LinkDiagnostic) -> Unit,
+    private val diagnostics: DiagnosticsHub,
 ) {
     // A platform's cap never changes while the node runs.
     private val cap = radio.peripheralLinkCap
@@ -35,6 +36,7 @@ internal class LinkLimits(
      * [CONNECT_RETRIES] times, [RETRY_BACKOFF_MILLIS] × n before retry n; reports each failure.
      */
     suspend fun connect(handle: PeerHandle): CentralLink? {
+        val ref = diagnostics.link()
         var attempt = 1
         while (true) {
             when (val connected = radio.connect(handle)) {
@@ -44,7 +46,7 @@ internal class LinkLimits(
                 }
 
                 is RadioResult.Failed -> {
-                    report(LinkDiagnostic.ConnectFailed(connected.reason, attempt))
+                    diagnostics.report(DiagnosticEvent.ConnectFailed(ref, connected.reason.connectReason(), attempt))
                     if (connected.reason != RadioFailure.TRANSIENT || attempt > CONNECT_RETRIES) return null
                     delay(RETRY_BACKOFF_MILLIS * attempt)
                     attempt++
@@ -56,7 +58,7 @@ internal class LinkLimits(
     /** Whether the peripheral bearer a central just opened fits the cap; counts it if so. */
     fun admit(): Boolean {
         if (cap != null && held >= cap) {
-            report(LinkDiagnostic.LinkCapReached(cap))
+            diagnostics.report(DiagnosticEvent.LinkCapReached(cap))
             return false
         }
         held++

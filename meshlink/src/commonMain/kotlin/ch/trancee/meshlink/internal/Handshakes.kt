@@ -1,7 +1,9 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
+import ch.trancee.meshlink.DiagnosticEvent.HandshakeLimitDropped
+import ch.trancee.meshlink.LinkRef
 import ch.trancee.meshlink.NodeId
-import kotlinx.coroutines.flow.MutableSharedFlow
 
 /**
  * A running node's secured link handshakes (spec "Link handshake", "Handshake limits"): its
@@ -19,7 +21,7 @@ internal class Handshakes(
     private val clock: Clock,
     private var credentials: LinkCredentials,
     meshKey: ByteArray?,
-    private val diagnostics: MutableSharedFlow<LinkDiagnostic>,
+    private val diagnostics: DiagnosticsHub,
     private val certified: (NodeId, IdentityCertificate) -> Unit = { _, _ -> },
 ) {
     /** A gated mesh's resolving keys for this run; an open mesh has none. */
@@ -66,13 +68,13 @@ internal class Handshakes(
      * Counts a new handshake as half-open, or returns the bound it breaks. A responder passes the
      * initiator's [handle]; an initiator passes `null`, since the neighbor bound is for answering.
      */
-    fun admit(handle: PeerHandle?): HandshakeLimit? {
+    fun admit(handle: PeerHandle?): HandshakeLimitDropped.Limit? {
         val now = clock.monotonicMillis()
         recent.entries.removeAll { now - it.value >= NEIGHBOR_INTERVAL_MILLIS }
         val limit =
             when {
-                halfOpen >= HALF_OPEN_GLOBAL -> HandshakeLimit.GLOBAL
-                handle != null && handle in recent -> HandshakeLimit.NEIGHBOR_INTERVAL
+                halfOpen >= HALF_OPEN_GLOBAL -> HandshakeLimitDropped.Limit.Global
+                handle != null && handle in recent -> HandshakeLimitDropped.Limit.NeighborInterval
                 else -> null
             }
         if (limit == null) {
@@ -118,9 +120,13 @@ internal class Handshakes(
         return peer
     }
 
-    fun report(diagnostic: LinkDiagnostic) {
-        diagnostics.tryEmit(diagnostic)
+    /** Reports a handshake's [event]. */
+    fun report(event: DiagnosticEvent) {
+        diagnostics.report(event)
     }
+
+    /** A new handshake's [LinkRef]. */
+    fun link(): LinkRef = diagnostics.link()
 
     private companion object {
         /** Spec `handshake-half-open-global`. */

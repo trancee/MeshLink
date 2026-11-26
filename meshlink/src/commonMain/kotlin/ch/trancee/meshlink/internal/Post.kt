@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshLinkConfig
 import ch.trancee.meshlink.MeshState
@@ -99,14 +100,14 @@ internal class Post(
     private val scope: CoroutineScope,
     private val config: MeshLinkConfig,
     private val density: () -> DensityClass,
-    diagnose: (LinkDiagnostic) -> Unit,
+    diagnose: (DiagnosticEvent) -> Unit,
 ) : Mail {
     private val lifetimeSeconds = config.messageLifetimeSeconds
     private val profile = config.securityProfile.wireProfile
     private val secured = profile != WireProfile.UNSECURED
     private val capacity = Capacity()
     private val lanes = Lanes(config.broadcastPriority)
-    private val reading = ReadTracking { diagnose(LinkDiagnostic.ReadTrackingEvicted(it)) }
+    private val reading = ReadTracking { diagnose(DiagnosticEvent.ReadTrackingEvicted(it)) }
     private val outbox =
         Outbox(clock, scope, capacity, density, reading) { entry, retry ->
             // A large message's timed retry searches its route anew (D-58).

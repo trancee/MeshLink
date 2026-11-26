@@ -1,10 +1,12 @@
 # Emit and export cataloged diagnostics
 
-Status: ready-for-agent
+Status: split into [54a](54a-diagnostics-foundation.md), [54b](54b-common-diagnostics.md), [54c](54c-platform-diagnostics.md), [54d](54d-diagnostics-snapshot-export.md) and [54e](54e-troubleshooting-pages.md)
 Type: AFK
 Blocked by: 53
 
 ## Behavior
+
+Split (owner decision, 2026-11-26, slicing rule 4): [54a](54a-diagnostics-foundation.md) builds the public event hierarchy, privacy references, flood control and the index generator; [54b](54b-common-diagnostics.md) emits the codes whose site is in common code; [54c](54c-platform-diagnostics.md) the platform codes and `diagnostics.platformLog`; [54d](54d-diagnostics-snapshot-export.md) the snapshot and export; [54e](54e-troubleshooting-pages.md) the troubleshooting pages. They land in that order, one PR each. This ticket closes when all five are done; its acceptance criteria are the union of theirs.
 
 `diagnostics: Flow<DiagnosticEvent>` emits every v1 code of ADR 0020 at its site, with a stable `ML` code, a severity and redacted typed fields. Repeats are coalesced and the buffer is bounded. `diagnosticsSnapshot()` returns the current redacted state. `exportDiagnostics()` returns a JSON report that the app owns. `diagnostics.debug` and `diagnostics.platformLog` are config values, both off by default. One Kotlin source generates the diagnostic index in Markdown and JSON, and the troubleshooting pages list their codes by symptom.
 

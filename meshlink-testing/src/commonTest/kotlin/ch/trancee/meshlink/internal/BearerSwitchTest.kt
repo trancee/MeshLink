@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
@@ -114,7 +115,9 @@ class BearerSwitchTest {
             assertTrue(fallbacks.isNotEmpty())
             fallbacks.forEach {
                 assertEquals("ML3005", it.code)
-                assertEquals(RadioFailure.RADIO_ERROR, assertIs<LinkDiagnostic.BearerFallback>(it).reason)
+                val fallback = assertIs<DiagnosticEvent.BearerFallback>(it)
+                assertEquals(DiagnosticEvent.BearerFallback.Reason.RadioError, fallback.reason)
+                assertTrue(Regex("peer-[0-9a-f]{8}").matches(fallback.peer.toString()), fallback.peer.toString())
             }
             assertEquals(List(COUNT) { "1-$it" }, received[0])
             assertEquals(List(COUNT) { "0-$it" }, received[1])

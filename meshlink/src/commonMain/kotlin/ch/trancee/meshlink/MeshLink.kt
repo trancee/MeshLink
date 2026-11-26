@@ -5,12 +5,12 @@ package ch.trancee.meshlink
 import ch.trancee.meshlink.internal.CertificateLookups
 import ch.trancee.meshlink.internal.CryptoProvider
 import ch.trancee.meshlink.internal.Derivations
+import ch.trancee.meshlink.internal.DiagnosticsHub
 import ch.trancee.meshlink.internal.Discovery
 import ch.trancee.meshlink.internal.Handshakes
 import ch.trancee.meshlink.internal.InstallationIdentity
 import ch.trancee.meshlink.internal.LinkAdmission
 import ch.trancee.meshlink.internal.LinkCredentials
-import ch.trancee.meshlink.internal.LinkDiagnostic
 import ch.trancee.meshlink.internal.LinkPolicy
 import ch.trancee.meshlink.internal.LinkRole
 import ch.trancee.meshlink.internal.Links
@@ -31,11 +31,8 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -86,8 +83,8 @@ public class MeshLink private constructor(
             (config.density as? Density.Pinned)?.densityClass,
         )
     private val links = MutableStateFlow<Links?>(null)
-    private val diagnostics = MutableSharedFlow<LinkDiagnostic>(extraBufferCapacity = DIAGNOSTICS_BUFFER)
-    private val post = Post(crypto, port.clock, scope, config, { scanner.density }) { diagnostics.tryEmit(it) }
+    private val hub = DiagnosticsHub(scope, config.diagnostics.debug, crypto)
+    private val post = Post(crypto, port.clock, scope, config, { scanner.density }, hub::report)
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()
@@ -113,6 +110,15 @@ public class MeshLink private constructor(
     public val messages: Flow<ReceivedMessage> = post.inbox.messages
 
     /**
+     * This node's diagnostic events (ADR 0020), from the moment a collector starts, without replay; the
+     * flow completes when the node closes. Every collector gets every event. Each buffers 256 events:
+     * a collector that falls further behind loses its oldest ones and then gets
+     * [DiagnosticEvent.DiagnosticsDropped]. [DiagnosticEvent.Severity.Debug] events appear only with
+     * [DiagnosticsBuilder.debug] on.
+     */
+    public val diagnostics: Flow<DiagnosticEvent> = hub.events
+
+    /**
      * Starts the node and returns once it is [MeshState.Running] or [MeshState.Blocked]. A blocked
      * node moves to running by itself, unless it is blocked on [Requirement.IdentityUnavailable].
      * Does nothing if the node is already started, except that a node blocked on its identity tries
@@ -126,6 +132,7 @@ public class MeshLink private constructor(
         withContext(port.dispatcher) {
             lifecycle.withLock {
                 if (watcher == null) {
+                    if (mutableState.value == MeshState.Stopped) hub.begin(config.securityProfile, config.preset)
                     mutableState.value = MeshState.Starting
                     val loaded = InstallationIdentity.loadOrCreate(port.identityStore, crypto)
                     if (loaded == null) {
@@ -150,7 +157,7 @@ public class MeshLink private constructor(
     @Throws(MeshLinkException::class, CancellationException::class)
     public suspend fun stop() {
         ensureOpen(closed)
-        withContext(port.dispatcher) { lifecycle.withLock { halt() } }
+        withContext(port.dispatcher) { lifecycle.withLock { halt(DiagnosticEvent.Stopped.Reason.Requested) } }
     }
 
     /**
@@ -174,7 +181,7 @@ public class MeshLink private constructor(
                 if (current != MeshState.Stopped && current !is MeshState.Blocked) {
                     throw MeshLinkException.InvalidState(current)
                 }
-                halt()
+                halt(DiagnosticEvent.Stopped.Reason.IdentityReset)
                 port.identityStore.delete()
             }
         }
@@ -188,6 +195,7 @@ public class MeshLink private constructor(
         if (closed.compareAndSet(expect = false, update = true)) {
             scope.cancel()
             post.inbox.close()
+            hub.close()
             RadioRegistry.release(port, this)
             mutableState.value = MeshState.Stopped
         }
@@ -292,11 +300,6 @@ public class MeshLink private constructor(
             return if (session == null) emptyMap() else session.roles.value
         }
 
-    /** Typed events about link handshakes (ADR 0020); for `meshlink-testing` until the diagnostics catalog. */
-    @InternalMeshLinkApi
-    @HiddenFromObjC
-    public val linkDiagnostics: SharedFlow<LinkDiagnostic> = diagnostics.asSharedFlow()
-
     /** A secured node's certificate lookups, or `null` in `Unsecured`; for `meshlink-testing`. */
     @InternalMeshLinkApi
     @HiddenFromObjC
@@ -308,8 +311,11 @@ public class MeshLink private constructor(
     @HiddenFromObjC
     public val radioFailure: RadioFailure? get() = scanner.failure
 
-    /** Stops a started node; the caller holds [lifecycle]. A node blocked on its identity has no watcher. */
-    private suspend fun halt() {
+    /**
+     * Stops a started node for [reason]; the caller holds [lifecycle]. A node blocked on its identity has
+     * no watcher.
+     */
+    private suspend fun halt(reason: DiagnosticEvent.Stopped.Reason) {
         if (watcher == null && mutableState.value !is MeshState.Blocked) return
         mutableState.value = MeshState.Stopping
         watcher?.let {
@@ -318,6 +324,7 @@ public class MeshLink private constructor(
         }
         watcher = null
         mutableState.value = MeshState.Stopped
+        hub.report(DiagnosticEvent.Stopped(reason))
     }
 
     /**
@@ -369,12 +376,12 @@ public class MeshLink private constructor(
                             post.keys.certify(SecuredKeys(identity.nodeId, it.static, it.xWing, it.certificate))
                         }
                     }
-                    val handshakes = Handshakes(crypto, port.clock, issue(), meshKey, diagnostics, lookups::linked)
+                    val handshakes = Handshakes(crypto, port.clock, issue(), meshKey, hub, lookups::linked)
                     handshakes to suspend { post.keys.rotate { handshakes.rotate(issue()) } }
                 }
             val handshakes = secured?.first
             val policy = LinkPolicy(digest, identity.nodeId)
-            val admission = LinkAdmission(policy, handshakes, config.l2capUpgrade) { diagnostics.tryEmit(it) }
+            val admission = LinkAdmission(policy, handshakes, config.l2capUpgrade, hub)
             val session = Links(port, admission, this, post.roster, post) { scanner.density.links }
             links.value = session
             try {
@@ -406,7 +413,6 @@ public class MeshLink private constructor(
     public companion object {
         private val IDENTITY_UNAVAILABLE = MeshState.Blocked(setOf(Requirement.IdentityUnavailable))
         private val ADVERTISING_FAILED = Limitation.CentralOnly(CentralOnlyReason.AdvertisingFailed)
-        private const val DIAGNOSTICS_BUFFER = 64
 
         /** Creates a stopped node with [config] on [platform]. Doesn't touch the radio. */
         public fun create(

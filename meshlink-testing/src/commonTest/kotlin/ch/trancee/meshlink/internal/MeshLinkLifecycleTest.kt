@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshLinkException
 import ch.trancee.meshlink.MeshState
@@ -20,6 +21,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MeshLinkLifecycleTest {
@@ -243,6 +245,63 @@ class MeshLinkLifecycleTest {
             assertSame(created, platform.identityStore.loadOrCreate(NoNewKeyPairs))
         }
 
+    @Test
+    fun eachStartAndStopIsReportedAndAnUnsecuredStartWarns() =
+        runTest {
+            // Arrange
+            val node = node(platform())
+            val events = recordDiagnostics(node)
+
+            // Act
+            node.start()
+            node.start()
+            node.stop()
+            node.stop()
+            runCurrent()
+
+            // Assert
+            assertEquals(listOf("ML1001", "ML1003", "ML1002"), events.map { it.code })
+            val started = events[0] as DiagnosticEvent.Started
+            assertEquals(SecurityProfile.Unsecured to Preset.OfflineChat, started.profile to started.preset)
+            assertEquals(DiagnosticEvent.Stopped.Reason.Requested, (events[2] as DiagnosticEvent.Stopped).reason)
+        }
+
+    @Test
+    fun aSecuredStartDoesNotWarn() =
+        runTest {
+            // Arrange
+            val node =
+                MeshLink.create(
+                    meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) { meshId = "Lifecycle" }.build(),
+                    platform().meshPlatform,
+                )
+            val events = recordDiagnostics(node)
+
+            // Act
+            node.start()
+            runCurrent()
+
+            // Assert
+            assertEquals(listOf("ML1001"), events.map { it.code })
+        }
+
+    @Test
+    fun closeCompletesEveryDiagnosticsCollector() =
+        runTest {
+            // Arrange
+            val node = node(platform())
+            val unconfined = UnconfinedTestDispatcher(testScheduler)
+            val collector = backgroundScope.launch(unconfined) { node.diagnostics.toList() }
+
+            // Act
+            node.close()
+            runCurrent()
+
+            // Assert
+            assertTrue(collector.isCompleted)
+            assertEquals(emptyList(), node.diagnostics.toList())
+        }
+
     private fun TestScope.air(): VirtualAir = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1))
 
     private fun TestScope.platform(): VirtualPlatform = air().platform(StandardTestDispatcher(testScheduler))
@@ -258,6 +317,13 @@ class MeshLinkLifecycleTest {
         val states = mutableListOf<MeshState>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.state.toList(states) }
         return states
+    }
+
+    /** Every diagnostic [node] reports from now on. */
+    private fun TestScope.recordDiagnostics(node: MeshLink): List<DiagnosticEvent> {
+        val events = mutableListOf<DiagnosticEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.diagnostics.toList(events) }
+        return events
     }
 
     private companion object {

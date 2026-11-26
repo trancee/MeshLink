@@ -144,6 +144,16 @@ _Avoid_: Neighbor (that is a directly linked peer), contact
 A per-node secret, rotated daily, that a node in a gated mesh gives only to peers inside an authenticated link handshake, so those peers can recognize its advertisement identifiers across rotations.
 _Avoid_: IRK (the BLE bonding key), mesh key
 
+## Diagnostics
+
+**Diagnostic event**:
+A report a node gives about itself, named by a stable code that never changes meaning, with a severity; repeats close together arrive as one event with a count.
+_Avoid_: Log line, error (most events are not errors), telemetry (nothing leaves the device)
+
+**Peer reference**:
+How a diagnostic event names a peer: a short value that stays the same within one run of a node and changes on every start, so reports never link a phone's sessions.
+_Avoid_: Peer ID, NodeId (that is the stable identity), hash
+
 ## Testing
 
 **Sans-IO core**:

@@ -1,6 +1,6 @@
 # 0020: Diagnostics catalog
 
-Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 1.
+Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 2 (amended 2026-11-26, ticket 54a).
 
 ## Context
 
@@ -61,8 +61,8 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    - **Never in an event:** keys, payloads, routing or conversation tags, advertisement identifiers, lookup salts or certificates.
    - **Allowed:** message IDs the app already holds, and platform status numbers such as GATT 133.
 4. **Flood control.**
-   - A repeat of the same code and reference within 10 s is coalesced into one event with a count.
-   - The buffer holds 256 events and drops the oldest first, then emits `ML7001`.
+   - A repeat of the same code and reference within 10 s is coalesced into one event with a count (amended 2026-11-26).
+   - Each collector's buffer holds 256 events and drops the oldest first, then emits `ML7001` (amended 2026-11-26).
 5. **Snapshot.** `diagnosticsSnapshot()` returns the current redacted state:
    - configuration, profile and density class;
    - each link, with its bearer, PHY, MTU and role;
@@ -91,14 +91,14 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML2007 ★ | `DensityClassChanged(from, to)` | I |
    | ML3001 | `LinkOpened(peer, bearer, phy, mtu, role)` | I |
    | ML3002 | `LinkClosed(peer, reason, platformCode)` | I |
-   | ML3003 | `ConnectFailed(link, platformCode, attempt)` | W |
+   | ML3003 | `ConnectFailed(link, reason, attempt)`; `platformCode` arrives with the platform codes (amended 2026-11-26) | W |
    | ML3004 | `LinkCapReached(cap)` | D |
    | ML3005 | `BearerFallback(peer, reason)`, L2CAP CoC to GATT | I |
    | ML3006 | `GattOperationRetried(platformCode)` | D |
    | ML3007 ★ | `UnknownLinkFrameDropped(type)` | D |
    | ML3008 | `ProtocolVersionRejected(theirVersion)` | W |
    | ML3009 | `BusyReply(sent or received)` | D |
-   | ML4001 | `HandshakeFailed(link, reason)`. Reasons: timeout, decrypt, invalid or expired certificate, profile mismatch, mesh-key mismatch | W |
+   | ML4001 | `HandshakeFailed(link, reason)`. Reasons: `Timeout`, `Decrypt`, `Certificate`, `Protocol` (amended 2026-11-26) | W |
    | ML4002 ★ | `HandshakeLimitDropped(limit)` | W |
    | ML4003 | `IdentityKeyChanged(peer)` | W |
    | ML4004 | `BroadcastSignatureInvalid` | D |
@@ -111,7 +111,7 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML6002 | `CertificateLookup(peer, answered, fromCache, hops)` | D |
    | ML6003 | `CertificateLookupUnanswered(peer, attempts)` | W |
    | ML6004 | `InvalidCertificateReply` | D |
-   | ML7001 ★ | `DiagnosticsDropped(count)` | W |
+   | ML7001 ★ | `DiagnosticsDropped(dropped)` (amended 2026-11-26) | W |
    | ML7002 ★ | `ReadTrackingEvicted(messageId)` | I |
    | ML7003 | `InboxFull` | W |
    | ML7004 | `ReassemblyBudgetExhausted` | D |
@@ -123,6 +123,22 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
 8. **Troubleshooting.**
    - `docs/how-to/troubleshoot-peers-not-found.md`, `troubleshoot-messages-not-delivered.md` and `troubleshoot-high-battery-use.md` link to these codes.
    - The pages are written together with the code, and their entries are generated per ADR 0006.
+
+## Amendments
+
+2026-11-26, first implementation (ticket 54a; user decisions on the ticket's four questions):
+
+- **Context:** the first eleven codes are implemented, and four fields of decision 7 did not fit the code as written.
+- **Decision:**
+  - **Reasons are public enums** nested in their event, such as `HandshakeFailed.Reason`, so apps branch on them exhaustively and a new reason is visible in the API dump.
+  - **`HandshakeFailed` reasons** are `Timeout`, `Decrypt`, `Certificate` and `Protocol`: the failures a handshake can tell apart. Another profile, mesh ID or mesh key fails to decrypt, so all three are `Decrypt`, and the KDoc says so.
+  - **`ConnectFailed` keeps `reason`**, MeshLink's own classification of the platform failure, until the platform-codes ticket adds `platformCode` beside it.
+  - **`DiagnosticsDropped(dropped)`:** every event already has `count` for coalesced repeats, so the number of lost events is `dropped`.
+  - **Flood control, made precise:**
+    - The first event of a code and reference is emitted at once with count 1. Repeats within the next 10 s are counted, and at the end of the window the latest repeat is emitted with the number of repeats, if there were any.
+    - An event about neither a peer nor a link coalesces by its code alone.
+    - `diagnostics` is a hot flow without replay. Each collector has its own 256-event buffer, so a slow collector loses only its own events, and the flow completes on `close()`.
+- **Status:** decisions 4 and 7 are updated to match; the generated index is [`docs/reference/diagnostics.md`](../reference/diagnostics.md).
 
 ## Alternatives
 

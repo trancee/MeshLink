@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
@@ -274,7 +275,7 @@ class UnsecuredLinkTest {
             val peer = node.peers.value.single()
             assertContentEquals(FAKE_ID, peer.nodeId.toByteArray())
             assertTrue(peer.lastSeen > linkedAt)
-            val dropped = diagnostics.map { assertIs<LinkDiagnostic.UnknownLinkFrameDropped>(it).type }
+            val dropped = diagnostics.map { assertIs<DiagnosticEvent.UnknownLinkFrameDropped>(it).type }
             assertEquals(listOf(UNKNOWN_LINK_LOCAL), dropped)
             assertTrue(
                 alice.radio.ends
@@ -306,7 +307,7 @@ class UnsecuredLinkTest {
             advanceTimeBy(SETTLE_MILLIS)
 
             // Assert
-            val dropped = diagnostics.map { assertIs<LinkDiagnostic.UnknownLinkFrameDropped>(it) }
+            val dropped = diagnostics.map { assertIs<DiagnosticEvent.UnknownLinkFrameDropped>(it) }
             assertEquals(listOf("ML3007" to REKEY), dropped.map { it.code to it.type })
             assertEquals(listOf(PAYLOADS[0].toList()), received.map { it.payload.toList() })
             assertTrue(
