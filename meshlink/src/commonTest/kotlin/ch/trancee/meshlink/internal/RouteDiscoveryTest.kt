@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,7 +29,7 @@ class RouteDiscoveryTest {
             Routes(),
             ::sevens,
             endpoint,
-            Handoff(Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment) {}),
+            Handoff(Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment, holds = true) {}),
         )
 
     private fun sevens(size: Int) = ByteArray(size) { 7 }
@@ -69,7 +70,7 @@ class RouteDiscoveryTest {
         id: Int,
         tag: ByteArray,
         search: Boolean = false,
-        density: DensityClass = DensityClass.MEDIUM,
+        density: DensityClass = DensityClass.Medium,
         origin: ByteArray? = OWN,
     ) = originate(tag, origin, Reach.of(density), search) { hopLimit ->
         Parcel(messageId(id), relayed = false, { byteArrayOf(hopLimit.toByte(), 0, 0) }) {}
@@ -333,7 +334,7 @@ class RouteDiscoveryTest {
 
             // Act
             val hops = router.send(1, TARGET, search = true)
-            val lows = router.send(2, ORIGIN, density = DensityClass.LOW)
+            val lows = router.send(2, ORIGIN, density = DensityClass.Low)
 
             // Assert
             assertNull(hops)
@@ -425,7 +426,7 @@ class RouteDiscoveryTest {
             val clock = SchedulerClock(testScheduler)
             val lookups =
                 Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, lanes) {
-                    DensityClass.MEDIUM
+                    DensityClass.Medium
                 }
             val receipts = Receipts<Reply>(clock, backgroundScope, { _, _, _ -> }, { _, _ -> }, reads())
             val end = SecuredEnd(SodiumCryptoProvider, clock, Inbox(), lookups, receipts, SecuredHooks({}, {}, {}) {})

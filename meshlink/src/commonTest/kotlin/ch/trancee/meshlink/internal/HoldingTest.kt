@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 
 // The bounds and eviction order of holding for others (spec "Holding"), at wall-clock second NOW.
 class HoldingTest {
-    private val holding = Holding()
+    private val holding = Holding(enabled = true)
     private val a = nodeId(1)
     private val b = nodeId(2)
     private val c = nodeId(3)

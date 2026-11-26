@@ -1,0 +1,13 @@
+PROTO cell seed variant | uni ok p50 p95 | honest-bc cover p50 p95 | attack cover | wall
+PROTO low 1 fifo-busy | members=24 | 473/719 16406 146681 | 0.804 5297 67333 | 0.000 | 16s
+PROTO low 1 prio-busy | members=24 | 515/719 17422 138998 | 0.957 4425 73413 | 0.000 | 14s
+PROTO low 2 fifo-busy | members=26 | 382/719 38755 167403 | 0.495 48000 129544 | 0.000 | 11s
+PROTO low 2 prio-busy | members=26 | 362/719 34313 138749 | 0.850 4046 35494 | 0.000 | 11s
+PROTO low 3 fifo-busy | members=16 | 435/719 27996 171538 | 0.375 8065 61803 | 0.000 | 6s
+PROTO low 3 prio-busy | members=16 | 471/719 24216 146127 | 0.533 4222 19992 | 0.000 | 6s
+PROTO medium 1 fifo-busy | members=30 | 719/719 1707 4271 | 1.000 193 1113 | 0.000 | 10s
+PROTO medium 1 prio-busy | members=30 | 719/719 1665 3981 | 1.000 192 743 | 0.000 | 9s
+PROTO medium 2 fifo-busy | members=30 | 719/719 2719 12295 | 1.000 432 2302 | 0.000 | 12s
+PROTO medium 2 prio-busy | members=30 | 719/719 2945 15419 | 1.000 617 2844 | 0.000 | 12s
+PROTO medium 3 fifo-busy | members=30 | 719/719 2465 8782 | 1.000 461 1569 | 0.000 | 12s
+PROTO medium 3 prio-busy | members=30 | 719/719 2712 10834 | 1.000 432 1355 | 0.000 | 13s

@@ -32,10 +32,11 @@ internal class Floods(
     private val codec: BroadcastCodec,
     private val tree: Plumtree,
     commitment: (k: ByteArray) -> ByteArray,
+    holds: Boolean,
     private val deliver: (ReceivedMessage) -> Unit,
 ) {
-    /** The frames this node holds for others (spec "Holding"). */
-    val holding: Holding = Holding()
+    /** The frames this node holds for others (spec "Holding"); none while `holds` is false. */
+    val holding: Holding = Holding(holds)
 
     /**
      * The tombstones kept (spec "Tombstones"); they open [holding]'s `MESSAGE` commitments with the `commitment`
@@ -180,7 +181,8 @@ internal class Floods(
         val hopLimit = header.hopLimit - 1
         if (hopLimit < 1) return
         val bytes = FloodFrame(frame.type, FloodHeader(hopLimit, header.messageId, header.expiry), frame.body).encode()
-        val parcel = Parcel(header.messageId, relayed = true, { bytes }) {}
+        val kind = if (frame.type == BroadcastFrame.TYPE) Parcel.Kind.BROADCAST else Parcel.Kind.OTHER
+        val parcel = Parcel(header.messageId, relayed = true, { bytes }, kind = kind) {}
         if (frame.type == BroadcastFrame.TYPE) {
             tree.spread(peer, parcel, header.expiry.toLong())
             val copy = HeldFrame(peer, header.messageId, null, header.expiry.toLong(), bytes)

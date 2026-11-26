@@ -1,53 +1,7 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
-
-/** A node's local density class (ADR 0008 decision 2) and the link budget d it sets (decision 1). */
-internal enum class DensityClass(
-    val links: Int,
-) {
-    LOW(LOW_LINKS),
-    MEDIUM(DENSE_LINKS),
-    HIGH(DENSE_LINKS),
-}
-
-private const val LOW_LINKS = 6
-private const val DENSE_LINKS = 5
-
-/**
- * How long a central rests between its scan windows in each density class (ADR 0008, scan
- * schedule); every window lasts [ON_MILLIS]. `Responsive` rests 2.5 s at low, not 2 s, so that scan
- * starts stay 6.5 s apart (library rule R11).
- */
-internal enum class ScanPolicy(
-    private val low: Long,
-    private val medium: Long,
-    private val high: Long,
-) {
-    BALANCED(BALANCED_LOW_OFF, BALANCED_MEDIUM_OFF, BALANCED_HIGH_OFF),
-    RESPONSIVE(RESPONSIVE_LOW_OFF, RESPONSIVE_MEDIUM_OFF, RESPONSIVE_HIGH_OFF),
-    ;
-
-    /** How long a central of class [density] rests after a scan window. */
-    fun offMillis(density: DensityClass): Long =
-        when (density) {
-            DensityClass.LOW -> low
-            DensityClass.MEDIUM -> medium
-            DensityClass.HIGH -> high
-        }
-
-    companion object {
-        /** How long each scan window lasts, in every class and policy. */
-        const val ON_MILLIS: Long = 4_000
-    }
-}
-
-private const val BALANCED_LOW_OFF = 4_000L
-private const val BALANCED_MEDIUM_OFF = 12_000L
-private const val BALANCED_HIGH_OFF = 16_000L
-private const val RESPONSIVE_LOW_OFF = 2_500L
-private const val RESPONSIVE_MEDIUM_OFF = 8_000L
-private const val RESPONSIVE_HIGH_OFF = 12_000L
 
 /**
  * A node's density class from its estimates of local density (ADR 0008 decision 2), or always
@@ -60,8 +14,8 @@ internal class DensityClassifier(
     private val clock: Clock,
     private val pinned: DensityClass?,
 ) {
-    /** The class; [DensityClass.LOW] until the first estimate. */
-    var current: DensityClass = pinned ?: DensityClass.LOW
+    /** The class; [DensityClass.Low] until the first estimate. */
+    var current: DensityClass = pinned ?: DensityClass.Low
         private set
 
     // When the class was last set, or null before the first estimate.
@@ -87,9 +41,9 @@ internal class DensityClassifier(
 
     private fun bounded(estimate: Double): DensityClass =
         when {
-            estimate < MEDIUM_BOUND -> DensityClass.LOW
-            estimate <= HIGH_BOUND -> DensityClass.MEDIUM
-            else -> DensityClass.HIGH
+            estimate < MEDIUM_BOUND -> DensityClass.Low
+            estimate <= HIGH_BOUND -> DensityClass.Medium
+            else -> DensityClass.High
         }
 
     // The class the up thresholds reach if above the current one, else the one the down thresholds
@@ -97,15 +51,15 @@ internal class DensityClassifier(
     private fun switched(estimate: Double): DensityClass {
         val up =
             when {
-                estimate >= HIGH_UP -> DensityClass.HIGH
-                estimate >= MEDIUM_UP -> DensityClass.MEDIUM
-                else -> DensityClass.LOW
+                estimate >= HIGH_UP -> DensityClass.High
+                estimate >= MEDIUM_UP -> DensityClass.Medium
+                else -> DensityClass.Low
             }
         val down =
             when {
-                estimate < LOW_DOWN -> DensityClass.LOW
-                estimate < MEDIUM_DOWN -> DensityClass.MEDIUM
-                else -> DensityClass.HIGH
+                estimate < LOW_DOWN -> DensityClass.Low
+                estimate < MEDIUM_DOWN -> DensityClass.Medium
+                else -> DensityClass.High
             }
         return when {
             up > current -> up

@@ -74,6 +74,32 @@ tasks.register<ch.trancee.meshlink.buildlogic.CheckNativeSymbols>("checkFramewor
     report.set(layout.buildDirectory.file("reports/native/framework-symbols.txt"))
 }
 
+// ADR 0006 decision 3: ConfigReferenceTest generates docs/reference/configuration.md and presets.md from the
+// Kotlin source. In testAndroidHostTest it fails when a committed page differs; updateReference rewrites them.
+val repositoryRoot: String = rootDir.path
+val referencePages = rootProject.layout.projectDirectory.dir("docs/reference")
+tasks.withType<Test>().matching { it.name == "testAndroidHostTest" }.configureEach {
+    systemProperty("reference.root", repositoryRoot)
+    // The pages come from KDoc, which the compiled classes don't carry.
+    inputs.dir(layout.projectDirectory.dir("src/commonMain/kotlin")).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs
+        .files(referencePages.file("configuration.md"), referencePages.file("presets.md"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+tasks.register<Test>("updateReference") {
+    val hostTests = tasks.named<Test>("testAndroidHostTest").get()
+    group = "documentation"
+    description = "Rewrites docs/reference/configuration.md and presets.md from the Kotlin source."
+    // The collections, not the task's providers, so the stale-page check doesn't run first and fail.
+    testClassesDirs = hostTests.testClassesDirs
+    classpath = hostTests.classpath
+    useJUnit()
+    filter { includeTestsMatching("*ConfigReferenceTest") }
+    systemProperty("reference.root", repositoryRoot)
+    systemProperty("reference.update", "true")
+    outputs.upToDateWhen { false }
+}
+
 skie {
     analytics {
         disableUpload.set(true)

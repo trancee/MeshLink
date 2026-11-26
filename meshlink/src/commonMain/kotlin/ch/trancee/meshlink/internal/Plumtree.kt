@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -46,7 +47,7 @@ internal class Plumtree(
         held -= key
         held[key] = Held(parcel, minOf(clock.wallClockMillis() + HOLD_MILLIS, expiry * MILLIS_PER_SECOND))
         if (held.size > HELD_MAX) held -= held.keys.first()
-        val flooding = density() == DensityClass.LOW
+        val flooding = density() == DensityClass.Low
         val ihave = LinkFrame.Ihave(listOf(parcel.messageId)).encode()
         val announcement = Parcel(ihave, relayed = true, { ihave }) {}
         lanes.peers.filter { it != from }.forEach { peer ->
@@ -67,7 +68,7 @@ internal class Plumtree(
 
     /** A broadcast this node has seen came again from [peer]: an eager link answers with `PRUNE`, unless low. */
     fun duplicate(peer: NodeId) {
-        if (density() == DensityClass.LOW || peer in lazy) return
+        if (density() == DensityClass.Low || peer in lazy) return
         if (lanes.put(peer, Parcel(PRUNE, relayed = false, { PRUNE }) {})) lazy += peer
     }
 

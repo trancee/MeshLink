@@ -1,6 +1,8 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
+import ch.trancee.meshlink.Power
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +26,7 @@ import kotlinx.coroutines.launch
  * announce it to linked peers before (spec "Neighbor list"). A candidate whose mesh tag left the
  * accepted epochs is dropped with the next sighting.
  *
- * A central scans in windows of [ScanPolicy.ON_MILLIS] and stops scanning whenever the run ends. At
+ * A central scans in windows of [Scanner.ON_MILLIS] and stops scanning whenever the run ends. At
  * the end of each window it estimates its local density from the sightings of the last 10 s and its
  * links, classifies it, or keeps [pinned], and rests as long as [policy] sets for its [density]
  * class (ADR 0008 decisions 2 and 3). Each run starts in the low class.
@@ -44,7 +46,7 @@ internal class Scanner(
     private val clock: Clock,
     private val random: RandomSource,
     private val discovery: Discovery,
-    private val policy: ScanPolicy = ScanPolicy.BALANCED,
+    private val policy: Power = Power.Balanced,
     private val pinned: DensityClass? = null,
 ) {
     private var estimator = DensityEstimator(clock)
@@ -184,14 +186,14 @@ internal class Scanner(
         }
 
     /**
-     * Ends the scan window [run] started after [ScanPolicy.ON_MILLIS], classifies the node's density,
+     * Ends the scan window [run] started after [Scanner.ON_MILLIS], classifies the node's density,
      * rests as long as [policy] sets for its class and scans again for as long, and so on; emits a
      * [RadioEvent.Failed] if the radio refuses a start. Counts the links [recognition] knows.
      */
     private fun windows(recognition: Recognition): Flow<RadioEvent> =
         flow {
             while (true) {
-                delay(ScanPolicy.ON_MILLIS)
+                delay(Scanner.ON_MILLIS)
                 radio.stopScanning()
                 val estimate =
                     estimator.estimate(recognition.links()) { identifier, epoch ->
@@ -328,18 +330,21 @@ internal class Scanner(
         return Derivations.epoch(seconds)
     }
 
-    private companion object {
+    companion object {
+        /** How long each scan window lasts, in every class and [Power]. */
+        const val ON_MILLIS: Long = 4_000
+
         /** How long a stale address stays stale without a sighting (ticket 32, Q4). */
-        const val STALE_FORGET_MILLIS = 600_000L
+        private const val STALE_FORGET_MILLIS = 600_000L
 
         /** How long a candidate may go unheard and keep when it was first heard (bridge rule). */
-        const val GAP_MILLIS = 60_000L
+        private const val GAP_MILLIS = 60_000L
 
         /** How far each sighting moves a candidate's smoothed signal toward its own, as in [Proximities]. */
-        const val RSSI_ALPHA = 0.25
+        private const val RSSI_ALPHA = 0.25
 
-        const val MILLIS_PER_SECOND = 1_000
-        const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * MILLIS_PER_SECOND.toLong()
+        private const val MILLIS_PER_SECOND = 1_000
+        private const val EPOCH_MILLIS = Derivations.EPOCH_SECONDS * MILLIS_PER_SECOND.toLong()
     }
 }
 

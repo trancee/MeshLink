@@ -67,7 +67,7 @@ class BearerSwitchTest {
         }
 
     @Test
-    fun aCocNodeLinksOverGattWithANodeWithCocOffOrARadioWithoutCoc() =
+    fun aCocNodeLinksOverGattWithANodeWithL2capUpgradeOffOrARadioWithoutCoc() =
         runTest {
             // Arrange
             val air = air()
@@ -77,7 +77,7 @@ class BearerSwitchTest {
                     air.platform(StandardTestDispatcher(testScheduler), coc = true),
                     air.platform(StandardTestDispatcher(testScheduler)),
                 )
-            val nodes = platforms.map { node(it) }.also { it[1].coc = false }
+            val nodes = platforms.mapIndexed { index, platform -> node(platform) { l2capUpgrade = index != 1 } }
             val diagnostics = nodes.flatMap { diagnostics(it) }
 
             // Act

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
  *   no other node relays or holds it (ADR 0013 decision 8). Until such a link forms the message waits as
  *   [DeliveryStatus.Held], and it expires if none forms. Its statuses and receipt are those of any message.
  * @property readReceipt whether the message asks its recipient for a read receipt (ADR 0013 decision 10);
- *   [ReadReceiptRequest.Default] follows [MeshLinkConfig.readReceiptsRequestByDefault].
+ *   [ReadReceiptRequest.Default] follows [ReadReceiptsBuilder.requestByDefault].
  */
 public class SendOptions(
     public val directOnly: Boolean = false,
@@ -70,6 +70,9 @@ public enum class RejectionReason {
 
     /** The hop limit [MeshLink.broadcast] was given is not 1 to 255. */
     InvalidHopLimit,
+
+    /** This node's config turns [PresetSettings.broadcastOrigination] off, so [MeshLink.broadcast] sends nothing. */
+    BroadcastDisabled,
 }
 
 /** A message [MeshLink.send] or [MeshLink.broadcast] accepted. */
@@ -158,7 +161,7 @@ public class ReceivedMessage internal constructor(
     public val broadcast: Boolean,
     /**
      * Whether the sender asked for a read receipt ([SendOptions.readReceipt]); [markRead] sends one only
-     * if this node also allows them ([MeshLinkConfig.readReceiptsSend]). Never for a broadcast.
+     * if this node also allows them ([ReadReceiptsBuilder.send]). Never for a broadcast.
      */
     public val readReceiptRequested: Boolean = false,
     // Sends the read receipt; null if none may go.

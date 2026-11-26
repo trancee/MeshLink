@@ -59,6 +59,7 @@ internal class Broadcasts(
         val reason =
             when {
                 !accepting(state) -> RejectionReason.NotRunning
+                !config.broadcastOrigination -> RejectionReason.BroadcastDisabled
                 hopLimit !in 1..Router.HOP_LIMIT_MAX -> RejectionReason.InvalidHopLimit
                 payload.size > config.limits.maxBroadcastPayload -> RejectionReason.TooLarge
                 !capacity.reserve(payload.size) -> RejectionReason.QueueFull
@@ -84,7 +85,7 @@ internal class Broadcasts(
         val frame = codec.write(hopLimit, expiry, payload)
         val bytes = frame.encode()
         val parcel =
-            Parcel(frame.header.messageId, relayed = false, { bytes }) {
+            Parcel(frame.header.messageId, relayed = false, { bytes }, kind = Parcel.Kind.BROADCAST) {
                 if (it == Settled.SENT && status.value == DeliveryStatus.Queued) status.value = DeliveryStatus.Sent
             }
         var ended: DeliveryStatus = DeliveryStatus.Failed(FailureReason.Stopped)

@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.Power
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -21,7 +23,7 @@ class ScannerScheduleTest {
     fun eachPolicyScansFourSecondsAndRestsPerClass() =
         runTest {
             // Arrange
-            val cases = ScanPolicy.entries.flatMap { policy -> DensityClass.entries.map { policy to it } }
+            val cases = Power.entries.flatMap { policy -> DensityClass.entries.map { policy to it } }
 
             // Act
             val schedules = cases.map { (policy, density) -> schedule(Rig(this, policy, density)) { _, _ -> } }
@@ -87,7 +89,7 @@ class ScannerScheduleTest {
     /** A central scanner with [policy] and [pinned] on a fake CoreBluetooth, on [scope]'s clock. */
     private inner class Rig(
         scope: TestScope,
-        policy: ScanPolicy = ScanPolicy.BALANCED,
+        policy: Power = Power.Balanced,
         pinned: DensityClass? = null,
     ) {
         val bluetooth = FakeCoreBluetooth()

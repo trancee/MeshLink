@@ -6,7 +6,6 @@ import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshLinkConfigBuilder
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.NodeId
-import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendOptions
@@ -112,7 +111,7 @@ internal class SecuredLine(
         index: Int,
     ): MeshLink {
         val config =
-            meshLinkConfig(Preset.ProximityDiscovery, profile) {
+            meshLinkConfig(LINE_PRESET, profile) {
                 this.meshId = meshId
                 configure(index)
             }.build()

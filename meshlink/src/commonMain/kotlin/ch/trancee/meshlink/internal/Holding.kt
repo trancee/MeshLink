@@ -6,9 +6,12 @@ import ch.trancee.meshlink.NodeId
  * The frames a relay holds for others (spec "Holding"): small unicasts toward an absent destination
  * and broadcasts, at most [MESSAGES_MAX] and [BYTES_MAX] together, each incoming link at most a
  * [LINK_SHARE_DIVISOR]th of either. A frame is live until its expiry; times are wall-clock
- * milliseconds. Runs on the node's serial dispatcher.
+ * milliseconds. A node with holding off ([enabled] `false`, ADR 0011 decision 8) holds nothing. Runs on the
+ * node's serial dispatcher.
  */
-internal class Holding {
+internal class Holding(
+    private val enabled: Boolean,
+) {
     private val frames = LinkedHashMap<String, HeldFrame>()
 
     /**
@@ -23,7 +26,7 @@ internal class Holding {
     ): Boolean {
         purge(nowMillis)
         val key = frame.messageId.toHexString()
-        val admitted = admits(frame, hopLimit, nowMillis) && key !in frames
+        val admitted = enabled && admits(frame, hopLimit, nowMillis) && key !in frames
         val victims = if (admitted) Eviction(frames.values).victims(frame) else null
         victims?.forEach { frames -= it.messageId.toHexString() }
         victims?.let { frames[key] = frame }
@@ -181,7 +184,15 @@ internal class HeldFrame(
     fun liveAt(nowMillis: Long): Boolean = nowMillis < expiry * MILLIS_PER_SECOND
 
     /** The frame to write again, unchanged. */
-    fun parcel(): Parcel = Parcel(messageId, relayed = true, { bytes }) {}
+    fun parcel(): Parcel = Parcel(messageId, relayed = true, { bytes }, kind = kind) {}
+
+    private val kind: Parcel.Kind
+        get() =
+            when {
+                destinationTag == null -> Parcel.Kind.BROADCAST
+                commitment != null -> Parcel.Kind.MESSAGE
+                else -> Parcel.Kind.OTHER
+            }
 
     /** The frame to send to [peer], who asked for it with `GRAFT`. */
     fun takenBy(peer: NodeId): Parcel {

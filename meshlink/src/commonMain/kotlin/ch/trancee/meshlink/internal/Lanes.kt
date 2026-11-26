@@ -11,10 +11,15 @@ import kotlinx.coroutines.flow.first
  * longer wanted when its turn comes is skipped, and the frame taken for each peer is being written
  * until its write settles.
  *
+ * With [broadcastPriority], a new `BROADCAST` goes ahead of the waiting `MESSAGE` frames, behind the
+ * other frames waiting; each waiting `MESSAGE` lets at most [OVERTAKES_MAX] broadcasts ahead of it.
+ *
  * Runs on the node's serial dispatcher.
  */
-internal class Lanes {
-    private val byPeer = mutableMapOf<NodeId, ArrayDeque<Parcel>>()
+internal class Lanes(
+    private val broadcastPriority: Boolean = false,
+) {
+    private val byPeer = mutableMapOf<NodeId, ArrayDeque<Slot>>()
     private val changes = MutableStateFlow(0L)
     private val taken = mutableMapOf<NodeId, ByteArray>()
 
@@ -38,15 +43,31 @@ internal class Lanes {
         parcel: Parcel,
     ): Boolean {
         val lane = byPeer[peer] ?: return false
-        val at = lane.indexOfFirst { it.messageId.contentEquals(parcel.messageId) }
+        val at = lane.indexOfFirst { it.parcel.messageId.contentEquals(parcel.messageId) }
         val took =
             when {
-                at >= 0 -> true.also { lane[at] = parcel }
-                !parcel.relayed || lane.count { it.relayed } < CAPACITY -> lane.add(parcel)
+                at >= 0 -> true.also { lane[at] = Slot(parcel, lane[at].overtaken) }
+                !parcel.relayed || lane.count { it.parcel.relayed } < CAPACITY -> true.also { lane.queue(parcel) }
                 else -> false
             }
         if (took) changes.value++
         return took
+    }
+
+    private fun ArrayDeque<Slot>.queue(parcel: Parcel) {
+        val ahead =
+            if (broadcastPriority && parcel.kind == Parcel.Kind.BROADCAST) {
+                val open = indexOfLast { it.waiting && it.overtaken >= OVERTAKES_MAX } + 1
+                (open until size).firstOrNull { this[it].waiting }
+            } else {
+                null
+            }
+        if (ahead == null) {
+            add(Slot(parcel))
+        } else {
+            add(ahead, Slot(parcel))
+            for (index in ahead + 1 until size) this[index].overtaken++
+        }
     }
 
     /** Puts [parcel], whose write failed, back at the front of [peer]'s lane if it is open. */
@@ -54,7 +75,7 @@ internal class Lanes {
         peer: NodeId,
         parcel: Parcel,
     ) {
-        byPeer[peer]?.addFirst(parcel) ?: return
+        byPeer[peer]?.addFirst(Slot(parcel)) ?: return
         changes.value++
     }
 
@@ -64,7 +85,7 @@ internal class Lanes {
             val seen = changes.value
             val lane = byPeer[peer]
             while (lane != null && lane.isNotEmpty()) {
-                val parcel = lane.removeFirst()
+                val parcel = lane.removeFirst().parcel
                 if (parcel.wanted()) return parcel.also { taken[peer] = it.messageId }
             }
             changes.first { it != seen }
@@ -82,18 +103,42 @@ internal class Lanes {
     companion object {
         /** The most relayed frames one lane holds. */
         const val CAPACITY: Int = 32
+
+        /** The most broadcasts a waiting `MESSAGE` lets ahead of it under broadcast priority. */
+        const val OVERTAKES_MAX: Int = 3
+    }
+
+    // A parcel in a lane, with the broadcasts let ahead of it there.
+    private class Slot(
+        val parcel: Parcel,
+        var overtaken: Int = 0,
+    ) {
+        val waiting: Boolean get() = parcel.kind == Parcel.Kind.MESSAGE
     }
 }
 
 /**
- * A frame waiting in a lane: another node's frame if [relayed], else this node's; [render] makes its
- * bytes at write time, unless [wanted] says it is no longer needed, and [settle] hears how the write
- * ended.
+ * A frame waiting in a lane: another node's frame if [relayed], else this node's, of [kind]; [render]
+ * makes its bytes at write time, unless [wanted] says it is no longer needed, and [settle] hears how
+ * the write ended.
  */
 internal class Parcel(
     val messageId: ByteArray,
     val relayed: Boolean,
     val render: () -> ByteArray,
     val wanted: () -> Boolean = { true },
+    val kind: Kind = Kind.OTHER,
     val settle: (Settled) -> Unit,
-)
+) {
+    /** What a lane's broadcast priority sees of a frame. */
+    enum class Kind {
+        /** A `BROADCAST` frame. */
+        BROADCAST,
+
+        /** A `MESSAGE` frame. */
+        MESSAGE,
+
+        /** Any other frame. */
+        OTHER,
+    }
+}

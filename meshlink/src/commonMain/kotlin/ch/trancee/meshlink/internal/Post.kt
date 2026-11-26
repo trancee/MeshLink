@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.MeshLinkConfig
 import ch.trancee.meshlink.MeshState
@@ -104,7 +105,7 @@ internal class Post(
     private val profile = config.securityProfile.wireProfile
     private val secured = profile != WireProfile.UNSECURED
     private val capacity = Capacity()
-    private val lanes = Lanes()
+    private val lanes = Lanes(config.broadcastPriority)
     private val reading = ReadTracking { diagnose(LinkDiagnostic.ReadTrackingEvicted(it)) }
     private val outbox =
         Outbox(clock, scope, capacity, density, reading) { entry, retry ->
@@ -179,7 +180,13 @@ internal class Post(
     private val end: Origin = if (secured) securedEnd else unsecuredEnd
     private val codec = BroadcastCodec(crypto, secured)
     private val floods =
-        Floods(lanes, codec, Plumtree(lanes, clock, scope, density), Derivations(crypto)::tombstoneCommitment) {
+        Floods(
+            lanes,
+            codec,
+            Plumtree(lanes, clock, scope, density),
+            Derivations(crypto)::tombstoneCommitment,
+            config.holding,
+        ) {
             inbox.offer(it)
         }
     private val router: Router = Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups))
@@ -244,14 +251,18 @@ internal class Post(
         val readReceipt =
             when (options.readReceipt) {
                 ReadReceiptRequest.Default -> {
-                    if (config.reading.requestByDefault) ReadReceiptRequest.Request else ReadReceiptRequest.DoNotRequest
+                    if (config.readReceipts.requestByDefault) {
+                        ReadReceiptRequest.Request
+                    } else {
+                        ReadReceiptRequest.DoNotRequest
+                    }
                 }
 
                 else -> {
                     options.readReceipt
                 }
             }
-        val resolved = SendOptions(options.directOnly, readReceipt)
+        val resolved = SendOptions(options.directOnly || !config.routedUnicast, readReceipt)
         val add = {
             routed.sending(to)
             outbox.add(Outbox.Entry(to, bytes, expiry, status, deadline, resolved))
@@ -348,7 +359,7 @@ private class Origins(
         resend: () -> Unit,
     ) {
         val parcel = { hopLimit: Int ->
-            Parcel(sealed.messageId, relayed = false, { end.frame(sealed, hopLimit) }, { !entry.quiet }) {
+            Parcel(sealed.messageId, false, { end.frame(sealed, hopLimit) }, { !entry.quiet }, Parcel.Kind.MESSAGE) {
                 if (it == Settled.SENT) entry.sent()
             }
         }
@@ -423,7 +434,7 @@ private class ReceiptPost(
 
     /** This node's read receipts, each of which [send] sends to its node for its messages with its expiry. */
     fun reads(send: (to: NodeId, messageIds: List<ByteArray>, expiry: UInt) -> Unit): Reads =
-        Reads(scope, config.reading.send, { to, ids -> send(to, ids, expiry()) }) { from, ids ->
+        Reads(scope, config.readReceipts.send, { to, ids -> send(to, ids, expiry()) }) { from, ids ->
             outbox.delivered(from, ids, read = true)
         }
 
@@ -444,7 +455,7 @@ private class Releases(
     // floods small messages, only the large ones.
     fun found(tag: ByteArray) {
         routed.update()
-        val low = density() == DensityClass.LOW
+        val low = density() == DensityClass.Low
         outbox.found(FLUSH_GAP_MILLIS) { entry ->
             (entry.large || !low) && entry.draft?.let { destination(it).contentEquals(tag) } == true
         }

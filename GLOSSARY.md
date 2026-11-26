@@ -82,6 +82,10 @@ _Avoid_: Delivery receipt, seen
 A message addressed to every node within a bounded number of hops rather than to one destination.
 _Avoid_: Flood (that names a forwarding technique), multicast, group message
 
+**Broadcast priority**:
+A node's choice to send mesh broadcasts, its own and those it relays, before the unicast messages waiting on the same link, within a bound so that unicast still gets through. It changes only the order of that node's sending.
+_Avoid_: Emergency mode, broadcast first, QoS
+
 **Store-and-forward**:
 Holding a message for a destination that is currently unreachable and forwarding it when a route appears, within a bounded lifetime and storage quota.
 _Avoid_: Caching, offline queue

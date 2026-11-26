@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,7 +42,7 @@ class LookupsTest {
     private fun TestScope.node(
         seed: Int,
         profile: WireProfile = WireProfile.CLASSICAL,
-        density: DensityClass = DensityClass.MEDIUM,
+        density: DensityClass = DensityClass.Medium,
     ): Node {
         val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
         val lookups = Lookups(crypto, clock(), backgroundScope, profile, lanes) { density }
@@ -103,7 +104,7 @@ class LookupsTest {
             requester.lookups.find(NodeId(target), deadline())
             runCurrent()
             val first = listOf(a, b, c).map { requester.lanes.requests(it).single() }
-            advanceTimeBy(Outbox.retryMillis(DensityClass.MEDIUM, 0) - 1)
+            advanceTimeBy(Outbox.retryMillis(DensityClass.Medium, 0) - 1)
             val early = requester.lanes.frames(a)
             advanceTimeBy(1)
             runCurrent()
@@ -152,7 +153,7 @@ class LookupsTest {
             requester.lanes.drain(a)
 
             // Act
-            advanceTimeBy(Outbox.retryMillis(DensityClass.MEDIUM, 0))
+            advanceTimeBy(Outbox.retryMillis(DensityClass.Medium, 0))
             val after = requester.lanes.frames(a)
             requester.lookups.find(target, deadline())
             runCurrent()
@@ -167,7 +168,7 @@ class LookupsTest {
         runTest {
             // Arrange
             val lanes = Lanes().apply { open(a) }
-            val idle = Lookups(crypto, clock(), backgroundScope, WireProfile.CLASSICAL, lanes) { DensityClass.LOW }
+            val idle = Lookups(crypto, clock(), backgroundScope, WireProfile.CLASSICAL, lanes) { DensityClass.Low }
             val requester = node(1)
             requester.lookups.linked(NodeId(derivations.nodeId(identityKey(9).publicKey)), certificate(9))
 
@@ -315,7 +316,7 @@ class LookupsTest {
             // Act
             val first = requester.lookups.replied(reply)
             val later = requester.lookups.replied(reply)
-            advanceTimeBy(Outbox.retryMillis(DensityClass.MEDIUM, 0))
+            advanceTimeBy(Outbox.retryMillis(DensityClass.Medium, 0))
 
             // Assert
             assertTrue(first)
@@ -378,7 +379,7 @@ class LookupsTest {
             val requester = node(1)
             val responder = node(2)
             val reply = answered(requester, responder, responder.nodeId)
-            advanceTimeBy(Outbox.retryMillis(DensityClass.MEDIUM, 0))
+            advanceTimeBy(Outbox.retryMillis(DensityClass.Medium, 0))
 
             // Act
             val taken = requester.lookups.replied(reply)
@@ -469,7 +470,7 @@ class LookupsTest {
 
             // Act
             requester.lookups.end()
-            advanceTimeBy(Outbox.retryMillis(DensityClass.MEDIUM, 0))
+            advanceTimeBy(Outbox.retryMillis(DensityClass.Medium, 0))
 
             // Assert
             assertEquals(emptyList(), requester.lanes.frames(a))
