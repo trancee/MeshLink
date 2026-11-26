@@ -9,7 +9,10 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * The Android platform: the Bluetooth LE radio of [context]'s app, or a radio that refuses every
@@ -30,6 +33,12 @@ internal class AndroidPlatformPort(
     override val requirements: StateFlow<Set<Requirement>> = checks.requirements
 
     override val limitations: StateFlow<Set<Limitation>> = checks.limitations
+
+    override val background: Flow<Boolean> = flowOf(false)
+
+    override val doze: StateFlow<Boolean> = DozeWatcher(app).doze
+
+    override val suspensions: Flow<Long> = emptyFlow()
 
     override val identityStore: IdentityStore = PersistentIdentityStore(KeystoreSlot.of(app))
 

@@ -23,6 +23,7 @@ Repeats of a code for the same peer or link within 10 s arrive as one event whos
 | [ML1004](#ml1004) | `OwnCertificateRenewed` | `Info` | none. |
 | [ML2001](#ml2001) | `ScanWindow` | `Debug` | high battery use. |
 | [ML2002](#ml2002) | `ScanFailed` | `Warning` | peers not found. |
+| [ML2004](#ml2004) | `BackgroundDiscoveryDegraded` | `Warning` | peers not found. |
 | [ML2006](#ml2006) | `StaleAddressMarked` | `Debug` | peers not found. |
 | [ML2007](#ml2007) | `DensityClassChanged` | `Info` | high battery use. |
 | [ML2005](#ml2005) | `AdvertisingFailed` | `Warning` | peers not found. |
@@ -53,6 +54,8 @@ Repeats of a code for the same peer or link within 10 s arrive as one event whos
 | [ML7003](#ml7003) | `InboxFull` | `Warning` | messages not delivered. |
 | [ML7004](#ml7004) | `ReassemblyBudgetExhausted` | `Debug` | messages not delivered. |
 | [ML8001](#ml8001) | `ScannerRegistrationFailed` | `Warning` | peers not found. |
+| [ML8002](#ml8002) | `AppSuspendedByOs` | `Info` | messages delivered slowly. |
+| [ML8003](#ml8003) | `DozeActive` | `Info` | peers not found. |
 
 ## ML1001
 
@@ -134,6 +137,15 @@ Fields:
 Fields:
 
 - `platformCode` (`Int`): The platform's error code, or `null` if it gave none.
+
+## ML2004
+
+`DiagnosticEvent.BackgroundDiscoveryDegraded`, severity `Warning`: The app moved to the background, or a node started there, so iOS took over scanning and advertising. iOS advertises the mesh only in Apple's overflow area and suspends the app 30–40 s after it leaves the foreground; two backgrounded iPhones found each other in 62% of 40 s trials (ADR 0010). iOS only: Android keeps discovering with its hardware filters.
+
+- Cause: the user left the app or locked the phone.
+- Fix: none needed. An app that must discover quickly keeps MeshLink in the foreground.
+- Related: `AppSuspendedByOs`.
+- Symptom: peers not found.
 
 ## ML2006
 
@@ -587,4 +599,26 @@ Fields:
 - Cause: an app, often this one after a crash, leaked scanner registrations.
 - Fix: turn Bluetooth off and on; if that fails, restart the phone.
 - Related: `MeshLink.radioFailure`.
+- Symptom: peers not found.
+
+## ML8002
+
+`DiagnosticEvent.AppSuspendedByOs`, severity `Info`: IOS suspended the app for at least `suspendedMillis`, reported once it runs again. The node checks every 10 s on a clock that counts sleep and reports a check that came 30 s or more late. While suspended, the node ran no timers: it neither relayed nor retried, and only iOS kept scanning and advertising for it. iOS only: Android reports a sleeping device as `DozeActive`.
+
+- Cause: the app stayed in the background, where iOS suspends it 30–40 s after it leaves the foreground.
+- Fix: none needed. An app that must relay or retry while the phone is locked declares the Bluetooth background modes, and accepts that iOS still decides when it runs.
+- Related: `BackgroundDiscoveryDegraded`.
+- Symptom: messages delivered slowly.
+
+Fields:
+
+- `suspendedMillis` (`Long`): How long the app was suspended, in ms; a lower bound.
+
+## ML8003
+
+`DiagnosticEvent.DozeActive`, severity `Info`: The device entered Doze, or a node started in it. In Doze the node's timers run late: a 4 s on, 4 s off scan schedule stretched to gaps of 30 s overnight, while links held (ADR 0010). Android only; it reports deep Doze, not light Doze, and not its end.
+
+- Cause: the screen stayed off and the device stayed still and unplugged.
+- Fix: none needed. An app that must discover peers on schedule runs a foreground service, which the host app owns (ADR 0011).
+- Related: `MeshLinkConfig.power`.
 - Symptom: peers not found.

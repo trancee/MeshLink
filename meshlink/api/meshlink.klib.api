@@ -130,10 +130,14 @@ abstract interface ch.trancee.meshlink.internal/IdentityStore { // ch.trancee.me
 }
 
 abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.meshlink.internal/PlatformPort|null[0]
+    abstract val background // ch.trancee.meshlink.internal/PlatformPort.background|{}background[0]
+        abstract fun <get-background>(): kotlinx.coroutines.flow/Flow<kotlin/Boolean> // ch.trancee.meshlink.internal/PlatformPort.background.<get-background>|<get-background>(){}[0]
     abstract val clock // ch.trancee.meshlink.internal/PlatformPort.clock|{}clock[0]
         abstract fun <get-clock>(): ch.trancee.meshlink.internal/Clock // ch.trancee.meshlink.internal/PlatformPort.clock.<get-clock>|<get-clock>(){}[0]
     abstract val dispatcher // ch.trancee.meshlink.internal/PlatformPort.dispatcher|{}dispatcher[0]
         abstract fun <get-dispatcher>(): kotlinx.coroutines/CoroutineDispatcher // ch.trancee.meshlink.internal/PlatformPort.dispatcher.<get-dispatcher>|<get-dispatcher>(){}[0]
+    abstract val doze // ch.trancee.meshlink.internal/PlatformPort.doze|{}doze[0]
+        abstract fun <get-doze>(): kotlinx.coroutines.flow/Flow<kotlin/Boolean> // ch.trancee.meshlink.internal/PlatformPort.doze.<get-doze>|<get-doze>(){}[0]
     abstract val identityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore|{}identityStore[0]
         abstract fun <get-identityStore>(): ch.trancee.meshlink.internal/IdentityStore // ch.trancee.meshlink.internal/PlatformPort.identityStore.<get-identityStore>|<get-identityStore>(){}[0]
     abstract val limitations // ch.trancee.meshlink.internal/PlatformPort.limitations|{}limitations[0]
@@ -150,6 +154,8 @@ abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.mes
         abstract fun <get-random>(): ch.trancee.meshlink.internal/RandomSource // ch.trancee.meshlink.internal/PlatformPort.random.<get-random>|<get-random>(){}[0]
     abstract val requirements // ch.trancee.meshlink.internal/PlatformPort.requirements|{}requirements[0]
         abstract fun <get-requirements>(): kotlinx.coroutines.flow/Flow<kotlin.collections/Set<ch.trancee.meshlink/Requirement>> // ch.trancee.meshlink.internal/PlatformPort.requirements.<get-requirements>|<get-requirements>(){}[0]
+    abstract val suspensions // ch.trancee.meshlink.internal/PlatformPort.suspensions|{}suspensions[0]
+        abstract fun <get-suspensions>(): kotlinx.coroutines.flow/Flow<kotlin/Long> // ch.trancee.meshlink.internal/PlatformPort.suspensions.<get-suspensions>|<get-suspensions>(){}[0]
 }
 
 sealed interface ch.trancee.meshlink/DeliveryStatus { // ch.trancee.meshlink/DeliveryStatus|null[0]
@@ -749,6 +755,13 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
             final fun <get-platformCode>(): kotlin/Int? // ch.trancee.meshlink/DiagnosticEvent.AdvertisingFailed.platformCode.<get-platformCode>|<get-platformCode>(){}[0]
     }
 
+    final class AppSuspendedByOs : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.AppSuspendedByOs|null[0]
+        final val suspendedMillis // ch.trancee.meshlink/DiagnosticEvent.AppSuspendedByOs.suspendedMillis|{}suspendedMillis[0]
+            final fun <get-suspendedMillis>(): kotlin/Long // ch.trancee.meshlink/DiagnosticEvent.AppSuspendedByOs.suspendedMillis.<get-suspendedMillis>|<get-suspendedMillis>(){}[0]
+    }
+
+    final class BackgroundDiscoveryDegraded : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.BackgroundDiscoveryDegraded|null[0]
+
     final class BearerFallback : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.BearerFallback|null[0]
         final val peer // ch.trancee.meshlink/DiagnosticEvent.BearerFallback.peer|{}peer[0]
             final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.BearerFallback.peer.<get-peer>|<get-peer>(){}[0]
@@ -858,6 +871,8 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
         final val dropped // ch.trancee.meshlink/DiagnosticEvent.DiagnosticsDropped.dropped|{}dropped[0]
             final fun <get-dropped>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.DiagnosticsDropped.dropped.<get-dropped>|<get-dropped>(){}[0]
     }
+
+    final class DozeActive : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.DozeActive|null[0]
 
     final class ExpiryFarFromLocalTime : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime|null[0]
         final val skewSeconds // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime.skewSeconds|{}skewSeconds[0]

@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -405,6 +406,7 @@ public class MeshLink private constructor(
             links.value = session
             try {
                 val linking = launch { scanner.candidates.collect { session.connectTo(it, scanner::vet) } }
+                val lifecycle = watchLifecycle(port, hub)
                 val keys = handshakes?.keys
                 // Announces each next resolving key a lead before use (spec "Resolving key update").
                 val announcing =
@@ -421,6 +423,7 @@ public class MeshLink private constructor(
                 val role = if (centralOnly) LinkRole.CENTRAL else restrictedLinkRole
                 scanner.run(role, recognition, config.l2capUpgrade, session::accept, session.proximities::sighted)
                 linking.cancel()
+                lifecycle.cancel()
                 announcing.cancel()
                 rotating.cancel()
             } finally {
@@ -444,3 +447,24 @@ public class MeshLink private constructor(
 private fun ensureOpen(closed: StateFlow<Boolean>) {
     if (closed.value) throw MeshLinkException.Closed()
 }
+
+/** Reports each move to the background or to Doze, at once if already there, and each suspension. */
+private fun CoroutineScope.watchLifecycle(
+    port: PlatformPort,
+    hub: DiagnosticsHub,
+): Job =
+    launch {
+        launch {
+            port.background
+                .distinctUntilChanged()
+                .filter { it }
+                .collect { hub.report(DiagnosticEvent.BackgroundDiscoveryDegraded()) }
+        }
+        launch {
+            port.doze
+                .distinctUntilChanged()
+                .filter { it }
+                .collect { hub.report(DiagnosticEvent.DozeActive()) }
+        }
+        port.suspensions.collect { hub.report(DiagnosticEvent.AppSuspendedByOs(it)) }
+    }

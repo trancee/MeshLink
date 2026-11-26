@@ -24,6 +24,12 @@ internal class UnsupportedRadioPort(
 
     override val limitations: Flow<Set<Limitation>> = flowOf(emptySet())
 
+    override val background: Flow<Boolean> = flowOf(false)
+
+    override val doze: Flow<Boolean> = flowOf(false)
+
+    override val suspensions: Flow<Long> = emptyFlow()
+
     override val identityStore: IdentityStore = InMemoryIdentityStore()
 
     override val radio: RadioPort = UnsupportedRadio

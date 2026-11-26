@@ -50,6 +50,21 @@ public interface PlatformPort {
     /** The platform log, which nodes with `diagnostics.platformLog` on write their events to. */
     public val log: PlatformLog
 
+    /**
+     * Whether the app runs in the background, where the OS degrades discovery (`ML2004`), now and on
+     * each change; always `false` on Android, which keeps discovering with hardware filters.
+     */
+    public val background: Flow<Boolean>
+
+    /** Whether the device is in Doze (`ML8003`), now and on each change; always `false` on iOS. */
+    public val doze: Flow<Boolean>
+
+    /**
+     * How long, in ms, the OS suspended the app each time, reported after it resumes (`ML8002`); a
+     * lower bound. Only iOS suspends apps this way, so other platforms report none.
+     */
+    public val suspensions: Flow<Long>
+
     /** The platform's name, such as `Android` or `iOS`, for diagnostic exports. */
     public val platformName: String
 

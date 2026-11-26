@@ -51,6 +51,7 @@ In a dense mesh, [`ML3004`](../reference/diagnostics.md#ml3004) (link cap reache
 | Code | Event | Severity | Cause |
 |---|---|---|---|
 | [ML2002](../reference/diagnostics.md#ml2002) | `ScanFailed` | `Warning` | Bluetooth turned off, the app lacks scan permission, or the platform ran out of scanners; Android error 2 also reports `ML8001`. |
+| [ML2004](../reference/diagnostics.md#ml2004) | `BackgroundDiscoveryDegraded` | `Warning` | The user left the app or locked the phone. |
 | [ML2006](../reference/diagnostics.md#ml2006) | `StaleAddressMarked` | `Debug` | A phone of another mesh or app nearby, or a MeshLink peer that moved out of range during the dial. |
 | [ML2005](../reference/diagnostics.md#ml2005) | `AdvertisingFailed` | `Warning` | The platform ran out of advertisers, or another app holds them; Android error 1 means the advertisement is too large, a MeshLink defect. |
 | [ML2008](../reference/diagnostics.md#ml2008) | `GattServiceFailed` | `Warning` | Bluetooth turned off, or the platform's GATT server failed. |
@@ -60,6 +61,7 @@ In a dense mesh, [`ML3004`](../reference/diagnostics.md#ml3004) (link cap reache
 | [ML4001](../reference/diagnostics.md#ml4001) | `HandshakeFailed` | `Warning` | `Reason.Timeout`: the peer moved away or is overloaded. `Reason.Decrypt`: the peer uses another security profile, mesh ID or mesh key. `Reason.Certificate`: the peer's certificate is invalid or expired, often a wrong clock. `Reason.Protocol`: an incompatible or faulty peer. |
 | [ML4002](../reference/diagnostics.md#ml4002) | `HandshakeLimitDropped` | `Warning` | Many phones connecting at once, or a peer opening handshakes faster than allowed. |
 | [ML8001](../reference/diagnostics.md#ml8001) | `ScannerRegistrationFailed` | `Warning` | An app, often this one after a crash, leaked scanner registrations. |
+| [ML8003](../reference/diagnostics.md#ml8003) | `DozeActive` | `Info` | The screen stayed off and the device stayed still and unplugged. |
 
 <!-- END generated -->
 
