@@ -130,6 +130,9 @@ internal class ApplePeripheralHost(
     ) : StreamLink(AppleCentralPeer(central.id)) {
         override val attMtu: Int get() = bluetooth.maximumNotifyLength(central) + RadioPort.ATT_HEADER
 
+        // Core Bluetooth doesn't expose the PHY.
+        override val phy: RadioPhy? get() = null
+
         override suspend fun send(chunk: ByteArray): Boolean {
             while (!isClosed) {
                 val seen = wakeups.value

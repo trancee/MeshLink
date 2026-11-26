@@ -201,6 +201,9 @@ internal class LookupAnswers(
     private var own: IdentityCertificate? = null
     private var nodeId = ByteArray(0)
 
+    /** How many certificates of other nodes are held now. */
+    fun held(): Int = certificates.count(clock.nowSeconds())
+
     /** This node's own [certificate] for the current session; `null` after a run. */
     fun certify(certificate: IdentityCertificate?) {
         own = certificate

@@ -547,6 +547,9 @@ internal open class VirtualLinkEnd(
 
     override var platformCode: Int? = null
 
+    /** The PHY this end reports; `null`, as on iOS, until a test sets it. */
+    override var phy: RadioPhy? = null
+
     /**
      * Closes both ends at once as a transient loss, as a platform reports an unanswered ATT request;
      * each end reports [platformCode] as the platform's status.

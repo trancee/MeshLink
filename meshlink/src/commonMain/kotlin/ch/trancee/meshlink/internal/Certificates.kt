@@ -45,6 +45,12 @@ internal class Certificates {
         return held.certificate
     }
 
+    /** How many certificates are held at Unix second [nowSeconds]. */
+    fun count(nowSeconds: Long): Int {
+        prune(nowSeconds)
+        return byNode.size
+    }
+
     private fun prune(nowSeconds: Long) {
         byNode.values.removeAll { nowSeconds >= it.certificate.notAfter.toLong() }
     }

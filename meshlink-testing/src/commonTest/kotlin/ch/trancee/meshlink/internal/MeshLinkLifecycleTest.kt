@@ -291,7 +291,7 @@ class MeshLinkLifecycleTest {
             // Arrange
             val node = node(platform())
             val unconfined = UnconfinedTestDispatcher(testScheduler)
-            val collector = backgroundScope.launch(unconfined) { node.diagnostics.toList() }
+            val collector = backgroundScope.launch(unconfined) { node.diagnostics.events.toList() }
 
             // Act
             node.close()
@@ -299,7 +299,7 @@ class MeshLinkLifecycleTest {
 
             // Assert
             assertTrue(collector.isCompleted)
-            assertEquals(emptyList(), node.diagnostics.toList())
+            assertEquals(emptyList(), node.diagnostics.events.toList())
         }
 
     private fun TestScope.air(): VirtualAir = VirtualAir(backgroundScope, TestClock(testScheduler), SeededRandom(1))
@@ -322,7 +322,7 @@ class MeshLinkLifecycleTest {
     /** Every diagnostic [node] reports from now on. */
     private fun TestScope.recordDiagnostics(node: MeshLink): List<DiagnosticEvent> {
         val events = mutableListOf<DiagnosticEvent>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.diagnostics.toList(events) }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.diagnostics.events.toList(events) }
         return events
     }
 

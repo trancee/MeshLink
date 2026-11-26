@@ -57,6 +57,23 @@ internal object AndroidGatt {
     /** [status] as a platform code: `null` for success, which reports no failure. */
     fun platformCode(status: Int): Int? = status.takeUnless { it == BluetoothGatt.GATT_SUCCESS }
 
+    /**
+     * The PHY a successful `onPhyRead` or `onPhyUpdate` reports for transmitting, `null` for a value
+     * Android doesn't define, or [current] if the [status] is a failure.
+     */
+    fun phy(
+        current: RadioPhy?,
+        txPhy: Int,
+        status: Int,
+    ): RadioPhy? =
+        when {
+            status != BluetoothGatt.GATT_SUCCESS -> current
+            txPhy == BluetoothDevice.PHY_LE_1M -> RadioPhy.LE_1M
+            txPhy == BluetoothDevice.PHY_LE_2M -> RadioPhy.LE_2M
+            txPhy == BluetoothDevice.PHY_LE_CODED -> RadioPhy.LE_CODED
+            else -> null
+        }
+
     /** Writes [value] to [characteristic] without response. */
     fun write(
         gatt: BluetoothGatt,

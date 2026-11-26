@@ -117,7 +117,11 @@ internal class LinkHandshake(
         // A complete handshake always splits.
         val transport = (noise.split() as NoiseResult.Ok).value
         val peer = handshakes.verify(payload, transport.remoteStatic)
-        if (peer == null) handshakes.report(HandshakeFailed(link, HandshakeFailed.Reason.Certificate))
+        if (peer == null) {
+            handshakes.report(HandshakeFailed(link, HandshakeFailed.Reason.Certificate))
+        } else {
+            handshakes.succeeded()
+        }
         return HandshakeStep.Complete(reply, transport, peer)
     }
 

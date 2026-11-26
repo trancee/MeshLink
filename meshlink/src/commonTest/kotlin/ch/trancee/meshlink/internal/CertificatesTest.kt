@@ -44,12 +44,14 @@ class CertificatesTest {
             cache.put(nodeId, certificate, nowSeconds())
             advanceTimeBy(1.hours.inWholeMilliseconds - 1_000)
             val before = cache.get(nodeId, nowSeconds())
+            val countBefore = cache.count(nowSeconds())
 
             // Act
             advanceTimeBy(1_000)
 
             // Assert
             assertSame(certificate, before)
+            assertEquals(listOf(1, 0), listOf(countBefore, cache.count(nowSeconds())))
             assertNull(cache.get(nodeId, nowSeconds()))
         }
 

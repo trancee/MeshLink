@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.os.Build
 import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
@@ -39,6 +40,10 @@ internal class AndroidPlatformPort(
     override val random: RandomSource = SystemRandom
 
     override val log: PlatformLog = AndroidLog
+
+    override val platformName: String = "Android"
+
+    override val osVersion: String = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
 
     init {
         RequirementsWatcher(checks, androidRadio).register(app)

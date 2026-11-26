@@ -125,6 +125,11 @@ internal class Handshakes(
         diagnostics.report(event)
     }
 
+    /** Counts a handshake that proved its peer. */
+    fun succeeded() {
+        diagnostics.tally(DiagnosticsHub.Tally.HandshakesSucceeded)
+    }
+
     /** A new handshake's [LinkRef]. */
     fun link(): LinkRef = diagnostics.link()
 

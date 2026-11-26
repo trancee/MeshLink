@@ -42,6 +42,9 @@ internal class Outbox(
     private val linkRetries = mutableMapOf<NodeId, Long>()
     private lateinit var run: CoroutineScope
 
+    /** How many messages are unfinished. */
+    val size: Int get() = entries.size
+
     /** Starts a run of the node: messages added from now on live until it [end]s. */
     fun begin() {
         run = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext.job))

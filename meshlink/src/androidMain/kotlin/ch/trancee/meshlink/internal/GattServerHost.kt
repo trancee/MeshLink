@@ -36,6 +36,7 @@ internal class GattServerHost(
     private var opening: Job? = null
     private val links = ConcurrentHashMap<BluetoothDevice, PeripheralLink>()
     private val mtus = ConcurrentHashMap<BluetoothDevice, Int>()
+    private val phys = ConcurrentHashMap<BluetoothDevice, RadioPhy>()
     private val callback = Callback()
 
     /** Serves [record] to every central from now on, opening the server if it is closed. */
@@ -58,6 +59,7 @@ internal class GattServerHost(
         served = null
         links.values.forEach { it.close() }
         mtus.clear()
+        phys.clear()
     }
 
     private fun open(): Boolean {
@@ -71,6 +73,15 @@ internal class GattServerHost(
     private suspend fun retryOpen() {
         val opened = OPEN_RETRY_MILLIS.any { wait -> delay(wait).let { open() } }
         if (!opened) emit(RadioEvent.ServeFailed(RadioFailure.RADIO_ERROR))
+    }
+
+    private fun updatePhy(
+        device: BluetoothDevice,
+        txPhy: Int,
+        status: Int,
+    ) {
+        val phy = AndroidGatt.phy(phys[device], txPhy, status)
+        if (phy == null) phys.remove(device) else phys[device] = phy
     }
 
     private fun respond(
@@ -100,6 +111,8 @@ internal class GattServerHost(
         private val toCentral = served.toCentral
 
         override val attMtu: Int get() = mtus[device] ?: MeshGatt.DEFAULT_ATT_MTU
+
+        override val phy: RadioPhy? get() = phys[device]
 
         override suspend fun send(chunk: ByteArray): Boolean {
             val answer =
@@ -135,6 +148,7 @@ internal class GattServerHost(
         ) {
             if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 mtus.remove(device)
+                phys.remove(device)
                 links[device]?.close(AndroidGatt.platformCode(status))
             }
         }
@@ -144,6 +158,24 @@ internal class GattServerHost(
             mtu: Int,
         ) {
             mtus[device] = mtu
+        }
+
+        override fun onPhyRead(
+            device: BluetoothDevice,
+            txPhy: Int,
+            rxPhy: Int,
+            status: Int,
+        ) {
+            updatePhy(device, txPhy, status)
+        }
+
+        override fun onPhyUpdate(
+            device: BluetoothDevice,
+            txPhy: Int,
+            rxPhy: Int,
+            status: Int,
+        ) {
+            updatePhy(device, txPhy, status)
         }
 
         override fun onCharacteristicReadRequest(
@@ -186,6 +218,7 @@ internal class GattServerHost(
             served?.takeIf { enable && !links.containsKey(device) }?.let { current ->
                 val link = PeripheralLink(device, current)
                 links[device] = link
+                current.server.readPhy(device)
                 emit(RadioEvent.Connected(link))
             }
             if (responseNeeded) respond(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)

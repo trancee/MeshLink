@@ -206,6 +206,24 @@ public interface RadioLink : RadioStream {
      * [disconnect], or if the platform gave none. Set before [incoming] completes.
      */
     public val platformCode: Int?
+
+    /**
+     * The PHY this side transmits on, as the platform last reported it; `null` where the platform
+     * doesn't tell, as on iOS, or until it does.
+     */
+    public val phy: RadioPhy?
+}
+
+/** A Bluetooth LE physical layer. */
+public enum class RadioPhy {
+    /** LE 1M, which every LE radio supports. */
+    LE_1M,
+
+    /** LE 2M: twice the symbol rate, a little less range. */
+    LE_2M,
+
+    /** LE Coded: up to four times the range at an eighth or half of the rate. */
+    LE_CODED,
 }
 
 /**

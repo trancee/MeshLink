@@ -93,6 +93,13 @@ public final class ch/trancee/meshlink/DensityClass : java/lang/Enum {
 	public static fun values ()[Lch/trancee/meshlink/DensityClass;
 }
 
+public final class ch/trancee/meshlink/DiagnosticCounters {
+	public final fun getEvents ()Ljava/util/Map;
+	public final fun getFramesRelayed ()J
+	public final fun getFramesSent ()J
+	public final fun getHandshakesSucceeded ()J
+}
+
 public abstract class ch/trancee/meshlink/DiagnosticEvent {
 	public synthetic fun <init> (Ljava/lang/String;Lch/trancee/meshlink/DiagnosticEvent$Severity;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCode ()Ljava/lang/String;
@@ -391,6 +398,15 @@ public final class ch/trancee/meshlink/DiagnosticsBuilder {
 	public final fun setPlatformLog (Z)V
 }
 
+public final class ch/trancee/meshlink/DiagnosticsSnapshot {
+	public final fun getConfiguration ()Ljava/util/List;
+	public final fun getCounters ()Lch/trancee/meshlink/DiagnosticCounters;
+	public final fun getDensityClass ()Lch/trancee/meshlink/DensityClass;
+	public final fun getLinks ()Ljava/util/List;
+	public final fun getProfile ()Lch/trancee/meshlink/SecurityProfile;
+	public final fun getQueues ()Lch/trancee/meshlink/QueueCounts;
+}
+
 public final class ch/trancee/meshlink/FailureReason : java/lang/Enum {
 	public static final field Stopped Lch/trancee/meshlink/FailureReason;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -433,6 +449,37 @@ public final class ch/trancee/meshlink/LinkRef {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class ch/trancee/meshlink/LinkSnapshot {
+	public final fun getBearer ()Lch/trancee/meshlink/LinkSnapshot$Bearer;
+	public final fun getMtu ()I
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+	public final fun getPhy ()Lch/trancee/meshlink/LinkSnapshot$Phy;
+	public final fun getRole ()Lch/trancee/meshlink/DiagnosticEvent$LinkOpened$Role;
+}
+
+public final class ch/trancee/meshlink/LinkSnapshot$Bearer : java/lang/Enum {
+	public static final field Gatt Lch/trancee/meshlink/LinkSnapshot$Bearer;
+	public static final field L2capCoc Lch/trancee/meshlink/LinkSnapshot$Bearer;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/LinkSnapshot$Bearer;
+	public static fun values ()[Lch/trancee/meshlink/LinkSnapshot$Bearer;
+}
+
+public final class ch/trancee/meshlink/LinkSnapshot$Phy : java/lang/Enum {
+	public static final field Le1M Lch/trancee/meshlink/LinkSnapshot$Phy;
+	public static final field Le2M Lch/trancee/meshlink/LinkSnapshot$Phy;
+	public static final field LeCoded Lch/trancee/meshlink/LinkSnapshot$Phy;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/LinkSnapshot$Phy;
+	public static fun values ()[Lch/trancee/meshlink/LinkSnapshot$Phy;
+}
+
+public final class ch/trancee/meshlink/MeshDiagnostics {
+	public final fun export (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getEvents ()Lkotlinx/coroutines/flow/Flow;
+	public final fun snapshot (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public static final field Companion Lch/trancee/meshlink/MeshLink$Companion;
 	public final fun awaitSendCapacity (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -441,7 +488,7 @@ public final class ch/trancee/meshlink/MeshLink : java/lang/AutoCloseable {
 	public fun close ()V
 	public final fun getCertificateLookups ()Lch/trancee/meshlink/internal/CertificateLookups;
 	public final fun getConfig ()Lch/trancee/meshlink/MeshLinkConfig;
-	public final fun getDiagnostics ()Lkotlinx/coroutines/flow/Flow;
+	public final fun getDiagnostics ()Lch/trancee/meshlink/MeshDiagnostics;
 	public final fun getLinkRoles ()Ljava/util/Map;
 	public final fun getMessages ()Lkotlinx/coroutines/flow/Flow;
 	public final fun getPeers ()Lkotlinx/coroutines/flow/StateFlow;
@@ -703,6 +750,13 @@ public final class ch/trancee/meshlink/ProximityBucket : java/lang/Enum {
 	public static fun values ()[Lch/trancee/meshlink/ProximityBucket;
 }
 
+public final class ch/trancee/meshlink/QueueCounts {
+	public final fun getCertificates ()I
+	public final fun getHeld ()I
+	public final fun getInbox ()I
+	public final fun getOutgoing ()I
+}
+
 public abstract interface class ch/trancee/meshlink/Reachability {
 }
 
@@ -891,6 +945,8 @@ public abstract interface class ch/trancee/meshlink/internal/PlatformPort {
 	public abstract fun getIdentityStore ()Lch/trancee/meshlink/internal/IdentityStore;
 	public abstract fun getLimitations ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getLog ()Lch/trancee/meshlink/internal/PlatformLog;
+	public abstract fun getOsVersion ()Ljava/lang/String;
+	public abstract fun getPlatformName ()Ljava/lang/String;
 	public abstract fun getRadio ()Lch/trancee/meshlink/internal/RadioPort;
 	public abstract fun getRandom ()Lch/trancee/meshlink/internal/RandomSource;
 	public abstract fun getRequirements ()Lkotlinx/coroutines/flow/Flow;

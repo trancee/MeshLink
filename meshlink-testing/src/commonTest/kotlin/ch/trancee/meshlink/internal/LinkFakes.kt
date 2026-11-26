@@ -121,7 +121,7 @@ internal fun TestScope.diagnostics(
 ): List<DiagnosticEvent> {
     val seen = mutableListOf<DiagnosticEvent>()
     backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-        node.diagnostics.collect { if (it.code in codes) seen += it }
+        node.diagnostics.events.collect { if (it.code in codes) seen += it }
     }
     return seen
 }

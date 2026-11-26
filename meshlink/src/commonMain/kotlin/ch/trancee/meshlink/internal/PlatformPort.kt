@@ -49,6 +49,12 @@ public interface PlatformPort {
 
     /** The platform log, which nodes with `diagnostics.platformLog` on write their events to. */
     public val log: PlatformLog
+
+    /** The platform's name, such as `Android` or `iOS`, for diagnostic exports. */
+    public val platformName: String
+
+    /** The version of the platform's OS, such as `15 (API 35)` or `18.2.0`, for diagnostic exports. */
+    public val osVersion: String
 }
 
 /** The platform log (ADR 0020 decision 6): Logcat on Android, `os_log` on iOS. */

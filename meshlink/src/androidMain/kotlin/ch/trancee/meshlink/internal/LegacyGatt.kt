@@ -84,3 +84,57 @@ internal object LegacyGatt {
     @Suppress("DEPRECATION")
     fun value(characteristic: BluetoothGattCharacteristic): ByteArray = characteristic.value ?: ByteArray(0)
 }
+
+/**
+ * A GATT client callback that takes reads and notifications with their value from either overload:
+ * API 33+ calls the ones that carry it, API 26–32 the ones deprecated on API 33, which take it from
+ * [LegacyGatt.value]. Neither calls the other, because API 26–32 lacks the newer ones.
+ */
+internal abstract class ValueGattCallback : BluetoothGattCallback() {
+    /** A read of [characteristic] ended with [status] and [value]. */
+    abstract fun read(
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+        status: Int,
+    )
+
+    /** [characteristic] notified [value]. */
+    abstract fun changed(
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+    )
+
+    override fun onCharacteristicRead(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+        status: Int,
+    ) {
+        read(characteristic, value.copyOf(), status)
+    }
+
+    @Deprecated("API 26–32 only; API 33+ calls the overload that carries the value.")
+    override fun onCharacteristicRead(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        status: Int,
+    ) {
+        read(characteristic, LegacyGatt.value(characteristic), status)
+    }
+
+    override fun onCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+    ) {
+        changed(characteristic, value.copyOf())
+    }
+
+    @Deprecated("API 26–32 only; API 33+ calls the overload that carries the value.")
+    override fun onCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+    ) {
+        changed(characteristic, LegacyGatt.value(characteristic))
+    }
+}

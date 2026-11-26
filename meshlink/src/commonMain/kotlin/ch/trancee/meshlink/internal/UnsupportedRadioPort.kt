@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.flowOf
  */
 internal class UnsupportedRadioPort(
     override val log: PlatformLog,
+    override val platformName: String,
+    override val osVersion: String,
     override val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
 ) : PlatformPort {
     override val requirements: StateFlow<Set<Requirement>> = MutableStateFlow(setOf(Requirement.Unsupported))
