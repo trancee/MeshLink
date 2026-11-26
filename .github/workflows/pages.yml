@@ -1,0 +1,112 @@
+# Docs site on GitHub Pages (ADR 0006 decision 8 and its 2026-11-13 amendment; ADR 0019 decision 7,
+# step 5). The Dokka HTML lives at /api/ under a hand-written root page. Only a release deploys:
+# the release workflow calls this one, and a manual dispatch for a release tag reruns the deploy.
+# Pull requests that touch the site build it and check its links without deploying. Actions are
+# registered in docs/reference/dependencies.md ("CI tools").
+name: Pages
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to publish, for example v0.1.0
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, for example v0.1.0
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - .github/workflows/pages.yml
+      - pages/**
+      - "**/Module.md"
+      - build-logic/src/main/kotlin/ch/trancee/meshlink/buildlogic/RootPlugin.kt
+      - build-logic/src/main/kotlin/ch/trancee/meshlink/buildlogic/PublishedLibraryPlugin.kt
+      - meshlink/build.gradle.kts
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the docs site
+    # The host of the required Dokka check (build.yml, linux job).
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","linux-ci"]') }}
+    timeout-minutes: 15
+    steps:
+      # The github-pages environment admits only v* tag refs, so a deploy must run from the tag it
+      # publishes: dispatch with "Use workflow from" set to that tag.
+      - name: The run's ref is the release tag
+        if: github.event_name != 'pull_request'
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          case "$TAG" in v*) ;; *) echo "::error::tag '$TAG' is not a v* release tag"; exit 1 ;; esac
+          test "$GITHUB_REF" = "refs/tags/$TAG" || { echo "::error::run from refs/tags/$TAG, not $GITHUB_REF"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+          cache-disabled: ${{ runner.environment == 'self-hosted' }}
+      # Auto-download is off; point Gradle at the image's JDK 21 (toolchain) and JDK 25 (daemon).
+      - name: Use the image's JDKs
+        run: |
+          mkdir -p ~/.gradle
+          line="org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64"
+          grep -qxF "$line" ~/.gradle/gradle.properties 2>/dev/null || echo "$line" >> ~/.gradle/gradle.properties
+          echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+      # failOnWarning is set on every Dokka publication, so a warning fails this step.
+      - run: ./gradlew dokkaGeneratePublicationHtml
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -R build/dokka/html _site/api
+          cp pages/index.html _site/index.html
+      # One retry absorbs a transient lychee binary download failure; a real broken link fails both
+      # attempts. External links are checked weekly by docs.yml, not here. Dokka 2.3.0 anchors the
+      # receiver link of MeshPlatform.ios() with a "Main" fragment that the companion page never
+      # emits (iosMain's child source sets are suppressed, see meshlink/build.gradle.kts); the page
+      # itself is still checked.
+      - id: lychee
+        continue-on-error: true
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with: &lychee
+          lycheeVersion: v0.24.2
+          args: >-
+            --no-progress --offline --config lychee.toml
+            --exclude '#-?[0-9]+%2FMain%2F-?[0-9]+$'
+            --root-dir ${{ github.workspace }}/_site
+            _site
+      - name: Retry lychee
+        if: steps.lychee.outcome == 'failure'
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with: *lychee
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # One deploy at a time; a queued deploy waits and a running one is never cancelled.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

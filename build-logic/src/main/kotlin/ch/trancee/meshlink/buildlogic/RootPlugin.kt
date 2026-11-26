@@ -7,6 +7,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.language.base.plugins.LifecycleBasePlugin
+import org.jetbrains.dokka.gradle.DokkaExtension
 
 /**
  * Configures the root build: the merged Kover report over every module with 100% line and branch
@@ -24,6 +25,9 @@ class RootPlugin : Plugin<Project> {
         SecurityFloors.apply(project)
         MODULES.forEach { project.dependencies.add("kover", project.dependencyFactory.createProjectDependency(it)) }
         PUBLISHED_MODULES.forEach { project.dependencies.add("dokka", project.dependencyFactory.createProjectDependency(it)) }
+        project.extensions.configure(DokkaExtension::class.java) {
+            dokkaPublications.configureEach { failOnWarning.set(true) }
+        }
         project.extensions.configure(KoverProjectExtension::class.java) {
             reports {
                 verify {

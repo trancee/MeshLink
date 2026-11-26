@@ -11,7 +11,8 @@ import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
 
 /**
  * Configures a module inside the ABI and SemVer promise (ADR 0019): KGP ABI validation with committed
- * dumps checked by `check`, Dokka with undocumented-API reporting that fails on any warning, and Maven
+ * dumps checked by `check`, Dokka with undocumented-API reporting that fails on any warning and the
+ * module's `Module.md` as its module page (linking the prose docs, ADR 0006 decision 8), and Maven
  * publishing with the Dokka HTML as its javadoc JAR.
  */
 class PublishedLibraryPlugin : Plugin<Project> {
@@ -28,7 +29,16 @@ class PublishedLibraryPlugin : Plugin<Project> {
         }
         project.extensions.configure(DokkaExtension::class.java) {
             dokkaPublications.configureEach { failOnWarning.set(true) }
-            dokkaSourceSets.configureEach { reportUndocumented.set(true) }
+            dokkaSourceSets.configureEach {
+                reportUndocumented.set(true)
+                includes.from(project.file("Module.md"))
+                // ADR 0011: internals live in ch.trancee.meshlink.internal, split across modules the
+                // reference doesn't cover, so Dokka's links into it name pages it never generates.
+                perPackageOption {
+                    matchingRegex.set("""ch\.trancee\.meshlink\.internal(\..*)?""")
+                    suppress.set(true)
+                }
+            }
         }
         project.configureMavenPublishing(javadocJar = JavadocJar.Dokka("dokkaGeneratePublicationHtml"))
     }

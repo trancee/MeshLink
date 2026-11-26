@@ -31,9 +31,9 @@ public class Peer internal constructor(
 public class Proximity internal constructor(
     /** The smoothed received signal strength in dBm, or `null` before the first measurement. */
     public val rssi: Double?,
-    /** The band [rssi] falls in, or [ProximityBucket.Unknown] once it is 30 s old. */
+    /** The band [Proximity.rssi] falls in, or [ProximityBucket.Unknown] once it is 30 s old. */
     public val bucket: ProximityBucket,
-    /** When the last measurement went into [rssi], by the platform's wall clock; `null` before the first. */
+    /** When the last measurement went into [Proximity.rssi], by the platform's wall clock; `null` before the first. */
     public val measuredAt: Instant?,
 )
 

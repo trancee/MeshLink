@@ -3,7 +3,8 @@
 include_fragments = "full"
 hidden = true
 # lychee/ holds the action's own report, which a retry would otherwise rescan.
-exclude_path = ["(^|/)build/", "(^|/)node_modules/", "(^|/)lychee/"]
+# pages/ links to api/, which exists only in the assembled site; pages.yml checks it there.
+exclude_path = ["(^|/)build/", "(^|/)node_modules/", "(^|/)lychee/", "(^|/)pages/"]
 # 429 means rate limited: the page exists, but the host throttles bots.
 accept = ["200..=299", "429"]
 # These hosts answer automated clients with 403 (bot protection). On 2026-11-01
