@@ -1,14 +1,15 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 
 // Flood forwarding of broadcasts, the broadcast tree's frames, and unknown flood types, on lanes to three linked peers.
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -21,10 +22,11 @@ class FloodsTest {
 
     private fun TestScope.floods(
         secured: Boolean = false,
-        density: DensityClass = DensityClass.LOW,
+        density: DensityClass = DensityClass.Low,
+        holds: Boolean = true,
     ): Floods {
         val tree = Plumtree(lanes, SchedulerClock(testScheduler), backgroundScope) { density }
-        return Floods(lanes, broadcastCodec(secured), tree, ::tombstoneCommitment) { delivered += it }
+        return Floods(lanes, broadcastCodec(secured), tree, ::tombstoneCommitment, holds) { delivered += it }
     }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
@@ -246,7 +248,7 @@ class FloodsTest {
     fun aDuplicateBroadcastAnswersWithPruneAndADuplicateOfAnotherFloodTypeDoesNot() =
         runTest {
             // Arrange
-            val floods = floods(density = DensityClass.MEDIUM)
+            val floods = floods(density = DensityClass.Medium)
             val other = header(type = UNKNOWN_TYPE, id = 2)
             floods.received(a, broadcast(), NOW)
             floods.received(a, other, NOW)
@@ -268,7 +270,7 @@ class FloodsTest {
     fun anIhaveGraftsOnlyTheIdsNotSeenAndAnArrivalEndsAPendingGraft() =
         runTest {
             // Arrange
-            val floods = floods(density = DensityClass.MEDIUM)
+            val floods = floods(density = DensityClass.Medium)
             floods.received(a, broadcast(id = 1), NOW)
             waiting()
             val ihave = LinkFrame.Ihave(listOf(messageId(1), messageId(2), messageId(3)))
@@ -288,7 +290,7 @@ class FloodsTest {
     fun aGraftIsAnsweredAndAPruneOrUnlinkSetsTheLinkLazyOrEager() =
         runTest {
             // Arrange
-            val floods = floods(density = DensityClass.MEDIUM)
+            val floods = floods(density = DensityClass.Medium)
             floods.received(a, broadcast(id = 1), NOW)
             waiting()
 
@@ -311,7 +313,7 @@ class FloodsTest {
     fun anOriginatedBroadcastAnnouncesItselfOnLazyLinksAndAnswersTheirGraft() =
         runTest {
             // Arrange
-            val floods = floods(density = DensityClass.MEDIUM)
+            val floods = floods(density = DensityClass.Medium)
             floods.plumtree(b, LinkFrame.Prune, NOW * MILLIS_PER_SECOND)
             val own = Parcel(messageId(1), relayed = false, { broadcast() }) {}
 
@@ -385,6 +387,21 @@ class FloodsTest {
         }
 
     @Test
+    fun aRelayedBroadcastAndItsHeldCopyAreBroadcastsForBroadcastPriorityAndAnotherFloodTypeIsNot() =
+        runTest {
+            // Arrange
+            val floods = floods()
+
+            // Act
+            floods.received(a, broadcast(id = 1), NOW)
+            floods.received(a, header(type = UNKNOWN_TYPE, id = 2, hopLimit = 5) + byteArrayOf(9, 9), NOW)
+
+            // Assert
+            assertEquals(listOf(Parcel.Kind.BROADCAST, Parcel.Kind.OTHER), lanes.drain(b).map { it.kind })
+            assertEquals(Parcel.Kind.BROADCAST, floods.holding.copy(messageId(1), wallMillis())?.parcel()?.kind)
+        }
+
+    @Test
     fun aGraftForAFrameHeldButNotInTheTreeIsAnsweredFromTheHold() =
         runTest {
             // Arrange: broadcast 1 left the tree's last minute; unicast 9 was never in it.
@@ -401,6 +418,25 @@ class FloodsTest {
             // Assert
             val relayed = broadcast(id = 1).also { it[1] = 4 }.toList()
             assertEquals(listOf(relayed, unicast.bytes.toList()), lanes.drain(b).map { it.render().toList() })
+        }
+
+    @Test
+    fun withHoldingOffARelayStillFloodsABroadcastButHoldsNothing() =
+        runTest {
+            // Arrange
+            val floods = floods(holds = false)
+            val unicast = HeldFrame(a, messageId(9), tag(9), NOW + LIFETIME, ByteArray(10) { 9 })
+
+            // Act
+            floods.received(a, broadcast(id = 1, hopLimit = 5), NOW)
+            val heldUnicast = floods.holding.hold(unicast, 5, wallMillis())
+
+            // Assert
+            val relayed = broadcast(id = 1, hopLimit = 4).toList()
+            assertEquals(listOf(relayed), lanes.drain(b).map { it.render().toList() })
+            assertEquals(listOf(relayed), lanes.drain(c).map { it.render().toList() })
+            assertEquals(false, heldUnicast)
+            assertEquals(emptyList(), floods.holding.broadcasts(wallMillis()) + floods.holding.unicasts(wallMillis()))
         }
 
     private fun TestScope.wallMillis() = SchedulerClock(testScheduler).wallClockMillis()

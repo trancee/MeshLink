@@ -5,7 +5,6 @@ import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.NodeId
-import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendResult
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
@@ -225,7 +224,7 @@ class DeliveryReceiptsTest {
     @OptIn(InternalMeshLinkApi::class)
     private fun shortLivedNode(platform: VirtualPlatform): MeshLink =
         MeshLink.create(
-            meshLinkConfig(Preset.ProximityDiscovery, SecurityProfile.Unsecured) { meshId = MESH }.build(),
+            meshLinkConfig(LINE_PRESET, SecurityProfile.Unsecured) { meshId = MESH }.build(),
             MeshPlatform.of(platform),
         )
 

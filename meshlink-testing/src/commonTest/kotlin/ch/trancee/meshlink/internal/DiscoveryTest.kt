@@ -1,15 +1,25 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.CentralOnlyReason
+import ch.trancee.meshlink.Density
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.MeshLink
+import ch.trancee.meshlink.MeshLinkConfigBuilder
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.MeshState
+import ch.trancee.meshlink.Power
 import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.Requirement
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.meshLinkConfig
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -18,12 +28,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
 class DiscoveryTest {
@@ -91,7 +95,7 @@ class DiscoveryTest {
         }
 
     @Test
-    fun nodeWithCocOffOrOnARadioWithoutCocOffersNoPsmAndNoFlag() =
+    fun nodeWithL2capUpgradeOffOrOnARadioWithoutCocOffersNoPsmAndNoFlag() =
         runTest {
             // Arrange
             val air = air()
@@ -100,7 +104,7 @@ class DiscoveryTest {
             val central = air.platform(StandardTestDispatcher(testScheduler), coc = true)
             val nodes =
                 listOf(
-                    node(off, "Festival").apply { coc = false },
+                    node(off, "Festival") { l2capUpgrade = false },
                     node(unsupported, "Festival"),
                     node(central, "Festival").apply { restrictedLinkRole = LinkRole.CENTRAL },
                 )
@@ -357,6 +361,34 @@ class DiscoveryTest {
         }
 
     @Test
+    fun aResponsiveNodeRestsTwoAndAHalfSecondsBetweenScanWindowsInTheLowClass() =
+        runTest {
+            val starts = scanStarts { power = Power.Responsive }
+
+            assertEquals(listOf(0L, 6_500, 13_000, 19_500, 26_000), starts)
+        }
+
+    @Test
+    fun aNodePinnedToTheMediumClassRestsTwelveSecondsBetweenScanWindowsAlone() =
+        runTest {
+            val starts = scanStarts { density = Density.Pinned(DensityClass.Medium) }
+
+            assertEquals(listOf(0L, 16_000), starts)
+        }
+
+    // When a lone node configured by [configure] starts its scan windows in its first 30 s.
+    private suspend fun TestScope.scanStarts(configure: MeshLinkConfigBuilder.() -> Unit): List<Long> {
+        val platform = air().platform(StandardTestDispatcher(testScheduler))
+        val node = node(platform, "Festival", configure)
+        node.start()
+        runCurrent()
+        val start = testScheduler.currentTime
+        advanceTimeBy(30_000)
+        node.stop()
+        return platform.radio.scanLog.filter { it.second }.map { it.first - start }
+    }
+
+    @Test
     fun nodeStoppedWithinAScanWindowStopsScanning() =
         runTest {
             // Arrange
@@ -442,9 +474,13 @@ class DiscoveryTest {
     private fun node(
         platform: PlatformPort,
         meshId: String,
+        configure: MeshLinkConfigBuilder.() -> Unit = {},
     ): MeshLink =
         MeshLink.create(
-            meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { this.meshId = meshId }.build(),
+            meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
+                this.meshId = meshId
+                configure()
+            }.build(),
             MeshPlatform.of(platform),
         )
 

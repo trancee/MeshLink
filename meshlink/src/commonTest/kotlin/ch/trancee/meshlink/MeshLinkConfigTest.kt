@@ -5,7 +5,6 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class MeshLinkConfigTest {
     private fun configWith(meshId: String): MeshLinkConfig =
@@ -52,27 +51,160 @@ class MeshLinkConfigTest {
     }
 
     @Test
-    fun messageLifetimeComesFromThePreset() {
-        // ADR 0011 amendment "Default message lifetime" (ADR 0014 decision 2).
-        val expected =
-            mapOf(
-                Preset.OfflineChat to 1_800,
-                Preset.EmergencyBroadcast to 3_600,
-                Preset.ProximityDiscovery to 120,
-                Preset.LocalMultiplayer to 120,
-                Preset.FieldTeams to 3_600,
-            )
-
-        expected.forEach { (preset, seconds) ->
-            val config = meshLinkConfig(preset, SecurityProfile.Unsecured) { meshId = "m" }.build()
-            assertEquals(seconds, config.messageLifetimeSeconds, "$preset")
-        }
+    fun offlineChatSetsItsPresetValues() {
+        assertPresetValues(
+            Preset.OfflineChat,
+            "density = Automatic\npower = Balanced\nroutedUnicast = true\nbroadcastOrigination = true\n" +
+                "broadcastPriority = false\nholding = true\nmessageLifetimeSeconds = 1800\n" +
+                "readReceipts.requestByDefault = true\nreadReceipts.send = true\n" +
+                "limits.maxUnicastPayload = 131072\nlimits.maxBroadcastPayload = 1024",
+        )
     }
 
     @Test
-    fun describeListsEveryEffectiveSetting() {
+    fun emergencyBroadcastSetsItsPresetValues() {
+        assertPresetValues(
+            Preset.EmergencyBroadcast,
+            "density = Automatic\npower = Balanced\nroutedUnicast = true\nbroadcastOrigination = true\n" +
+                "broadcastPriority = true\nholding = true\nmessageLifetimeSeconds = 3600\n" +
+                "readReceipts.requestByDefault = false\nreadReceipts.send = false\n" +
+                "limits.maxUnicastPayload = 4096\nlimits.maxBroadcastPayload = 1024",
+        )
+    }
+
+    @Test
+    fun proximityDiscoverySetsItsPresetValues() {
+        assertPresetValues(
+            Preset.ProximityDiscovery,
+            "density = Automatic\npower = Responsive\nroutedUnicast = false\nbroadcastOrigination = true\n" +
+                "broadcastPriority = false\nholding = false\nmessageLifetimeSeconds = 120\n" +
+                "readReceipts.requestByDefault = false\nreadReceipts.send = false\n" +
+                "limits.maxUnicastPayload = 4096\nlimits.maxBroadcastPayload = 1024",
+        )
+    }
+
+    @Test
+    fun localMultiplayerSetsItsPresetValues() {
+        assertPresetValues(
+            Preset.LocalMultiplayer,
+            "density = Pinned(Low)\npower = Responsive\nroutedUnicast = true\nbroadcastOrigination = true\n" +
+                "broadcastPriority = false\nholding = false\nmessageLifetimeSeconds = 120\n" +
+                "readReceipts.requestByDefault = false\nreadReceipts.send = false\n" +
+                "limits.maxUnicastPayload = 131072\nlimits.maxBroadcastPayload = 1024",
+        )
+    }
+
+    @Test
+    fun fieldTeamsSetsItsPresetValues() {
+        assertPresetValues(
+            Preset.FieldTeams,
+            "density = Automatic\npower = Balanced\nroutedUnicast = true\nbroadcastOrigination = true\n" +
+                "broadcastPriority = false\nholding = true\nmessageLifetimeSeconds = 3600\n" +
+                "readReceipts.requestByDefault = true\nreadReceipts.send = true\n" +
+                "limits.maxUnicastPayload = 131072\nlimits.maxBroadcastPayload = 1024",
+        )
+    }
+
+    @Test
+    fun customInheritsItsBaseAndAppliesItsOverrides() {
         // Arrange
-        val config = configWith("Festival")
+        val custom =
+            Preset.Custom("Quiet chat", Preset.OfflineChat) {
+                holding = false
+                density = Density.Pinned(DensityClass.Medium)
+                readReceipts.send = false
+                limits.maxUnicastPayload = 8_192
+            }
+
+        // Act
+        val config = meshLinkConfig(custom, SecurityProfile.Unsecured) { meshId = "m" }.build()
+
+        // Assert
+        assertEquals(
+            listOf(false, Density.Pinned(DensityClass.Medium), false, 8_192),
+            listOf(config.holding, config.density, config.readReceipts.send, config.limits.maxUnicastPayload),
+        )
+        assertEquals(
+            listOf(1_800, true, Power.Balanced, true),
+            listOf(config.messageLifetimeSeconds, config.readReceipts.requestByDefault, config.power, config.routedUnicast),
+        )
+        assertEquals("preset = Custom(\"Quiet chat\", base = OfflineChat) (override)", config.describe().lines()[0])
+    }
+
+    @Test
+    fun theBuilderStartsFromThePresetAndKeepsEveryToggleSet() {
+        // Arrange
+        val builder = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "m" }
+        val before = listOf(builder.holding, builder.l2capUpgrade, builder.messageLifetimeSeconds)
+
+        // Act
+        val config =
+            builder.apply {
+                density = Density.Pinned(DensityClass.High)
+                power = Power.Responsive
+                routedUnicast = false
+                broadcastOrigination = false
+                broadcastPriority = true
+                holding = false
+                l2capUpgrade = false
+                messageLifetimeSeconds = 600
+                readReceipts.requestByDefault = false
+                readReceipts.send = false
+            }.build()
+
+        // Assert
+        assertEquals(listOf(true, true, 1_800), before)
+        assertEquals(
+            listOf(Density.Pinned(DensityClass.High), Power.Responsive, false, false, true, false, false, 600, false, false),
+            listOf(
+                config.density,
+                config.power,
+                config.routedUnicast,
+                config.broadcastOrigination,
+                config.broadcastPriority,
+                config.holding,
+                config.l2capUpgrade,
+                config.messageLifetimeSeconds,
+                config.readReceipts.requestByDefault,
+                config.readReceipts.send,
+            ),
+        )
+    }
+
+    @Test
+    fun aMessageLifetimeOfTwoMinutesToOneHourIsAccepted() {
+        // ADR 0014 decision 2: 120 s to 1 h.
+        val accepted = listOf(120, 3_600).map { configWithLifetime(it).messageLifetimeSeconds }
+
+        assertEquals(listOf(120, 3_600), accepted)
+    }
+
+    @Test
+    fun aMessageLifetimeOutsideTwoMinutesToOneHourIsRejected() {
+        val settings =
+            listOf(119, 3_601).map {
+                assertFailsWith<MeshLinkException.InvalidConfig> { configWithLifetime(it) }.setting
+            }
+        val custom =
+            assertFailsWith<MeshLinkException.InvalidConfig> {
+                meshLinkConfig(Preset.Custom("Short", Preset.FieldTeams) { messageLifetimeSeconds = 60 }, UNSECURED) {
+                    meshId = "m"
+                }.build()
+            }
+
+        assertEquals(List(2) { "messageLifetimeSeconds" }, settings)
+        assertEquals("messageLifetimeSeconds", custom.setting)
+    }
+
+    @Test
+    fun describeListsEveryEffectiveSettingWithItsSource() {
+        // Arrange
+        val config =
+            meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) {
+                meshId = "Festival"
+                holding = false
+                limits.maxBroadcastPayload = 512
+            }.build()
 
         // Act
         val description = config.describe()
@@ -80,15 +212,22 @@ class MeshLinkConfigTest {
         // Assert
         assertEquals(
             """
-            preset = OfflineChat
-            securityProfile = Unsecured
-            meshId = "Festival"
-            meshKey = none
-            messageLifetimeSeconds = 1800
-            readReceiptsRequestByDefault = false
-            readReceiptsSend = false
-            limits.maxUnicastPayload = 131072
-            limits.maxBroadcastPayload = 1024
+            preset = OfflineChat (override)
+            securityProfile = Unsecured (override)
+            meshId = "Festival" (override)
+            meshKey = none (default)
+            l2capUpgrade = true (default)
+            density = Automatic (preset)
+            power = Balanced (preset)
+            routedUnicast = true (preset)
+            broadcastOrigination = true (preset)
+            broadcastPriority = false (preset)
+            holding = false (override)
+            messageLifetimeSeconds = 1800 (preset)
+            readReceipts.requestByDefault = true (preset)
+            readReceipts.send = true (preset)
+            limits.maxUnicastPayload = 131072 (preset)
+            limits.maxBroadcastPayload = 512 (override)
             """.trimIndent(),
             description,
         )
@@ -136,24 +275,6 @@ class MeshLinkConfigTest {
         assertEquals(List(2) { "limits.maxBroadcastPayload" }, broadcast)
     }
 
-    @OptIn(InternalMeshLinkApi::class)
-    @Test
-    fun readReceiptSettingsAreOffByDefaultAndKeptWhenSet() {
-        // Arrange
-        val builder = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "Festival" }
-
-        // Act
-        val off = builder.build()
-        builder.readReceiptsRequestByDefault = true
-        builder.readReceiptsSend = true
-        val on = builder.build()
-
-        // Assert
-        assertEquals(listOf(false, false), listOf(off.readReceiptsRequestByDefault, off.readReceiptsSend))
-        assertEquals(listOf(true, true), listOf(on.readReceiptsRequestByDefault, on.readReceiptsSend))
-        assertTrue("readReceiptsRequestByDefault = true\nreadReceiptsSend = true" in on.describe())
-    }
-
     @Test
     fun aClassicalMeshTakesAThirtyTwoByteMeshKeyAndDescribeRedactsIt() {
         // Arrange
@@ -169,7 +290,7 @@ class MeshLinkConfigTest {
 
         // Assert
         assertContentEquals(ByteArray(MESH_KEY) { it.toByte() }, config.meshKey)
-        assertEquals("meshKey = <redacted>", config.describe().lines()[3])
+        assertEquals("meshKey = <redacted> (override)", config.describe().lines()[3])
     }
 
     @Test
@@ -179,7 +300,7 @@ class MeshLinkConfigTest {
 
         // Assert
         assertNull(config.meshKey)
-        assertEquals("meshKey = none", config.describe().lines()[3])
+        assertEquals("meshKey = none (default)", config.describe().lines()[3])
     }
 
     @Test
@@ -209,7 +330,26 @@ class MeshLinkConfigTest {
         assertEquals("meshKey", failure.setting)
     }
 
+    private fun configWithLifetime(seconds: Int): MeshLinkConfig =
+        meshLinkConfig(Preset.OfflineChat, UNSECURED) {
+            meshId = "m"
+            messageLifetimeSeconds = seconds
+        }.build()
+
+    // Asserts the preset's lines of describe(): every value it sets, each with source preset.
+    private fun assertPresetValues(
+        preset: Preset,
+        expected: String,
+    ) {
+        val config = meshLinkConfig(preset, UNSECURED) { meshId = "m" }.build()
+
+        val described = config.describe().lines().filter { it.endsWith(" (preset)") }
+
+        assertEquals(expected, described.joinToString("\n") { it.removeSuffix(" (preset)") })
+    }
+
     private companion object {
         const val MESH_KEY = 32
+        val UNSECURED = SecurityProfile.Unsecured
     }
 }

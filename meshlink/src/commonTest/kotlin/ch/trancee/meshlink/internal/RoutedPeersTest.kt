@@ -1,16 +1,10 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Reachability
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -18,6 +12,13 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoutedPeersTest {
@@ -35,7 +36,7 @@ class RoutedPeersTest {
         val clock = SchedulerClock(testScheduler)
         val lookups =
             Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, Lanes()) {
-                DensityClass.MEDIUM
+                DensityClass.Medium
             }
         lookups.begin {}
         return RoutedPeers(clock, this, routes, roster, SecuredPeerTags(SodiumCryptoProvider, lookups)) to lookups

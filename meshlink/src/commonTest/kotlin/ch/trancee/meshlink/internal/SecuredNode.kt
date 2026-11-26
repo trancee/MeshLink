@@ -1,16 +1,17 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * A secured node of [keys]: its end, the lanes and inbox it uses, whom it heard from, the peers it opened
@@ -41,7 +42,7 @@ internal fun TestScope.securedNode(
     val clock = SchedulerClock(testScheduler)
     val node = SecuredNode(keys)
     node.lanes.open(neighbor)
-    node.lookups = Lookups(crypto, clock, backgroundScope, WireProfile.CLASSICAL, node.lanes) { DensityClass.MEDIUM }
+    node.lookups = Lookups(crypto, clock, backgroundScope, WireProfile.CLASSICAL, node.lanes) { DensityClass.Medium }
     node.lookups.begin {}
     val read = { from: NodeId, ids: List<ByteArray> -> node.read += from to ids.map { it.toList() } }
     val receipts =

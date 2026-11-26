@@ -1,19 +1,20 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 
 // Router's forwarding and origin rules, on lanes to three linked peers.
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -25,7 +26,7 @@ class RouterTest {
     private val endpoint = FakeEndpoint(OWN)
     private val delivered = endpoint.delivered
     private val broadcasts = mutableListOf<ReceivedMessage>()
-    private val floods = Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment) { broadcasts += it }
+    private val floods = Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment, holds = true) { broadcasts += it }
 
     private var lookups: Lookups? = null
 
@@ -39,7 +40,7 @@ class RouterTest {
         val clock = SchedulerClock(testScheduler)
         val secured =
             Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, lanes) {
-                DensityClass.MEDIUM
+                DensityClass.Medium
             }.also { it.begin {} }
         lookups = secured
         return Router(clock, lanes, Routes(), { ByteArray(it) }, endpoint, Handoff(floods, secured))
@@ -679,6 +680,22 @@ class RouterTest {
             assertEquals(listOf(1, 2, 3).map { messageId(it).toList() }, held.map { it.messageId.toList() })
             assertContentEquals(frames[0].copyOf().also { it[1] = 1 }, held[0].bytes)
             assertTrue(held.all { it.from == a })
+        }
+
+    @Test
+    fun aRelayedMessageAndItsHeldCopyAreMessagesForBroadcastPriorityAndReceiptsAreNot() =
+        runTest {
+            // Arrange
+            val router = router()
+            val frames = listOf(message(hopLimit = 2, id = 1), receipt(2, tag(9)), read(3, tag(9)))
+
+            // Act
+            frames.forEach { router.received(a, it) }
+
+            // Assert
+            val kinds = listOf(Parcel.Kind.MESSAGE, Parcel.Kind.OTHER, Parcel.Kind.OTHER)
+            assertEquals(kinds, lanes.drain(b).map { it.kind })
+            assertEquals(kinds, floods.holding.unicasts(wallMillis()).map { it.parcel().kind })
         }
 
     @Test

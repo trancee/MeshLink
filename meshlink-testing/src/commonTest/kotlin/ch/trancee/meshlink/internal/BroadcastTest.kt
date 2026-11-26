@@ -330,7 +330,7 @@ class BroadcastTest {
     /** A stopped `unsecured` node whose messages live 120 s. */
     private fun shortLivedNode(platform: VirtualPlatform): MeshLink =
         MeshLink.create(
-            meshLinkConfig(Preset.ProximityDiscovery, SecurityProfile.Unsecured) { meshId = MESH }.build(),
+            meshLinkConfig(LINE_PRESET, SecurityProfile.Unsecured) { meshId = MESH }.build(),
             meshPlatform(platform),
         )
 

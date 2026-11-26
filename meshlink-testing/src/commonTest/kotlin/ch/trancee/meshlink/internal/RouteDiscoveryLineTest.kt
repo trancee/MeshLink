@@ -4,7 +4,6 @@ import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.NodeId
-import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.Reachability
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.meshLinkConfig
@@ -282,7 +281,7 @@ class RouteDiscoveryLineTest {
 
     private fun node(platform: VirtualPlatform): MeshLink =
         MeshLink.create(
-            meshLinkConfig(Preset.ProximityDiscovery, SecurityProfile.Unsecured) { meshId = MESH }.build(),
+            meshLinkConfig(LINE_PRESET, SecurityProfile.Unsecured) { meshId = MESH }.build(),
             meshPlatform(platform),
         )
 

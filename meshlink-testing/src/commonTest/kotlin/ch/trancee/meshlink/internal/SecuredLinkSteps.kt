@@ -4,7 +4,6 @@ import ch.trancee.meshlink.DeliveryStatus
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
-import ch.trancee.meshlink.Preset
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendResult
 import ch.trancee.meshlink.meshLinkConfig
@@ -140,7 +139,7 @@ private class SecuredPair {
             )
         ports.forEachIndexed { index, port ->
             val opened = OpenedFrames(SeededCrypto(SEED + index))
-            val config = meshLinkConfig(Preset.ProximityDiscovery, profile) { meshId = SECURED_LINKS_MESH }.build()
+            val config = meshLinkConfig(LINE_PRESET, profile) { meshId = SECURED_LINKS_MESH }.build()
             nodes += MeshLink.create(config, MeshPlatform.of(port, opened))
             crypto += opened
         }

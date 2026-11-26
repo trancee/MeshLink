@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 // A node's tombstones (spec "Tombstones", D-42) over the frames it holds, at wall-clock second NOW.
 class TombstonesTest {
-    private val holding = Holding()
+    private val holding = Holding(enabled = true)
     private val tombstones = Tombstones(holding, ::commitment)
     private val a = nodeId(1)
 

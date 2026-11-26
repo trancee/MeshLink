@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 
 /** What [Router] needs from the node's end-to-end layer; called on the node's dispatcher. */
@@ -148,7 +149,7 @@ internal class Router(
         val attempt = attempts.next(made.messageId)
         seen.put(made.messageId + attempt.toByte(), now + SEEN_WINDOW_MILLIS)
         val render = { UnicastHeader.attempted(made.render(), attempt) }
-        val sent = Parcel(made.messageId, made.relayed, render, made.wanted, made.settle)
+        val sent = Parcel(made.messageId, made.relayed, render, made.wanted, made.kind, made.settle)
         val targets = if (route != null) listOf(route.peer) else lanes.peers
         targets.forEach { lanes.put(it, sent) }
         return route?.hops
@@ -223,7 +224,8 @@ internal class Router(
         val targets = relayed?.let { targets(peer, frame, bytes.size, now) }
         if (relayed == null || targets == null) return
         seen.put(sighting, now + SEEN_WINDOW_MILLIS)
-        targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }) {}) }
+        val kind = if (frame.type == MessageFrame.TYPE) Parcel.Kind.MESSAGE else Parcel.Kind.OTHER
+        targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }, kind = kind) {}) }
         handOver.relayed(peer, frame, relayed)
     }
 
@@ -403,11 +405,11 @@ internal enum class Reach {
         ): Reach =
             when {
                 large -> ROUTE
-                density == DensityClass.LOW -> FLOOD
+                density == DensityClass.Low -> FLOOD
                 else -> ROUTE_OR_FLOOD
             }
 
         /** The reach of a receipt from a node of class [density]: a low-class one never asks for a route (D-61). */
-        fun receipt(density: DensityClass): Reach = if (density == DensityClass.LOW) ROUTE_OR_WIDE else of(density)
+        fun receipt(density: DensityClass): Reach = if (density == DensityClass.Low) ROUTE_OR_WIDE else of(density)
     }
 }

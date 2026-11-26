@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -38,9 +39,9 @@ class DensityClassifierTest {
             }
 
         // Assert
-        val low = DensityClass.LOW
-        val medium = DensityClass.MEDIUM
-        val high = DensityClass.HIGH
+        val low = DensityClass.Low
+        val medium = DensityClass.Medium
+        val high = DensityClass.High
         val expected =
             listOf(low, low, low, medium, medium, medium, high, high, high, medium, medium, medium, low, high, low)
         assertEquals(expected, classes)
@@ -56,8 +57,8 @@ class DensityClassifierTest {
         val classes = estimates.map { DensityClassifier(clock, pinned = null).classify(it) }
 
         // Assert
-        assertEquals(DensityClass.LOW, before)
-        assertEquals(listOf(DensityClass.LOW, DensityClass.MEDIUM, DensityClass.MEDIUM, DensityClass.HIGH), classes)
+        assertEquals(DensityClass.Low, before)
+        assertEquals(listOf(DensityClass.Low, DensityClass.Medium, DensityClass.Medium, DensityClass.High), classes)
     }
 
     @Test
@@ -82,11 +83,11 @@ class DensityClassifierTest {
         // Assert
         val expected =
             listOf(
-                DensityClass.LOW,
-                DensityClass.LOW,
-                DensityClass.HIGH,
-                DensityClass.HIGH,
-                DensityClass.LOW,
+                DensityClass.Low,
+                DensityClass.Low,
+                DensityClass.High,
+                DensityClass.High,
+                DensityClass.Low,
             )
         assertEquals(expected, classes)
     }
@@ -94,7 +95,7 @@ class DensityClassifierTest {
     @Test
     fun aPinnedClassNeverSwitchesWhateverTheEstimate() {
         // Arrange
-        val classifier = DensityClassifier(clock, pinned = DensityClass.MEDIUM)
+        val classifier = DensityClassifier(clock, pinned = DensityClass.Medium)
         val before = classifier.current
 
         // Act
@@ -105,9 +106,9 @@ class DensityClassifierTest {
             }
 
         // Assert
-        assertEquals(DensityClass.MEDIUM, before)
-        assertEquals(List(classes.size) { DensityClass.MEDIUM }, classes)
-        assertEquals(DensityClass.MEDIUM, classifier.current)
+        assertEquals(DensityClass.Medium, before)
+        assertEquals(List(classes.size) { DensityClass.Medium }, classes)
+        assertEquals(DensityClass.Medium, classifier.current)
     }
 
     /** A clock that reads [now] on both timelines. */

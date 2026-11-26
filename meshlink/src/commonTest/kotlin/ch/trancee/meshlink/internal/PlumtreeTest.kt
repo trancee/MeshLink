@@ -1,14 +1,15 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 
 // The broadcast tree on lanes to three linked peers: eager and lazy links, grafts, and its bounds.
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -18,7 +19,7 @@ class PlumtreeTest {
     private val c = nodeId(3)
     private val d = nodeId(4)
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
-    private var density = DensityClass.MEDIUM
+    private var density = DensityClass.Medium
 
     private fun TestScope.tree() = Plumtree(lanes, SchedulerClock(testScheduler), backgroundScope) { density }
 
@@ -66,7 +67,7 @@ class PlumtreeTest {
         runTest {
             // Arrange
             val tree = tree()
-            density = DensityClass.LOW
+            density = DensityClass.Low
             tree.pruned(b)
 
             // Act

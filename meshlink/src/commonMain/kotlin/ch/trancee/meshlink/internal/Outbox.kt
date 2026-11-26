@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReadReceiptRequest
@@ -66,7 +67,7 @@ internal class Outbox(
     fun linked(peer: NodeId) {
         val sending = entries.filter { !it.quiet }
         sending.filter { it.directOnly && it.to == peer }.forEach { transmit(it, false) }
-        if (density() == DensityClass.HIGH) return
+        if (density() == DensityClass.High) return
         val now = clock.monotonicMillis()
         linkRetries.keys.retainAll(sending.map { it.to }.toSet())
         sending.filter { !it.directOnly }.groupBy { it.to }.forEach { (to, waiting) ->
@@ -267,7 +268,7 @@ internal class Outbox(
             density: DensityClass,
             doublings: Int,
         ): Long {
-            val (min, max) = if (density == DensityClass.HIGH) HIGH else LOW
+            val (min, max) = if (density == DensityClass.High) HIGH else LOW
             return minOf(min shl doublings, max)
         }
     }

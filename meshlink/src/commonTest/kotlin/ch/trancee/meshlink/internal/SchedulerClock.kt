@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.CoroutineStart
@@ -95,7 +96,7 @@ internal fun lowTree(
     lanes: Lanes,
     scope: TestScope = TestScope(),
     clock: Clock = SchedulerClock(scope.testScheduler),
-): Plumtree = Plumtree(lanes, clock, scope) { DensityClass.LOW }
+): Plumtree = Plumtree(lanes, clock, scope) { DensityClass.Low }
 
 /**
  * The first-message keys of the node with [identityKey] [seed]: a fresh static key, and an X-Wing key if

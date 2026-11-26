@@ -1,27 +1,28 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.FailureReason
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReadReceiptRequest
 import ch.trancee.meshlink.SendOptions
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 // The outbox's retry schedule, new-link retries, status and capacity, with a recording transmit.
 @OptIn(ExperimentalCoroutinesApi::class)
 class OutboxTest {
     private val capacity = Capacity()
-    private var density = DensityClass.LOW
+    private var density = DensityClass.Low
     private val attempts = mutableListOf<Pair<Long, NodeId>>()
     private val messaging = UnsecuredMessaging(SodiumCryptoProvider, SENDER)
 
@@ -70,7 +71,7 @@ class OutboxTest {
 
             // Assert
             assertEquals(listOf(0L, 2_000, 6_000, 14_000, 30_000, 60_000, 90_000), times(90_000))
-            density = DensityClass.MEDIUM
+            density = DensityClass.Medium
             assertEquals(120_000L, times(120_000).last())
         }
 
@@ -99,7 +100,7 @@ class OutboxTest {
     fun theHighClassRetriesAfterIntervalsDoublingFromFiveToSixtySecondsThenAtSixty() =
         runTest {
             // Arrange
-            density = DensityClass.HIGH
+            density = DensityClass.High
             val outbox = outbox()
 
             // Act
@@ -145,7 +146,7 @@ class OutboxTest {
             // Act
             outbox.linked(PEER)
             advanceTimeBy(Outbox.LINK_RETRY_GAP_MILLIS - 1)
-            density = DensityClass.MEDIUM
+            density = DensityClass.Medium
             outbox.linked(PEER)
             advanceTimeBy(1)
             outbox.linked(PEER)
@@ -180,7 +181,7 @@ class OutboxTest {
     fun theHighClassDoesNotRetryOnANewLink() =
         runTest {
             // Arrange
-            density = DensityClass.HIGH
+            density = DensityClass.High
             val outbox = outbox()
             outbox.add(entry())
             attempts.clear()
@@ -251,7 +252,7 @@ class OutboxTest {
     fun aFoundRouteSendsTheMatchingMessagesOnceEachWhenTheGapSinceTheirLastSendHasPassed() =
         runTest {
             // Arrange
-            density = DensityClass.HIGH
+            density = DensityClass.High
             val outbox = outbox()
             outbox.add(entry())
             outbox.add(entry(to = OTHER))
@@ -273,7 +274,7 @@ class OutboxTest {
     fun aMessageThatFinishesBeforeItsDeferredSendIsNotSentAgain() =
         runTest {
             // Arrange
-            density = DensityClass.HIGH
+            density = DensityClass.High
             val outbox = outbox()
             outbox.add(entry(lifetimeMillis = GAP_MILLIS - FOUND_MILLIS))
             advanceTimeBy(FOUND_MILLIS)
@@ -385,7 +386,7 @@ class OutboxTest {
     fun aLinkToTheDestinationSendsItsDirectOnlyMessagesAtOnceInEveryClassAndNoOtherLinkDoes() =
         runTest {
             // Arrange
-            density = DensityClass.HIGH
+            density = DensityClass.High
             val outbox = outbox()
             outbox.add(entry(directOnly = true))
             outbox.add(entry(to = OTHER, directOnly = true))
@@ -398,7 +399,7 @@ class OutboxTest {
 
             // Assert
             assertEquals(listOf(0L to PEER, 0L to PEER), attempts)
-            density = DensityClass.LOW
+            density = DensityClass.Low
             attempts.clear()
             outbox.linked(PEER)
             assertEquals(listOf(0L to PEER, 0L to PEER), attempts)

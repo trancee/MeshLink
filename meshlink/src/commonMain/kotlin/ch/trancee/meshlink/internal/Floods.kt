@@ -32,10 +32,11 @@ internal class Floods(
     private val codec: BroadcastCodec,
     private val tree: Plumtree,
     commitment: (k: ByteArray) -> ByteArray,
+    holds: Boolean,
     private val deliver: (ReceivedMessage) -> Unit,
 ) {
-    /** The frames this node holds for others (spec "Holding"). */
-    val holding: Holding = Holding()
+    /** The frames this node holds for others (spec "Holding"); none unless it [holds]. */
+    val holding: Holding = Holding(holds)
 
     /**
      * The tombstones kept (spec "Tombstones"); they open [holding]'s `MESSAGE` commitments with the `commitment`
@@ -180,7 +181,14 @@ internal class Floods(
         val hopLimit = header.hopLimit - 1
         if (hopLimit < 1) return
         val bytes = FloodFrame(frame.type, FloodHeader(hopLimit, header.messageId, header.expiry), frame.body).encode()
-        val parcel = Parcel(header.messageId, relayed = true, { bytes }) {}
+        val kind =
+            when {
+                frame.type != BroadcastFrame.TYPE -> Parcel.Kind.OTHER
+                FloodPrototype.eligible(this, peer) -> Parcel.Kind.BROADCAST
+                FloodPrototype.drop -> return
+                else -> Parcel.Kind.MESSAGE
+            }
+        val parcel = Parcel(header.messageId, relayed = true, { bytes }, kind = kind) {}
         if (frame.type == BroadcastFrame.TYPE) {
             tree.spread(peer, parcel, header.expiry.toLong())
             val copy = HeldFrame(peer, header.messageId, null, header.expiry.toLong(), bytes)
@@ -192,5 +200,25 @@ internal class Floods(
 
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L
+    }
+}
+
+// PROTOTYPE (broadcast flood, ticket 53): a per-incoming-link token bucket for broadcast priority.
+public object FloodPrototype {
+    public var ratePerSecond: Double = Double.POSITIVE_INFINITY
+    public var burst: Double = 0.0
+    public var drop: Boolean = false
+    public var nowMillis: () -> Long = { 0L }
+    private val buckets = mutableMapOf<Pair<Any, NodeId>, DoubleArray>()
+
+    public fun reset(): Unit = buckets.clear()
+
+    internal fun eligible(owner: Any, peer: NodeId): Boolean {
+        if (ratePerSecond.isInfinite()) return true
+        val now = nowMillis()
+        val b = buckets.getOrPut(owner to peer) { doubleArrayOf(burst, now.toDouble()) }
+        b[0] = minOf(burst, b[0] + (now - b[1]) * ratePerSecond / 1000.0)
+        b[1] = now.toDouble()
+        return if (b[0] >= 1.0) { b[0] -= 1.0; true } else false
     }
 }
