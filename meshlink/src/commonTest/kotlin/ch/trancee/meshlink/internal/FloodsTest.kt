@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,6 +20,7 @@ class FloodsTest {
     private val c = nodeId(3)
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
     private val delivered = mutableListOf<ReceivedMessage>()
+    private val diagnosed = mutableListOf<DiagnosticEvent>()
 
     private fun TestScope.floods(
         secured: Boolean = false,
@@ -26,7 +28,9 @@ class FloodsTest {
         holds: Boolean = true,
     ): Floods {
         val tree = Plumtree(lanes, SchedulerClock(testScheduler), backgroundScope) { density }
-        return Floods(lanes, broadcastCodec(secured), tree, ::tombstoneCommitment, holds) { delivered += it }
+        return Floods(lanes, broadcastCodec(secured), tree, keptTombstones(holds, diagnosed::add), diagnosed::add) {
+            delivered += it
+        }
     }
 
     private suspend fun waiting() = listOf(a, b, c).associateWith { peer -> lanes.drain(peer).map { it.render() } }
@@ -191,6 +195,26 @@ class FloodsTest {
             assertEquals(emptyList(), delivered)
             listOf(b, c).forEach { assertContentEquals(relayed, waiting.getValue(it).single()) }
             assertEquals(listOf(a, b, c).associateWith { emptyList<ByteArray>() }, waiting())
+            val expected = listOf("ML5003 UnknownRoutedFrameRelayed(type=$UNKNOWN_TYPE) x1")
+            assertEquals(expected, diagnosed.map { it.toString() })
+        }
+
+    @Test
+    fun aRelayedLookupRequestOrBroadcastOrAnUnknownTypeAtItsLastHopIsNotReportedUnknown() =
+        runTest {
+            // Arrange
+            val floods = floods()
+            val lookupHeader = FloodHeader(5, messageId(1), (NOW + LIFETIME).toUInt())
+            val lookupRequest = LookupRequest(lookupHeader, tag(0x5a), tag(3), ByteArray(32))
+
+            // Act
+            floods.received(a, lookupRequest.encode(), NOW)
+            floods.received(a, broadcast(id = 2), NOW)
+            floods.received(a, header(type = UNKNOWN_TYPE, id = 3, hopLimit = 1), NOW)
+
+            // Assert
+            assertEquals(listOf(0, 2, 2), waiting().values.map { it.size }, "the request and the broadcast are relayed")
+            assertEquals(emptyList(), diagnosed)
         }
 
     @Test

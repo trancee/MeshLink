@@ -113,17 +113,18 @@ internal fun TestScope.grantCredits(
     }
 }
 
-/** Every diagnostic but the lifecycle ones (`ML1xxx`) [node] reports from now on. */
+/** Every diagnostic with one of [codes] that [node] reports from now on. */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal fun TestScope.diagnostics(node: MeshLink): List<DiagnosticEvent> {
+internal fun TestScope.diagnostics(
+    node: MeshLink,
+    vararg codes: String,
+): List<DiagnosticEvent> {
     val seen = mutableListOf<DiagnosticEvent>()
     backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-        node.diagnostics.collect { if (!it.code.startsWith(LIFECYCLE)) seen += it }
+        node.diagnostics.collect { if (it.code in codes) seen += it }
     }
     return seen
 }
-
-private const val LIFECYCLE = "ML1"
 
 /** The MeshIdDigest of [meshId] in the `unsecured` profile. */
 internal fun digest(meshId: String): ByteArray =

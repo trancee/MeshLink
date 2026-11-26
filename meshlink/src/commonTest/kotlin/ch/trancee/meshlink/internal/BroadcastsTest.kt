@@ -34,7 +34,7 @@ class BroadcastsTest {
     private val lanes = Lanes()
     private val received = mutableListOf<ReceivedMessage>()
     private val codec = broadcastCodec(nodeId = SELF, random = ::nextId)
-    private val floods = Floods(lanes, codec, lowTree(lanes), ::tombstoneCommitment, holds = true) { received += it }
+    private val floods = Floods(lanes, codec, lowTree(lanes), keptTombstones()) { received += it }
 
     private fun TestScope.broadcasts(
         secured: Boolean = false,
@@ -44,7 +44,7 @@ class BroadcastsTest {
         val clock = SchedulerClock(testScheduler)
         val writing = if (secured) broadcastCodec(secured = true, random = ::nextId) else codec
         val flooding =
-            if (secured) Floods(lanes, writing, lowTree(lanes), ::tombstoneCommitment, holds = true) {} else floods
+            if (secured) Floods(lanes, writing, lowTree(lanes), keptTombstones()) {} else floods
         val broadcasts =
             Broadcasts(clock, backgroundScope, capacity, flooding, writing, config(payloadMax, origination))
         broadcasts.begin()

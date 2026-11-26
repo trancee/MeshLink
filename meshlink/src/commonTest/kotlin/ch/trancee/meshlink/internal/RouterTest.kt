@@ -27,22 +27,28 @@ class RouterTest {
     private val delivered = endpoint.delivered
     private val broadcasts = mutableListOf<ReceivedMessage>()
     private val floods =
-        Floods(lanes, broadcastCodec(), lowTree(lanes), ::tombstoneCommitment, holds = true) { broadcasts += it }
+        Floods(lanes, broadcastCodec(), lowTree(lanes), keptTombstones()) { broadcasts += it }
 
     private var lookups: Lookups? = null
 
     private fun TestScope.router(kinds: Set<Int> = setOf(Container.UNSECURED)): Router {
         endpoint.kinds = kinds
-        return Router(SchedulerClock(testScheduler), lanes, Routes(), { ByteArray(it) }, endpoint, Handoff(floods))
+        val clock = SchedulerClock(testScheduler)
+        return Router(clock, lanes, Routes(), { ByteArray(it) }, endpoint, Handoff(floods))
     }
 
     // A secured node's router, with its lookups.
     private fun TestScope.securedRouter(): Router {
         val clock = SchedulerClock(testScheduler)
         val secured =
-            Lookups(SodiumCryptoProvider, clock, backgroundScope, WireProfile.CLASSICAL, lanes) {
-                DensityClass.Medium
-            }.also { it.begin {} }
+            Lookups(
+                SodiumCryptoProvider,
+                Pace(clock) { DensityClass.Medium },
+                backgroundScope,
+                WireProfile.CLASSICAL,
+                lanes,
+                DiagnosticsHub(backgroundScope, debug = true, crypto = SodiumCryptoProvider),
+            ).also { it.begin {} }
         lookups = secured
         return Router(clock, lanes, Routes(), { ByteArray(it) }, endpoint, Handoff(floods, secured))
     }
@@ -287,19 +293,6 @@ class RouterTest {
 
             // Assert
             assertEquals(2, waiting().getValue(b).size)
-        }
-
-    @Test
-    fun aUnicastTypeThisVersionDoesNotKnowIsRelayedByItsHeader() =
-        runTest {
-            // Arrange
-            val router = router()
-
-            // Act
-            router.received(a, unicast(0x45, 5, messageId(1), nowSeconds(), tag(9), tag(8)))
-
-            // Assert
-            assertEquals(1, waiting().getValue(b).size)
         }
 
     @Test

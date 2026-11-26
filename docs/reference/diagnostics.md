@@ -20,14 +20,34 @@ Repeats of a code for the same peer or link within 10 s arrive as one event whos
 | [ML1001](#ml1001) | `Started` | `Info` | none. |
 | [ML1002](#ml1002) | `Stopped` | `Info` | none. |
 | [ML1003](#ml1003) | `UnsecuredProfile` | `Warning` | none. |
+| [ML1004](#ml1004) | `OwnCertificateRenewed` | `Info` | none. |
+| [ML2001](#ml2001) | `ScanWindow` | `Debug` | high battery use. |
+| [ML2006](#ml2006) | `StaleAddressMarked` | `Debug` | peers not found. |
+| [ML2007](#ml2007) | `DensityClassChanged` | `Info` | high battery use. |
+| [ML3001](#ml3001) | `LinkOpened` | `Info` | none. |
+| [ML3002](#ml3002) | `LinkClosed` | `Info` | messages not delivered. |
 | [ML3003](#ml3003) | `ConnectFailed` | `Warning` | peers not found. |
 | [ML3004](#ml3004) | `LinkCapReached` | `Debug` | peers not found. |
 | [ML3005](#ml3005) | `BearerFallback` | `Info` | messages not delivered. |
 | [ML3007](#ml3007) | `UnknownLinkFrameDropped` | `Debug` | none. |
+| [ML3008](#ml3008) | `ProtocolVersionRejected` | `Warning` | peers not found. |
+| [ML3009](#ml3009) | `BusyReply` | `Debug` | messages not delivered. |
+| [ML3010](#ml3010) | `BearerSwitched` | `Debug` | none. |
 | [ML4001](#ml4001) | `HandshakeFailed` | `Warning` | peers not found. |
 | [ML4002](#ml4002) | `HandshakeLimitDropped` | `Warning` | peers not found. |
+| [ML4004](#ml4004) | `BroadcastSignatureInvalid` | `Debug` | none. |
+| [ML5001](#ml5001) | `RouteFound` | `Debug` | none. |
+| [ML5002](#ml5002) | `RouteLost` | `Debug` | messages not delivered. |
+| [ML5003](#ml5003) | `UnknownRoutedFrameRelayed` | `Debug` | none. |
+| [ML5004](#ml5004) | `ExpiryFarFromLocalTime` | `Warning` | messages not delivered. |
+| [ML6001](#ml6001) | `HeldMessageEvicted` | `Info` | messages not delivered. |
+| [ML6002](#ml6002) | `CertificateLookup` | `Debug` | none. |
+| [ML6003](#ml6003) | `CertificateLookupUnanswered` | `Warning` | messages not delivered. |
+| [ML6004](#ml6004) | `InvalidCertificateReply` | `Debug` | messages not delivered. |
 | [ML7001](#ml7001) | `DiagnosticsDropped` | `Warning` | none. |
 | [ML7002](#ml7002) | `ReadTrackingEvicted` | `Info` | messages not delivered. |
+| [ML7003](#ml7003) | `InboxFull` | `Warning` | messages not delivered. |
+| [ML7004](#ml7004) | `ReassemblyBudgetExhausted` | `Debug` | messages not delivered. |
 
 ## ML1001
 
@@ -69,6 +89,103 @@ Fields:
 - Fix: choose `SecurityProfile.Classical` or `SecurityProfile.PostQuantum` unless every payload is public anyway.
 - Related: `MeshLinkConfig.securityProfile`.
 - Symptom: none.
+
+## ML1004
+
+`DiagnosticEvent.OwnCertificateRenewed`, severity `Info`: The node renewed its certificate and static keys, as it does every 12 h (spec "Static-key rotation"); a message sealed to its earlier certificate still opens until that certificate expires.
+
+- Cause: the rotation interval passed.
+- Fix: none needed.
+- Related: spec "Static-key rotation".
+- Symptom: none.
+
+## ML2001
+
+`DiagnosticEvent.ScanWindow`, severity `Debug`: A scan window started or stopped, as `phase` tells. A central scans in windows of 4 s and rests between them as long as its density class and `MeshLinkConfig.power` set; every window starts a fresh scan.
+
+- Cause: the node scans as central.
+- Fix: none needed.
+- Related: `MeshLinkConfig.power`, `MeshLinkConfig.density`.
+- Symptom: high battery use.
+
+Fields:
+
+- `phase` (`ScanWindow.Phase`): Whether the window started or stopped.
+
+`ScanWindow.Phase` values:
+
+- `Started`: The window started: the node scans.
+- `Stopped`: The window stopped: the node rests.
+
+## ML2006
+
+`DiagnosticEvent.StaleAddressMarked`, severity `Debug`: An address sighted without an advertisement, as a backgrounded iPhone advertises, failed vetting: the node couldn't connect to it or read its capability record, or the record's advertisement belongs to no peer of this mesh. Its sightings add no candidate until it goes unseen for 10 min.
+
+- Cause: a phone of another mesh or app nearby, or a MeshLink peer that moved out of range during the dial.
+- Fix: none needed. If a peer of this mesh stays unfound, check that both use the same mesh ID and security profile.
+- Related: `MeshLinkConfig.meshId`.
+- Symptom: peers not found.
+
+## ML2007
+
+`DiagnosticEvent.DensityClassChanged`, severity `Info`: The node's density class switched `from` one class `to` another, which sets its link budget and scan schedule. Each start begins in `DensityClass.Low`; a pinned class never switches.
+
+- Cause: more or fewer peers in range than before.
+- Fix: none needed. If the class flaps in a stable crowd, pin it with `Density.Pinned`.
+- Related: `MeshLinkConfig.density`.
+- Symptom: high battery use.
+
+Fields:
+
+- `from` (`DensityClass`): The class before the switch.
+- `to` (`DensityClass`): The class after the switch.
+
+## ML3001
+
+`DiagnosticEvent.LinkOpened`, severity `Info`: A link to `peer` opened as `role`, with an ATT MTU of `mtu` bytes: the hellos or the handshake completed, and the peer is listed in `MeshLink.peers`.
+
+- Cause: a peer in range linked.
+- Fix: none needed.
+- Related: `MeshLink.peers`.
+- Symptom: none.
+
+Fields:
+
+- `peer` (`PeerRef`): The peer of the link.
+- `role` (`LinkOpened.Role`): This node's role on the link.
+- `mtu` (`Int`): The negotiated ATT MTU in bytes; each GATT write carries at most `mtu - 3` bytes.
+
+`LinkOpened.Role` values:
+
+- `Central`: This node connected to the peer.
+- `Peripheral`: The peer connected to this node.
+
+## ML3002
+
+`DiagnosticEvent.LinkClosed`, severity `Info`: An open link to `peer` closed for `reason`; `byPeer` tells whether the peer closed it. A link that closes before it opens reports why as `ML3003`, `ML3008` or `ML4001` instead.
+
+- Cause: `Reason.Normal` or `Reason.ShuttingDown`: a node stopped. `Reason.DuplicateLink`: the two nodes linked both ways and kept one link. `Reason.ResourceLimit`: the closing node holds its link budget. `Reason.ProtocolError`: an incompatible or faulty peer, or a corrupted record. `Reason.ConnectionLost`: the peer moved out of range or its radio failed.
+- Fix: none needed for a stop, a duplicate or a lost connection; the node links again when the peer is back. If `Reason.ProtocolError` repeats, update both apps to the same MeshLink version.
+- Related: spec "Close".
+- Symptom: messages not delivered.
+
+Fields:
+
+- `peer` (`PeerRef`): The peer of the link.
+- `reason` (`LinkClosed.Reason`): Why the link closed.
+- `byPeer` (`Boolean`): Whether the peer closed the link; `false` if this node did or the connection was lost.
+
+`LinkClosed.Reason` values:
+
+- `Normal`: A node closed the link without a fault.
+- `DuplicateLink`: The nodes linked both ways and closed one link.
+- `ProtocolError`: A node received a frame or record it could not accept.
+- `HandshakeFailed`: The handshake failed.
+- `UnsupportedVersion`: The nodes share no protocol version.
+- `WrongMesh`: The nodes belong to different meshes.
+- `ResourceLimit`: The closing node holds its link budget.
+- `ShuttingDown`: A node stopped.
+- `ConnectionLost`: The connection ended without a close, as when the peer moves out of range.
 
 ## ML3003
 
@@ -143,6 +260,56 @@ Fields:
 
 - `type` (`Int`): The frame's type byte, `0x00`–`0x3F`.
 
+## ML3008
+
+`DiagnosticEvent.ProtocolVersionRejected`, severity `Warning`: A link closed with no protocol version in common: the peer offered at most `theirVersion`.
+
+- Cause: the peer runs a MeshLink version with an incompatible protocol.
+- Fix: update both apps to the same MeshLink version.
+- Related: spec "Version selection".
+- Symptom: peers not found.
+
+Fields:
+
+- `theirVersion` (`Int`): The highest protocol version the peer offered.
+
+## ML3009
+
+`DiagnosticEvent.BusyReply`, severity `Debug`: A node refused a fragmented frame with `BUSY` for `reason`; `direction` tells which node. The link stays open, and the sender retries the message later (spec "Busy reply").
+
+- Cause: `Reason.Slots`: the link reassembles its maximum number of frames, or its one large frame. `Reason.Budget`: the refusing node reassembles as many large frames as it can hold.
+- Fix: none needed. If it repeats, send fewer large messages at once.
+- Related: spec "Busy reply".
+- Symptom: messages not delivered.
+
+Fields:
+
+- `direction` (`BusyReply.Direction`): Whether this node sent the `BUSY` or received it.
+- `reason` (`BusyReply.Reason`): Why the frame was refused.
+
+`BusyReply.Direction` values:
+
+- `Sent`: This node refused a frame of the peer.
+- `Received`: The peer refused a frame of this node.
+
+`BusyReply.Reason` values:
+
+- `Slots`: The link reassembles its maximum number of frames, or its one large frame.
+- `Budget`: The refusing node's budget for large frames is spent.
+
+## ML3010
+
+`DiagnosticEvent.BearerSwitched`, severity `Debug`: The link to `peer` moved from GATT to an L2CAP CoC channel (spec "Bearer switch").
+
+- Cause: both nodes support L2CAP CoC and have `MeshLinkConfig.l2capUpgrade` on.
+- Fix: none needed.
+- Related: `MeshLinkConfig.l2capUpgrade`.
+- Symptom: none.
+
+Fields:
+
+- `peer` (`PeerRef`): The peer of the link.
+
 ## ML4001
 
 `DiagnosticEvent.HandshakeFailed`, severity `Warning`: The handshake on `link` failed for `reason`, and the link closed.
@@ -183,6 +350,123 @@ Fields:
 - `Global`: More than `handshake-half-open-global` handshakes at once.
 - `NeighborInterval`: A new handshake from one address within `handshake-neighbor-interval`.
 
+## ML4004
+
+`DiagnosticEvent.BroadcastSignatureInvalid`, severity `Debug`: A signed broadcast reached the node whose signature did not verify, so the node neither delivered nor relayed it (spec "BROADCAST").
+
+- Cause: a faulty or malicious peer, or bytes corrupted in transit.
+- Fix: none needed; if it repeats, look for a peer that forges broadcasts.
+- Related: `MeshLink.broadcast`.
+- Symptom: none.
+
+## ML5001
+
+`DiagnosticEvent.RouteFound`, severity `Debug`: Route discovery found a route to `peer`, `hops` hops away, so `MeshLink.peers` lists it as `Reachability.Routed`.
+
+- Cause: the node sent to or heard from a peer beyond its links.
+- Fix: none needed.
+- Related: `MeshLink.peers`.
+- Symptom: none.
+
+Fields:
+
+- `peer` (`PeerRef`): The peer the route leads to.
+- `hops` (`Int`): The route's hop count.
+
+## ML5002
+
+`DiagnosticEvent.RouteLost`, severity `Debug`: `MeshLink.peers` no longer lists `peer` as `Reachability.Routed`: its route expired, or the key its routing tags derive from lapsed.
+
+- Cause: the peer moved away or stopped, or no message used its route.
+- Fix: none needed; the next message to the peer searches for a route anew.
+- Related: `MeshLink.peers`.
+- Symptom: messages not delivered.
+
+Fields:
+
+- `peer` (`PeerRef`): The peer the route led to.
+
+## ML5003
+
+`DiagnosticEvent.UnknownRoutedFrameRelayed`, severity `Debug`: The node relayed a routed frame of `type`, a type this version does not know, by its header alone (spec "Unicast forwarding", "Flood forwarding").
+
+- Cause: a peer runs a newer version of MeshLink.
+- Fix: none needed; update the app to use the newer type.
+- Related: spec "Routed frame summary".
+- Symptom: none.
+
+Fields:
+
+- `type` (`Int`): The frame's type byte.
+
+## ML5004
+
+`DiagnosticEvent.ExpiryFarFromLocalTime`, severity `Warning`: The node dropped a routed frame whose expiry lies outside what its clock accepts (spec "Routing headers"): the sender's clock and this phone's differ by at least `skewSeconds`, positive if the sender's runs ahead, negative if it runs behind.
+
+- Cause: a phone whose clock is set by hand, or wrong.
+- Fix: set every phone of the mesh to the network-provided time.
+- Related: spec "Routing headers".
+- Symptom: messages not delivered.
+
+Fields:
+
+- `skewSeconds` (`Long`): The least the clocks differ by, in seconds.
+
+## ML6001
+
+`DiagnosticEvent.HeldMessageEvicted`, severity `Info`: The node gave up a frame it held for others to make room for a new one (spec "Holding"), for `reason`.
+
+- Cause: `Reason.LinkShare`: one link sent more than its share of the frames held. `Reason.ClosestToExpiry`: the hold is full and no link is over its share.
+- Fix: none needed. If it repeats, peers that come back later may miss messages; send fewer messages to absent peers.
+- Related: spec "Holding".
+- Symptom: messages not delivered.
+
+Fields:
+
+- `reason` (`HeldMessageEvicted.Reason`): Why the frame gave way.
+
+`HeldMessageEvicted.Reason` values:
+
+- `LinkShare`: It came from a link over its share of the hold; that link's frame closest to expiry gave way.
+- `ClosestToExpiry`: The hold is full and no link is over its share; the frame closest to expiry gave way.
+
+## ML6002
+
+`DiagnosticEvent.CertificateLookup`, severity `Debug`: A certificate lookup brought `peer`'s certificate after `attempts` requests (spec "Certificate lookup"), so the node can seal messages to it.
+
+- Cause: the node sent to a peer it has never linked with.
+- Fix: none needed.
+- Related: spec "Certificate lookup".
+- Symptom: none.
+
+Fields:
+
+- `peer` (`PeerRef`): The peer whose certificate arrived.
+- `attempts` (`Int`): The requests the lookup sent.
+
+## ML6003
+
+`DiagnosticEvent.CertificateLookupUnanswered`, severity `Warning`: The lookup of `peer`'s certificate got no valid reply by its deadline, after `attempts` requests (spec "Certificate lookup"). A message that waited for it was never sealed to `peer`.
+
+- Cause: the peer is out of reach of the mesh, or stopped.
+- Fix: bring the phones closer together, or send again once the peer is listed in `MeshLink.peers`.
+- Related: spec "Certificate lookup".
+- Symptom: messages not delivered.
+
+Fields:
+
+- `peer` (`PeerRef`): The peer looked up.
+- `attempts` (`Int`): The requests the lookup sent.
+
+## ML6004
+
+`DiagnosticEvent.InvalidCertificateReply`, severity `Debug`: A reply to this node's certificate lookup failed to open, or held no valid certificate of the peer looked up (spec "Certificate lookup"). The node drops it and waits for another.
+
+- Cause: a faulty or hostile node answered, or the peer's certificate has expired.
+- Fix: none needed if a valid reply follows; otherwise check the peer's clock.
+- Related: spec "Certificate lookup".
+- Symptom: messages not delivered.
+
 ## ML7001
 
 `DiagnosticEvent.DiagnosticsDropped`, severity `Warning`: This collector fell `dropped` events behind, so its oldest events were dropped. Each collector buffers 256 events.
@@ -208,3 +492,31 @@ Fields:
 Fields:
 
 - `messageId` (`ByteArray`): A copy of the forgotten message's `message_id`.
+
+## ML7003
+
+`DiagnosticEvent.InboxFull`, severity `Warning`: A received message was dropped because the messages waiting for the app reached `bound` (ADR 0007 decision 9). Its sender gets no delivery receipt and retries.
+
+- Cause: the app does not collect `MeshLink.messages`, or collects it slowly.
+- Fix: collect `MeshLink.messages` for as long as the node runs.
+- Related: `MeshLink.messages`.
+- Symptom: messages not delivered.
+
+Fields:
+
+- `bound` (`InboxFull.Bound`): The bound the message would have crossed.
+
+`InboxFull.Bound` values:
+
+- `Count`: At most 1,024 messages wait.
+- `Bytes`: At most 1 MiB of payload waits.
+- `Sender`: One sender's messages hold at most a quarter of the payload bytes.
+
+## ML7004
+
+`DiagnosticEvent.ReassemblyBudgetExhausted`, severity `Debug`: This node refused a large fragmented frame with `BUSY`, as the frames it reassembles hold its budget of 512 KiB for large frames across links.
+
+- Cause: several peers send large messages through this node at once.
+- Fix: none needed; the senders retry later. If it repeats, send fewer large messages at once.
+- Related: spec "Busy reply".
+- Symptom: messages not delivered.

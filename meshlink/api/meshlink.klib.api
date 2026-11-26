@@ -669,6 +669,56 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
         }
     }
 
+    final class BearerSwitched : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.BearerSwitched|null[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.BearerSwitched.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.BearerSwitched.peer.<get-peer>|<get-peer>(){}[0]
+    }
+
+    final class BroadcastSignatureInvalid : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.BroadcastSignatureInvalid|null[0]
+
+    final class BusyReply : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.BusyReply|null[0]
+        final val direction // ch.trancee.meshlink/DiagnosticEvent.BusyReply.direction|{}direction[0]
+            final fun <get-direction>(): ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction // ch.trancee.meshlink/DiagnosticEvent.BusyReply.direction.<get-direction>|<get-direction>(){}[0]
+        final val reason // ch.trancee.meshlink/DiagnosticEvent.BusyReply.reason|{}reason[0]
+            final fun <get-reason>(): ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason // ch.trancee.meshlink/DiagnosticEvent.BusyReply.reason.<get-reason>|<get-reason>(){}[0]
+
+        final enum class Direction : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction> { // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction|null[0]
+            enum entry Received // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction.Received|null[0]
+            enum entry Sent // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction.Sent|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction> // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction> // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Direction.values|values#static(){}[0]
+        }
+
+        final enum class Reason : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason> { // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason|null[0]
+            enum entry Budget // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason.Budget|null[0]
+            enum entry Slots // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason.Slots|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason> // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason> // ch.trancee.meshlink/DiagnosticEvent.BusyReply.Reason.values|values#static(){}[0]
+        }
+    }
+
+    final class CertificateLookup : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.CertificateLookup|null[0]
+        final val attempts // ch.trancee.meshlink/DiagnosticEvent.CertificateLookup.attempts|{}attempts[0]
+            final fun <get-attempts>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.CertificateLookup.attempts.<get-attempts>|<get-attempts>(){}[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.CertificateLookup.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.CertificateLookup.peer.<get-peer>|<get-peer>(){}[0]
+    }
+
+    final class CertificateLookupUnanswered : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.CertificateLookupUnanswered|null[0]
+        final val attempts // ch.trancee.meshlink/DiagnosticEvent.CertificateLookupUnanswered.attempts|{}attempts[0]
+            final fun <get-attempts>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.CertificateLookupUnanswered.attempts.<get-attempts>|<get-attempts>(){}[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.CertificateLookupUnanswered.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.CertificateLookupUnanswered.peer.<get-peer>|<get-peer>(){}[0]
+    }
+
     final class ConnectFailed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed|null[0]
         final val attempt // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.attempt|{}attempt[0]
             final fun <get-attempt>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.ConnectFailed.attempt.<get-attempt>|<get-attempt>(){}[0]
@@ -694,9 +744,21 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
         }
     }
 
+    final class DensityClassChanged : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.DensityClassChanged|null[0]
+        final val from // ch.trancee.meshlink/DiagnosticEvent.DensityClassChanged.from|{}from[0]
+            final fun <get-from>(): ch.trancee.meshlink/DensityClass // ch.trancee.meshlink/DiagnosticEvent.DensityClassChanged.from.<get-from>|<get-from>(){}[0]
+        final val to // ch.trancee.meshlink/DiagnosticEvent.DensityClassChanged.to|{}to[0]
+            final fun <get-to>(): ch.trancee.meshlink/DensityClass // ch.trancee.meshlink/DiagnosticEvent.DensityClassChanged.to.<get-to>|<get-to>(){}[0]
+    }
+
     final class DiagnosticsDropped : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.DiagnosticsDropped|null[0]
         final val dropped // ch.trancee.meshlink/DiagnosticEvent.DiagnosticsDropped.dropped|{}dropped[0]
             final fun <get-dropped>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.DiagnosticsDropped.dropped.<get-dropped>|<get-dropped>(){}[0]
+    }
+
+    final class ExpiryFarFromLocalTime : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime|null[0]
+        final val skewSeconds // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime.skewSeconds|{}skewSeconds[0]
+            final fun <get-skewSeconds>(): kotlin/Long // ch.trancee.meshlink/DiagnosticEvent.ExpiryFarFromLocalTime.skewSeconds.<get-skewSeconds>|<get-skewSeconds>(){}[0]
     }
 
     final class HandshakeFailed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.HandshakeFailed|null[0]
@@ -736,15 +798,136 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
         }
     }
 
+    final class HeldMessageEvicted : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted|null[0]
+        final val reason // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.reason|{}reason[0]
+            final fun <get-reason>(): ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.reason.<get-reason>|<get-reason>(){}[0]
+
+        final enum class Reason : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason> { // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason|null[0]
+            enum entry ClosestToExpiry // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason.ClosestToExpiry|null[0]
+            enum entry LinkShare // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason.LinkShare|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason> // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason> // ch.trancee.meshlink/DiagnosticEvent.HeldMessageEvicted.Reason.values|values#static(){}[0]
+        }
+    }
+
+    final class InboxFull : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.InboxFull|null[0]
+        final val bound // ch.trancee.meshlink/DiagnosticEvent.InboxFull.bound|{}bound[0]
+            final fun <get-bound>(): ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound // ch.trancee.meshlink/DiagnosticEvent.InboxFull.bound.<get-bound>|<get-bound>(){}[0]
+
+        final enum class Bound : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound> { // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound|null[0]
+            enum entry Bytes // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound.Bytes|null[0]
+            enum entry Count // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound.Count|null[0]
+            enum entry Sender // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound.Sender|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound> // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound> // ch.trancee.meshlink/DiagnosticEvent.InboxFull.Bound.values|values#static(){}[0]
+        }
+    }
+
+    final class InvalidCertificateReply : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.InvalidCertificateReply|null[0]
+
     final class LinkCapReached : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.LinkCapReached|null[0]
         final val cap // ch.trancee.meshlink/DiagnosticEvent.LinkCapReached.cap|{}cap[0]
             final fun <get-cap>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.LinkCapReached.cap.<get-cap>|<get-cap>(){}[0]
+    }
+
+    final class LinkClosed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.LinkClosed|null[0]
+        final val byPeer // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.byPeer|{}byPeer[0]
+            final fun <get-byPeer>(): kotlin/Boolean // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.byPeer.<get-byPeer>|<get-byPeer>(){}[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.peer.<get-peer>|<get-peer>(){}[0]
+        final val reason // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.reason|{}reason[0]
+            final fun <get-reason>(): ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.reason.<get-reason>|<get-reason>(){}[0]
+
+        final enum class Reason : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason> { // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason|null[0]
+            enum entry ConnectionLost // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.ConnectionLost|null[0]
+            enum entry DuplicateLink // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.DuplicateLink|null[0]
+            enum entry HandshakeFailed // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.HandshakeFailed|null[0]
+            enum entry Normal // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.Normal|null[0]
+            enum entry ProtocolError // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.ProtocolError|null[0]
+            enum entry ResourceLimit // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.ResourceLimit|null[0]
+            enum entry ShuttingDown // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.ShuttingDown|null[0]
+            enum entry UnsupportedVersion // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.UnsupportedVersion|null[0]
+            enum entry WrongMesh // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.WrongMesh|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason> // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason> // ch.trancee.meshlink/DiagnosticEvent.LinkClosed.Reason.values|values#static(){}[0]
+        }
+    }
+
+    final class LinkOpened : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.LinkOpened|null[0]
+        final val mtu // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.mtu|{}mtu[0]
+            final fun <get-mtu>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.mtu.<get-mtu>|<get-mtu>(){}[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.peer.<get-peer>|<get-peer>(){}[0]
+        final val role // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.role|{}role[0]
+            final fun <get-role>(): ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.role.<get-role>|<get-role>(){}[0]
+
+        final enum class Role : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role> { // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role|null[0]
+            enum entry Central // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role.Central|null[0]
+            enum entry Peripheral // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role.Peripheral|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role> // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role> // ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role.values|values#static(){}[0]
+        }
+    }
+
+    final class OwnCertificateRenewed : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.OwnCertificateRenewed|null[0]
+
+    final class ProtocolVersionRejected : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ProtocolVersionRejected|null[0]
+        final val theirVersion // ch.trancee.meshlink/DiagnosticEvent.ProtocolVersionRejected.theirVersion|{}theirVersion[0]
+            final fun <get-theirVersion>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.ProtocolVersionRejected.theirVersion.<get-theirVersion>|<get-theirVersion>(){}[0]
     }
 
     final class ReadTrackingEvicted : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ReadTrackingEvicted|null[0]
         final val messageId // ch.trancee.meshlink/DiagnosticEvent.ReadTrackingEvicted.messageId|{}messageId[0]
             final fun <get-messageId>(): kotlin/ByteArray // ch.trancee.meshlink/DiagnosticEvent.ReadTrackingEvicted.messageId.<get-messageId>|<get-messageId>(){}[0]
     }
+
+    final class ReassemblyBudgetExhausted : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.ReassemblyBudgetExhausted|null[0]
+
+    final class RouteFound : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.RouteFound|null[0]
+        final val hops // ch.trancee.meshlink/DiagnosticEvent.RouteFound.hops|{}hops[0]
+            final fun <get-hops>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.RouteFound.hops.<get-hops>|<get-hops>(){}[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.RouteFound.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.RouteFound.peer.<get-peer>|<get-peer>(){}[0]
+    }
+
+    final class RouteLost : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.RouteLost|null[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.RouteLost.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.RouteLost.peer.<get-peer>|<get-peer>(){}[0]
+    }
+
+    final class ScanWindow : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.ScanWindow|null[0]
+        final val phase // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.phase|{}phase[0]
+            final fun <get-phase>(): ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.phase.<get-phase>|<get-phase>(){}[0]
+
+        final enum class Phase : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase> { // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase|null[0]
+            enum entry Started // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase.Started|null[0]
+            enum entry Stopped // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase.Stopped|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase> // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase> // ch.trancee.meshlink/DiagnosticEvent.ScanWindow.Phase.values|values#static(){}[0]
+        }
+    }
+
+    final class StaleAddressMarked : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.StaleAddressMarked|null[0]
 
     final class Started : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.Started|null[0]
         final val preset // ch.trancee.meshlink/DiagnosticEvent.Started.preset|{}preset[0]
@@ -772,6 +955,11 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
     final class UnknownLinkFrameDropped : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.UnknownLinkFrameDropped|null[0]
         final val type // ch.trancee.meshlink/DiagnosticEvent.UnknownLinkFrameDropped.type|{}type[0]
             final fun <get-type>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.UnknownLinkFrameDropped.type.<get-type>|<get-type>(){}[0]
+    }
+
+    final class UnknownRoutedFrameRelayed : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.UnknownRoutedFrameRelayed|null[0]
+        final val type // ch.trancee.meshlink/DiagnosticEvent.UnknownRoutedFrameRelayed.type|{}type[0]
+            final fun <get-type>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.UnknownRoutedFrameRelayed.type.<get-type>|<get-type>(){}[0]
     }
 
     final class UnsecuredProfile : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.UnsecuredProfile|null[0]

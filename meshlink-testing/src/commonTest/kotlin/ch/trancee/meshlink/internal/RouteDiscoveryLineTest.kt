@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
@@ -79,6 +80,7 @@ class RouteDiscoveryLineTest {
             val air = air()
             val line = line(air, SHORT_LINE)
             val nodes = line.map(::node).onEach { it.start() }
+            val routes = diagnostics(nodes[0], "ML5001", "ML5002")
             medium(air, line[0])
             val far = nodes[SHORT_LINE - 2].idOf(line.last())
             nodes[0].send(far, PAYLOAD)
@@ -101,6 +103,7 @@ class RouteDiscoveryLineTest {
             val air = air()
             val line = line(air, SHORT_LINE)
             val nodes = line.map(::node).onEach { it.start() }
+            val routes = diagnostics(nodes[0], "ML5001", "ML5002")
             medium(air, line[0])
             val far = nodes[SHORT_LINE - 2].idOf(line.last())
             nodes[0].send(far, PAYLOAD)
@@ -117,6 +120,11 @@ class RouteDiscoveryLineTest {
             // Assert
             assertEquals(Reachability.Routed(SHORT_LINE - 1), routed)
             assertTrue(nodes[0].peers.value.none { it.nodeId == far })
+            // A retry after the first route expired found it again.
+            val found = "ML5001 RouteFound(peer=E, hops=${SHORT_LINE - 1}) x1"
+            val lost = "ML5002 RouteLost(peer=E) x1"
+            val peer = assertIs<DiagnosticEvent.RouteFound>(routes.first()).peer.toString()
+            assertEquals(listOf(found, lost, found, lost), routes.map { it.toString().replace(peer, "E") })
         }
 
     @Test
@@ -281,7 +289,10 @@ class RouteDiscoveryLineTest {
 
     private fun node(platform: VirtualPlatform): MeshLink =
         MeshLink.create(
-            meshLinkConfig(LINE_PRESET, SecurityProfile.Unsecured) { meshId = MESH }.build(),
+            meshLinkConfig(LINE_PRESET, SecurityProfile.Unsecured) {
+                meshId = MESH
+                diagnostics.debug = true
+            }.build(),
             meshPlatform(platform),
         )
 

@@ -1,10 +1,13 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -37,6 +40,8 @@ class LookupsTest {
         val nodeId: ByteArray,
         val certificate: IdentityCertificate,
         val arrived: MutableList<NodeId>,
+        val hub: DiagnosticsHub,
+        val diagnosed: List<DiagnosticEvent>,
     )
 
     private fun TestScope.node(
@@ -45,13 +50,16 @@ class LookupsTest {
         density: DensityClass = DensityClass.Medium,
     ): Node {
         val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
-        val lookups = Lookups(crypto, clock(), backgroundScope, profile, lanes) { density }
+        val hub = DiagnosticsHub(backgroundScope, debug = true, crypto = crypto)
+        val diagnosed = mutableListOf<DiagnosticEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { hub.events.collect { diagnosed += it } }
+        val lookups = Lookups(crypto, Pace(clock()) { density }, backgroundScope, profile, lanes, hub)
         val nodeId = derivations.nodeId(identityKey(seed).publicKey)
         val certificate = certificate(seed, profile)
         val arrived = mutableListOf<NodeId>()
         lookups.begin { arrived += it }
         lookups.certify(certificate)
-        return Node(lookups, lanes, nodeId, certificate, arrived)
+        return Node(lookups, lanes, nodeId, certificate, arrived, hub, diagnosed)
     }
 
     private fun TestScope.clock() = SchedulerClock(testScheduler)
@@ -161,6 +169,11 @@ class LookupsTest {
             // Assert: no retry, and a new lookup may start.
             assertEquals(emptyList(), after)
             assertEquals(1, requester.lanes.requests(a).size)
+            val peer = requester.hub.peer(target)
+            assertEquals(
+                listOf("ML6003 CertificateLookupUnanswered(peer=$peer, attempts=1) x1"),
+                requester.diagnosed.map { it.toString() },
+            )
         }
 
     @Test
@@ -168,7 +181,9 @@ class LookupsTest {
         runTest {
             // Arrange
             val lanes = Lanes().apply { open(a) }
-            val idle = Lookups(crypto, clock(), backgroundScope, WireProfile.CLASSICAL, lanes) { DensityClass.Low }
+            val hub = DiagnosticsHub(backgroundScope, debug = true, crypto = crypto)
+            val pace = Pace(clock()) { DensityClass.Low }
+            val idle = Lookups(crypto, pace, backgroundScope, WireProfile.CLASSICAL, lanes, hub)
             val requester = node(1)
             requester.lookups.linked(NodeId(derivations.nodeId(identityKey(9).publicKey)), certificate(9))
 
@@ -326,6 +341,29 @@ class LookupsTest {
         }
 
     @Test
+    fun aLookupAnsweredIsReportedWithTheRequestsItTook() =
+        runTest {
+            // Arrange
+            val requester = node(1)
+            val responder = node(2)
+            val target = NodeId(responder.nodeId)
+            requester.lookups.find(target, deadline())
+            runCurrent()
+            advanceTimeBy(Outbox.retryMillis(DensityClass.Medium, 0))
+            runCurrent()
+            val request = requester.lanes.requests(a).last()
+            responder.lookups.answers.requested(a, request, nowSeconds())
+
+            // Act
+            requester.lookups.replied(responder.lanes.replies(a).single())
+
+            // Assert
+            val peer = requester.hub.peer(target)
+            val expected = listOf("ML6002 CertificateLookup(peer=$peer, attempts=2) x1")
+            assertEquals(expected, requester.diagnosed.map { it.toString() })
+        }
+
+    @Test
     fun aCertificateALinkOrFirstMessageProvedArrives() =
         runTest {
             // Arrange
@@ -441,6 +479,10 @@ class LookupsTest {
             assertNull(cached)
             assertTrue(requester.lanes.requests(a).isNotEmpty())
             assertEquals(emptyList(), requester.arrived)
+            assertEquals(
+                listOf("ML6004 InvalidCertificateReply() x1", "ML6004 InvalidCertificateReply() x6"),
+                requester.diagnosed.map { it.toString() },
+            )
         }
 
     @Test
@@ -474,6 +516,7 @@ class LookupsTest {
 
             // Assert
             assertEquals(emptyList(), requester.lanes.frames(a))
+            assertEquals(emptyList(), requester.diagnosed)
         }
 
     @Test

@@ -43,7 +43,7 @@ class DensityTest {
                     while (nodes.size < stage.nodes) {
                         platforms += air.platform(StandardTestDispatcher(testScheduler))
                         nodes += node(platforms.last()).also { it.start() }
-                        diagnostics(nodes.last()).let { seen -> caps += seen }
+                        diagnostics(nodes.last(), "ML3004").let { seen -> caps += seen }
                     }
                     (nodes.size - 1 downTo stage.nodes).forEach { launch { nodes.removeAt(it).stop() } }
                     observe(platforms.take(stage.nodes), nodes, stage)

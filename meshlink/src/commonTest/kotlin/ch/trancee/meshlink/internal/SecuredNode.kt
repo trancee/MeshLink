@@ -42,7 +42,15 @@ internal fun TestScope.securedNode(
     val clock = SchedulerClock(testScheduler)
     val node = SecuredNode(keys)
     node.lanes.open(neighbor)
-    node.lookups = Lookups(crypto, clock, backgroundScope, WireProfile.CLASSICAL, node.lanes) { DensityClass.Medium }
+    node.lookups =
+        Lookups(
+            crypto,
+            Pace(clock) { DensityClass.Medium },
+            backgroundScope,
+            WireProfile.CLASSICAL,
+            node.lanes,
+            DiagnosticsHub(backgroundScope, debug = true, crypto = crypto),
+        )
     node.lookups.begin {}
     val read = { from: NodeId, ids: List<ByteArray> -> node.read += from to ids.map { it.toList() } }
     val receipts =

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -11,7 +12,8 @@ import kotlin.test.assertTrue
 
 // The bounds and eviction order of holding for others (spec "Holding"), at wall-clock second NOW.
 class HoldingTest {
-    private val holding = Holding(enabled = true)
+    private val diagnosed = mutableListOf<DiagnosticEvent>()
+    private val holding = Holding(enabled = true, diagnosed::add)
     private val a = nodeId(1)
     private val b = nodeId(2)
     private val c = nodeId(3)
@@ -179,6 +181,7 @@ class HoldingTest {
         assertTrue(longer)
         assertNull(holding.find(mid(0), NOW_MILLIS))
         assertTrue(holding.find(mid(50), NOW_MILLIS) != null, "b's frame stays: a only replaces its own")
+        assertEquals(listOf("ML6001 HeldMessageEvicted(reason=LinkShare) x1"), diagnosed.map { it.toString() })
     }
 
     @Test
@@ -199,6 +202,7 @@ class HoldingTest {
         assertEquals(Holding.MESSAGES_MAX, holding.unicasts(NOW_MILLIS).size)
         assertNull(holding.find(mid(0), NOW_MILLIS))
         assertTrue(holding.find(mid(399), NOW_MILLIS) != null)
+        assertEquals(listOf("ML6001 HeldMessageEvicted(reason=LinkShare) x1"), diagnosed.map { it.toString() })
     }
 
     @Test
@@ -221,6 +225,7 @@ class HoldingTest {
         assertTrue(held)
         assertNull(holding.find(mid(0), NOW_MILLIS))
         assertTrue(holding.unicasts(NOW_MILLIS).sumOf { it.bytes.size } <= Holding.BYTES_MAX)
+        assertEquals(listOf("ML6001 HeldMessageEvicted(reason=LinkShare) x1"), diagnosed.map { it.toString() })
     }
 
     @Test
@@ -240,6 +245,7 @@ class HoldingTest {
         assertTrue(longer)
         assertEquals(Holding.MESSAGES_MAX, holding.unicasts(NOW_MILLIS).size)
         assertNull(holding.find(mid(0), NOW_MILLIS))
+        assertEquals(listOf("ML6001 HeldMessageEvicted(reason=ClosestToExpiry) x1"), diagnosed.map { it.toString() })
     }
 
     @Test
@@ -258,6 +264,7 @@ class HoldingTest {
         assertFalse(held, "d is at its share and its frames outlive the new one")
         assertTrue(holding.hold(unicast(e, 500, expiry = NOW + 100), HOP_LIMIT, later))
         assertEquals(SHARE * 3 + 1, holding.unicasts(later).size)
+        assertEquals(emptyList(), diagnosed, "an expired frame is not evicted")
     }
 
     @Test

@@ -21,6 +21,7 @@ import ch.trancee.meshlink.internal.RadioFailure
 import ch.trancee.meshlink.internal.RadioRegistry
 import ch.trancee.meshlink.internal.Recognition
 import ch.trancee.meshlink.internal.Router
+import ch.trancee.meshlink.internal.ScanSchedule
 import ch.trancee.meshlink.internal.Scanner
 import ch.trancee.meshlink.internal.SecuredKeys
 import kotlinx.coroutines.CoroutineScope
@@ -73,18 +74,18 @@ public class MeshLink private constructor(
     private val meshId = config.meshId.encodeToByteArray()
     private val profile = config.securityProfile.wireProfile
     private val meshKey = config.meshKey
+    private val hub = DiagnosticsHub(scope, config.diagnostics.debug, crypto)
     private val scanner =
         Scanner(
             port.radio,
             port.clock,
             port.random,
             Discovery(crypto, meshId, profile, meshKey),
-            config.power,
-            (config.density as? Density.Pinned)?.densityClass,
+            ScanSchedule(config.power, (config.density as? Density.Pinned)?.densityClass),
+            hub::report,
         )
     private val links = MutableStateFlow<Links?>(null)
-    private val hub = DiagnosticsHub(scope, config.diagnostics.debug, crypto)
-    private val post = Post(crypto, port.clock, scope, config, { scanner.density }, hub::report)
+    private val post = Post(crypto, port.clock, scope, config, { scanner.density }, hub)
 
     /** The lifecycle state; it starts as [MeshState.Stopped]. */
     public val state: StateFlow<MeshState> = mutableState.asStateFlow()
@@ -377,7 +378,13 @@ public class MeshLink private constructor(
                         }
                     }
                     val handshakes = Handshakes(crypto, port.clock, issue(), meshKey, hub, lookups::linked)
-                    handshakes to suspend { post.keys.rotate { handshakes.rotate(issue()) } }
+                    handshakes to
+                        suspend {
+                            post.keys.rotate {
+                                handshakes.rotate(issue())
+                                hub.report(DiagnosticEvent.OwnCertificateRenewed())
+                            }
+                        }
                 }
             val handshakes = secured?.first
             val policy = LinkPolicy(digest, identity.nodeId)

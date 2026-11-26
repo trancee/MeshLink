@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
 
@@ -23,7 +24,7 @@ import ch.trancee.meshlink.ReceivedMessage
  * to the router, and its tombstones go to [tombstones]. A `GRAFT` is answered from [tree] or [holding].
  *
  * It also places this node's own broadcasts: through [tree], or on the first link that opens if
- * there is none.
+ * there is none, and [diagnose]s each relayed flood frame of a type it does not know.
  *
  * Runs on the node's serial dispatcher.
  */
@@ -31,18 +32,13 @@ internal class Floods(
     private val lanes: Lanes,
     private val codec: BroadcastCodec,
     private val tree: Plumtree,
-    commitment: (k: ByteArray) -> ByteArray,
-    holds: Boolean,
+    /** The tombstones kept (spec "Tombstones"), which open [holding]'s `MESSAGE` commitments. */
+    val tombstones: Tombstones,
+    private val diagnose: (DiagnosticEvent) -> Unit = {},
     private val deliver: (ReceivedMessage) -> Unit,
 ) {
-    /** The frames this node holds for others (spec "Holding"); none while `holds` is false. */
-    val holding: Holding = Holding(holds)
-
-    /**
-     * The tombstones kept (spec "Tombstones"); they open [holding]'s `MESSAGE` commitments with the `commitment`
-     * function.
-     */
-    val tombstones: Tombstones = Tombstones(holding, commitment)
+    /** The frames this node holds for others (spec "Holding"); none unless the node holds. */
+    val holding: Holding = tombstones.holding
     private val seen = MessageIds()
     private val waiting = mutableListOf<Parcel>()
 
@@ -189,6 +185,7 @@ internal class Floods(
             holding.hold(copy, header.hopLimit, nowSeconds * MILLIS_PER_SECOND)
         } else {
             (lanes.peers - peer).forEach { lanes.put(it, parcel) }
+            if (frame.type != LookupRequest.TYPE) diagnose(DiagnosticEvent.UnknownRoutedFrameRelayed(frame.type))
         }
     }
 

@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Reachability
@@ -24,9 +25,11 @@ internal class RoutedPeers(
     private val routes: Routes,
     private val roster: Roster,
     private val tags: PeerTags,
+    private val diagnostics: DiagnosticsHub,
 ) {
     // Each known node, the oldest first.
     private val known = LinkedHashMap<NodeId, Known>()
+    private var listedIds = emptySet<NodeId>()
     private var expiry: Job? = null
 
     /** This node sends to [id]. */
@@ -56,6 +59,12 @@ internal class RoutedPeers(
                 Peer(id, Reachability.Routed(route.hops), tags.secured, lastSeen, proximity = null)
             },
         )
+        val ids = listed.map { it.id }.toSet()
+        listed.filter { it.id !in listedIds }.forEach {
+            diagnostics.report(DiagnosticEvent.RouteFound(diagnostics.peer(it.id), it.route.hops))
+        }
+        (listedIds - ids).forEach { diagnostics.report(DiagnosticEvent.RouteLost(diagnostics.peer(it))) }
+        listedIds = ids
         val first = listed.minOfOrNull { minOf(it.route.expiry - now, it.untilMillis - wall) } ?: return
         expiry =
             scope.launch {
@@ -68,6 +77,7 @@ internal class RoutedPeers(
     fun end() {
         expiry?.cancel()
         known.clear()
+        listedIds = emptySet()
         roster.routed(emptyList())
     }
 

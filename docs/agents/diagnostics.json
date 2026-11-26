@@ -91,6 +91,203 @@
       "values": []
     },
     {
+      "code": "ML1004",
+      "name": "OwnCertificateRenewed",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml1004",
+      "meaning": "The node renewed its certificate and static keys, as it does every 12 h (spec \"Static-key rotation\"); a message sealed to its earlier certificate still opens until that certificate expires.",
+      "cause": "the rotation interval passed.",
+      "fix": "none needed.",
+      "related": "spec \"Static-key rotation\".",
+      "symptom": "none.",
+      "fields": [],
+      "values": []
+    },
+    {
+      "code": "ML2001",
+      "name": "ScanWindow",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml2001",
+      "meaning": "A scan window started or stopped, as `phase` tells. A central scans in windows of 4 s and rests between them as long as its density class and `MeshLinkConfig.power` set; every window starts a fresh scan.",
+      "cause": "the node scans as central.",
+      "fix": "none needed.",
+      "related": "`MeshLinkConfig.power`, `MeshLinkConfig.density`.",
+      "symptom": "high battery use.",
+      "fields": [
+        {
+          "name": "phase",
+          "type": "ScanWindow.Phase",
+          "meaning": "Whether the window started or stopped."
+        }
+      ],
+      "values": [
+        {
+          "type": "ScanWindow.Phase",
+          "values": [
+            {
+              "name": "Started",
+              "meaning": "The window started: the node scans."
+            },
+            {
+              "name": "Stopped",
+              "meaning": "The window stopped: the node rests."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML2006",
+      "name": "StaleAddressMarked",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml2006",
+      "meaning": "An address sighted without an advertisement, as a backgrounded iPhone advertises, failed vetting: the node couldn't connect to it or read its capability record, or the record's advertisement belongs to no peer of this mesh. Its sightings add no candidate until it goes unseen for 10 min.",
+      "cause": "a phone of another mesh or app nearby, or a MeshLink peer that moved out of range during the dial.",
+      "fix": "none needed. If a peer of this mesh stays unfound, check that both use the same mesh ID and security profile.",
+      "related": "`MeshLinkConfig.meshId`.",
+      "symptom": "peers not found.",
+      "fields": [],
+      "values": []
+    },
+    {
+      "code": "ML2007",
+      "name": "DensityClassChanged",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml2007",
+      "meaning": "The node's density class switched `from` one class `to` another, which sets its link budget and scan schedule. Each start begins in `DensityClass.Low`; a pinned class never switches.",
+      "cause": "more or fewer peers in range than before.",
+      "fix": "none needed. If the class flaps in a stable crowd, pin it with `Density.Pinned`.",
+      "related": "`MeshLinkConfig.density`.",
+      "symptom": "high battery use.",
+      "fields": [
+        {
+          "name": "from",
+          "type": "DensityClass",
+          "meaning": "The class before the switch."
+        },
+        {
+          "name": "to",
+          "type": "DensityClass",
+          "meaning": "The class after the switch."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML3001",
+      "name": "LinkOpened",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml3001",
+      "meaning": "A link to `peer` opened as `role`, with an ATT MTU of `mtu` bytes: the hellos or the handshake completed, and the peer is listed in `MeshLink.peers`.",
+      "cause": "a peer in range linked.",
+      "fix": "none needed.",
+      "related": "`MeshLink.peers`.",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer of the link."
+        },
+        {
+          "name": "role",
+          "type": "LinkOpened.Role",
+          "meaning": "This node's role on the link."
+        },
+        {
+          "name": "mtu",
+          "type": "Int",
+          "meaning": "The negotiated ATT MTU in bytes; each GATT write carries at most `mtu - 3` bytes."
+        }
+      ],
+      "values": [
+        {
+          "type": "LinkOpened.Role",
+          "values": [
+            {
+              "name": "Central",
+              "meaning": "This node connected to the peer."
+            },
+            {
+              "name": "Peripheral",
+              "meaning": "The peer connected to this node."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML3002",
+      "name": "LinkClosed",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml3002",
+      "meaning": "An open link to `peer` closed for `reason`; `byPeer` tells whether the peer closed it. A link that closes before it opens reports why as `ML3003`, `ML3008` or `ML4001` instead.",
+      "cause": "`Reason.Normal` or `Reason.ShuttingDown`: a node stopped. `Reason.DuplicateLink`: the two nodes linked both ways and kept one link. `Reason.ResourceLimit`: the closing node holds its link budget. `Reason.ProtocolError`: an incompatible or faulty peer, or a corrupted record. `Reason.ConnectionLost`: the peer moved out of range or its radio failed.",
+      "fix": "none needed for a stop, a duplicate or a lost connection; the node links again when the peer is back. If `Reason.ProtocolError` repeats, update both apps to the same MeshLink version.",
+      "related": "spec \"Close\".",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer of the link."
+        },
+        {
+          "name": "reason",
+          "type": "LinkClosed.Reason",
+          "meaning": "Why the link closed."
+        },
+        {
+          "name": "byPeer",
+          "type": "Boolean",
+          "meaning": "Whether the peer closed the link; `false` if this node did or the connection was lost."
+        }
+      ],
+      "values": [
+        {
+          "type": "LinkClosed.Reason",
+          "values": [
+            {
+              "name": "Normal",
+              "meaning": "A node closed the link without a fault."
+            },
+            {
+              "name": "DuplicateLink",
+              "meaning": "The nodes linked both ways and closed one link."
+            },
+            {
+              "name": "ProtocolError",
+              "meaning": "A node received a frame or record it could not accept."
+            },
+            {
+              "name": "HandshakeFailed",
+              "meaning": "The handshake failed."
+            },
+            {
+              "name": "UnsupportedVersion",
+              "meaning": "The nodes share no protocol version."
+            },
+            {
+              "name": "WrongMesh",
+              "meaning": "The nodes belong to different meshes."
+            },
+            {
+              "name": "ResourceLimit",
+              "meaning": "The closing node holds its link budget."
+            },
+            {
+              "name": "ShuttingDown",
+              "meaning": "A node stopped."
+            },
+            {
+              "name": "ConnectionLost",
+              "meaning": "The connection ended without a close, as when the peer moves out of range."
+            }
+          ]
+        }
+      ]
+    },
+    {
       "code": "ML3003",
       "name": "ConnectFailed",
       "severity": "Warning",
@@ -242,6 +439,95 @@
       "values": []
     },
     {
+      "code": "ML3008",
+      "name": "ProtocolVersionRejected",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml3008",
+      "meaning": "A link closed with no protocol version in common: the peer offered at most `theirVersion`.",
+      "cause": "the peer runs a MeshLink version with an incompatible protocol.",
+      "fix": "update both apps to the same MeshLink version.",
+      "related": "spec \"Version selection\".",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "theirVersion",
+          "type": "Int",
+          "meaning": "The highest protocol version the peer offered."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML3009",
+      "name": "BusyReply",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml3009",
+      "meaning": "A node refused a fragmented frame with `BUSY` for `reason`; `direction` tells which node. The link stays open, and the sender retries the message later (spec \"Busy reply\").",
+      "cause": "`Reason.Slots`: the link reassembles its maximum number of frames, or its one large frame. `Reason.Budget`: the refusing node reassembles as many large frames as it can hold.",
+      "fix": "none needed. If it repeats, send fewer large messages at once.",
+      "related": "spec \"Busy reply\".",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "direction",
+          "type": "BusyReply.Direction",
+          "meaning": "Whether this node sent the `BUSY` or received it."
+        },
+        {
+          "name": "reason",
+          "type": "BusyReply.Reason",
+          "meaning": "Why the frame was refused."
+        }
+      ],
+      "values": [
+        {
+          "type": "BusyReply.Direction",
+          "values": [
+            {
+              "name": "Sent",
+              "meaning": "This node refused a frame of the peer."
+            },
+            {
+              "name": "Received",
+              "meaning": "The peer refused a frame of this node."
+            }
+          ]
+        },
+        {
+          "type": "BusyReply.Reason",
+          "values": [
+            {
+              "name": "Slots",
+              "meaning": "The link reassembles its maximum number of frames, or its one large frame."
+            },
+            {
+              "name": "Budget",
+              "meaning": "The refusing node's budget for large frames is spent."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML3010",
+      "name": "BearerSwitched",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml3010",
+      "meaning": "The link to `peer` moved from GATT to an L2CAP CoC channel (spec \"Bearer switch\").",
+      "cause": "both nodes support L2CAP CoC and have `MeshLinkConfig.l2capUpgrade` on.",
+      "fix": "none needed.",
+      "related": "`MeshLinkConfig.l2capUpgrade`.",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer of the link."
+        }
+      ],
+      "values": []
+    },
+    {
       "code": "ML4001",
       "name": "HandshakeFailed",
       "severity": "Warning",
@@ -325,6 +611,194 @@
       ]
     },
     {
+      "code": "ML4004",
+      "name": "BroadcastSignatureInvalid",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml4004",
+      "meaning": "A signed broadcast reached the node whose signature did not verify, so the node neither delivered nor relayed it (spec \"BROADCAST\").",
+      "cause": "a faulty or malicious peer, or bytes corrupted in transit.",
+      "fix": "none needed; if it repeats, look for a peer that forges broadcasts.",
+      "related": "`MeshLink.broadcast`.",
+      "symptom": "none.",
+      "fields": [],
+      "values": []
+    },
+    {
+      "code": "ML5001",
+      "name": "RouteFound",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml5001",
+      "meaning": "Route discovery found a route to `peer`, `hops` hops away, so `MeshLink.peers` lists it as `Reachability.Routed`.",
+      "cause": "the node sent to or heard from a peer beyond its links.",
+      "fix": "none needed.",
+      "related": "`MeshLink.peers`.",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer the route leads to."
+        },
+        {
+          "name": "hops",
+          "type": "Int",
+          "meaning": "The route's hop count."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML5002",
+      "name": "RouteLost",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml5002",
+      "meaning": "`MeshLink.peers` no longer lists `peer` as `Reachability.Routed`: its route expired, or the key its routing tags derive from lapsed.",
+      "cause": "the peer moved away or stopped, or no message used its route.",
+      "fix": "none needed; the next message to the peer searches for a route anew.",
+      "related": "`MeshLink.peers`.",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer the route led to."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML5003",
+      "name": "UnknownRoutedFrameRelayed",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml5003",
+      "meaning": "The node relayed a routed frame of `type`, a type this version does not know, by its header alone (spec \"Unicast forwarding\", \"Flood forwarding\").",
+      "cause": "a peer runs a newer version of MeshLink.",
+      "fix": "none needed; update the app to use the newer type.",
+      "related": "spec \"Routed frame summary\".",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "type",
+          "type": "Int",
+          "meaning": "The frame's type byte."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML5004",
+      "name": "ExpiryFarFromLocalTime",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml5004",
+      "meaning": "The node dropped a routed frame whose expiry lies outside what its clock accepts (spec \"Routing headers\"): the sender's clock and this phone's differ by at least `skewSeconds`, positive if the sender's runs ahead, negative if it runs behind.",
+      "cause": "a phone whose clock is set by hand, or wrong.",
+      "fix": "set every phone of the mesh to the network-provided time.",
+      "related": "spec \"Routing headers\".",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "skewSeconds",
+          "type": "Long",
+          "meaning": "The least the clocks differ by, in seconds."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML6001",
+      "name": "HeldMessageEvicted",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml6001",
+      "meaning": "The node gave up a frame it held for others to make room for a new one (spec \"Holding\"), for `reason`.",
+      "cause": "`Reason.LinkShare`: one link sent more than its share of the frames held. `Reason.ClosestToExpiry`: the hold is full and no link is over its share.",
+      "fix": "none needed. If it repeats, peers that come back later may miss messages; send fewer messages to absent peers.",
+      "related": "spec \"Holding\".",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "reason",
+          "type": "HeldMessageEvicted.Reason",
+          "meaning": "Why the frame gave way."
+        }
+      ],
+      "values": [
+        {
+          "type": "HeldMessageEvicted.Reason",
+          "values": [
+            {
+              "name": "LinkShare",
+              "meaning": "It came from a link over its share of the hold; that link's frame closest to expiry gave way."
+            },
+            {
+              "name": "ClosestToExpiry",
+              "meaning": "The hold is full and no link is over its share; the frame closest to expiry gave way."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML6002",
+      "name": "CertificateLookup",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml6002",
+      "meaning": "A certificate lookup brought `peer`'s certificate after `attempts` requests (spec \"Certificate lookup\"), so the node can seal messages to it.",
+      "cause": "the node sent to a peer it has never linked with.",
+      "fix": "none needed.",
+      "related": "spec \"Certificate lookup\".",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer whose certificate arrived."
+        },
+        {
+          "name": "attempts",
+          "type": "Int",
+          "meaning": "The requests the lookup sent."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML6003",
+      "name": "CertificateLookupUnanswered",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml6003",
+      "meaning": "The lookup of `peer`'s certificate got no valid reply by its deadline, after `attempts` requests (spec \"Certificate lookup\"). A message that waited for it was never sealed to `peer`.",
+      "cause": "the peer is out of reach of the mesh, or stopped.",
+      "fix": "bring the phones closer together, or send again once the peer is listed in `MeshLink.peers`.",
+      "related": "spec \"Certificate lookup\".",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer looked up."
+        },
+        {
+          "name": "attempts",
+          "type": "Int",
+          "meaning": "The requests the lookup sent."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML6004",
+      "name": "InvalidCertificateReply",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml6004",
+      "meaning": "A reply to this node's certificate lookup failed to open, or held no valid certificate of the peer looked up (spec \"Certificate lookup\"). The node drops it and waits for another.",
+      "cause": "a faulty or hostile node answered, or the peer's certificate has expired.",
+      "fix": "none needed if a valid reply follows; otherwise check the peer's clock.",
+      "related": "spec \"Certificate lookup\".",
+      "symptom": "messages not delivered.",
+      "fields": [],
+      "values": []
+    },
+    {
       "code": "ML7001",
       "name": "DiagnosticsDropped",
       "severity": "Warning",
@@ -360,6 +834,56 @@
           "meaning": "A copy of the forgotten message's `message_id`."
         }
       ],
+      "values": []
+    },
+    {
+      "code": "ML7003",
+      "name": "InboxFull",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml7003",
+      "meaning": "A received message was dropped because the messages waiting for the app reached `bound` (ADR 0007 decision 9). Its sender gets no delivery receipt and retries.",
+      "cause": "the app does not collect `MeshLink.messages`, or collects it slowly.",
+      "fix": "collect `MeshLink.messages` for as long as the node runs.",
+      "related": "`MeshLink.messages`.",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "bound",
+          "type": "InboxFull.Bound",
+          "meaning": "The bound the message would have crossed."
+        }
+      ],
+      "values": [
+        {
+          "type": "InboxFull.Bound",
+          "values": [
+            {
+              "name": "Count",
+              "meaning": "At most 1,024 messages wait."
+            },
+            {
+              "name": "Bytes",
+              "meaning": "At most 1 MiB of payload waits."
+            },
+            {
+              "name": "Sender",
+              "meaning": "One sender's messages hold at most a quarter of the payload bytes."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML7004",
+      "name": "ReassemblyBudgetExhausted",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml7004",
+      "meaning": "This node refused a large fragmented frame with `BUSY`, as the frames it reassembles hold its budget of 512 KiB for large frames across links.",
+      "cause": "several peers send large messages through this node at once.",
+      "fix": "none needed; the senders retry later. If it repeats, send fewer large messages at once.",
+      "related": "spec \"Busy reply\".",
+      "symptom": "messages not delivered.",
+      "fields": [],
       "values": []
     }
   ]

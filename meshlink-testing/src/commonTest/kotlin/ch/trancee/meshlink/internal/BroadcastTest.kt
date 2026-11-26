@@ -247,6 +247,29 @@ class BroadcastTest {
             assertContentEquals(PAYLOAD, inbox.single().payload)
         }
 
+    @Test
+    fun aSignedBroadcastWhoseSignatureFailsIsReportedButAGenuineOneOrAnUnsecuredOneIsNot() =
+        runTest {
+            // Arrange: fake X sends a broadcast with a flipped signature, a kind 0x04 one and a genuine one.
+            val air = air()
+            val relay = air.platform(StandardTestDispatcher(testScheduler))
+            val relayNode = securedNode(relay, SecurityProfile.Classical, debug = true).also { it.start() }
+            val seen = diagnostics(relayNode, "ML4004")
+            val x = FakePeer(WireProfile.CLASSICAL, TestClock(testScheduler))
+            val xLink = connectFake(air, relay)
+            val xTransport = initiate(x, xLink, relay.radio.ends.last())
+            val genuine = signedBroadcast()
+
+            // Act
+            listOf(genuine.flipped(genuine.size - 1), routedFrame(12), genuine).forEachIndexed { stream, frame ->
+                sealed(xTransport, stream, frame).forEach { xLink.write(it) }
+            }
+            advanceTimeBy(SETTLE_MILLIS)
+
+            // Assert
+            assertEquals(listOf("ML4004 BroadcastSignatureInvalid() x1"), seen.map { it.toString() })
+        }
+
     /** A 12-node grid of [profile] nodes: one broadcast reaches every other node once, intact, from its origin. */
     private suspend fun TestScope.reachesEveryNodeOfAGridOnce(profile: SecurityProfile) {
         // Arrange: a 4 × 3 grid whose nodes hear their row and column neighbors only.
@@ -286,16 +309,18 @@ class BroadcastTest {
             air.platform(StandardTestDispatcher(testScheduler)).also { air.move(it.radio, index * SPACING, 0.0) }
         }
 
-    /** A stopped node of [MESH] in [profile], gated with [meshKey] if set. */
+    /** A stopped node of [MESH] in [profile], gated with [meshKey] if set, that reports [debug] diagnostics. */
     private fun securedNode(
         platform: VirtualPlatform,
         profile: SecurityProfile,
         meshKey: ByteArray? = null,
+        debug: Boolean = false,
     ): MeshLink =
         MeshLink.create(
             meshLinkConfig(Preset.OfflineChat, profile) {
                 meshId = MESH
                 this.meshKey = meshKey
+                diagnostics.debug = debug
             }.build(),
             meshPlatform(platform),
         )

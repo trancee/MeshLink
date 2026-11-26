@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -20,16 +21,20 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * Holds the [Certificates] of other nodes, filled from links and from this node's own lookups;
  * certificates are validated for [profile]. Requests go out on [lanes]. Retries follow the unicast
- * schedule of the node's [density] class. Runs on [scope]'s serial dispatcher.
+ * schedule of the [pace]'s density class. Reports a lookup answered (ML6002), unanswered at its deadline
+ * (ML6003) and a reply that fails to open or validate (ML6004) to [diagnostics]. Runs on [scope]'s serial
+ * dispatcher.
  */
 internal class Lookups(
     private val crypto: CryptoProvider,
-    private val clock: Clock,
+    pace: Pace,
     private val scope: CoroutineScope,
     private val profile: WireProfile,
     private val lanes: Lanes,
-    private val density: () -> DensityClass,
+    private val diagnostics: DiagnosticsHub,
 ) {
+    private val clock = pace.clock
+    private val density = pace.density
     private val certificates = Certificates()
     private val derivations = Derivations(crypto)
     private val seal = LookupSeal(crypto)
@@ -99,6 +104,8 @@ internal class Lookups(
             run.launch(start = CoroutineStart.LAZY) {
                 try {
                     withTimeoutOrNull(deadlineMillis - clock.wallClockMillis()) { retry(target) }
+                    val peer = diagnostics.peer(target)
+                    diagnostics.report(DiagnosticEvent.CertificateLookupUnanswered(peer, attempts.requests(target)))
                 } finally {
                     // No new lookup of the target starts before this: a reply that ended it left its certificate held.
                     forget(target)
@@ -118,7 +125,11 @@ internal class Lookups(
         val salt = reply.header.destinationTag
         val opened = seal.open(attempt.key, reply.ephemeralKey, salt, attempt.tag, reply.sealedCertificate)
         val check = opened?.let { IdentityCertificate.validate(crypto, it, profile, target, clock) }
-        if (check is CertificateCheck.Valid) {
+        if (check !is CertificateCheck.Valid) {
+            diagnostics.report(DiagnosticEvent.InvalidCertificateReply())
+        } else {
+            val peer = diagnostics.peer(attempt.target)
+            diagnostics.report(DiagnosticEvent.CertificateLookup(peer, attempts.requests(attempt.target)))
             certificates.put(target, check.certificate, clock.nowSeconds())
             outstanding.getValue(attempt.target).cancel()
             forget(attempt.target)
@@ -153,14 +164,23 @@ internal class Lookups(
         outstanding -= target
         attempts.values.removeAll { it.target == target }
     }
-
-    // One request of a lookup of [target]: the ephemeral [key] its replies are sealed to, and its lookup [tag].
-    private class Attempt(
-        val target: NodeId,
-        val key: KeyPair,
-        val tag: ByteArray,
-    )
 }
+
+/** The [clock] a node's [Lookups] keep time by, and its [density] class, which paces their retries. */
+internal class Pace(
+    val clock: Clock,
+    val density: () -> DensityClass,
+)
+
+// One request of a lookup of [target]: the ephemeral [key] its replies are sealed to, and its lookup [tag].
+private class Attempt(
+    val target: NodeId,
+    val key: KeyPair,
+    val tag: ByteArray,
+)
+
+// The requests sent so far in the outstanding lookup of [target].
+private fun Map<String, Attempt>.requests(target: NodeId) = values.count { it.target == target }
 
 /**
  * The answering side of a secured node's [Lookups]: answers the lookup requests for its own NodeId,

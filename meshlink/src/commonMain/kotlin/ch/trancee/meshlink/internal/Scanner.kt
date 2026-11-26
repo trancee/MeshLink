@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Power
 import kotlinx.coroutines.delay
@@ -12,6 +13,12 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** What sets a [Scanner]'s rests between windows: its [power] policy and a [pinned] density class, if any. */
+internal class ScanSchedule(
+    val power: Power = Power.Balanced,
+    val pinned: DensityClass? = null,
+)
 
 /**
  * A running node's discovery (spec "Advertisement", "Mesh tag", "Capability record"): serves this
@@ -28,8 +35,8 @@ import kotlinx.coroutines.launch
  *
  * A central scans in windows of [Scanner.ON_MILLIS] and stops scanning whenever the run ends. At
  * the end of each window it estimates its local density from the sightings of the last 10 s and its
- * links, classifies it, or keeps [pinned], and rests as long as [policy] sets for its [density]
- * class (ADR 0008 decisions 2 and 3). Each run starts in the low class.
+ * links, classifies it, or keeps the [schedule]'s pinned class, and rests as long as the schedule's
+ * power sets for its [density] class (ADR 0008 decisions 2 and 3). Each run starts in the low class.
  *
  * A sighting whose identifier names a peer this node has a link to is no candidate: in a gated mesh
  * its resolvable tag resolves to the peer (spec "Resolvable tag"), and in any mesh the peer's
@@ -46,9 +53,11 @@ internal class Scanner(
     private val clock: Clock,
     private val random: RandomSource,
     private val discovery: Discovery,
-    private val policy: Power = Power.Balanced,
-    private val pinned: DensityClass? = null,
+    schedule: ScanSchedule = ScanSchedule(),
+    private val diagnose: (DiagnosticEvent) -> Unit = {},
 ) {
+    private val policy = schedule.power
+    private val pinned = schedule.pinned
     private var estimator = DensityEstimator(clock)
     private var classifier = DensityClassifier(clock, pinned)
 
@@ -115,6 +124,7 @@ internal class Scanner(
                     ?: (if (central) radio.startScanning() else null) as? RadioResult.Failed
             failure = refused?.reason
             if (refused == null) {
+                if (central) diagnose(DiagnosticEvent.ScanWindow(DiagnosticEvent.ScanWindow.Phase.Started))
                 val failed =
                     events(peripheral, central, recognition).firstOrNull {
                         dispatch(it, recognition, onLinkEvent, onSighting)
@@ -195,13 +205,19 @@ internal class Scanner(
             while (true) {
                 delay(Scanner.ON_MILLIS)
                 radio.stopScanning()
+                diagnose(DiagnosticEvent.ScanWindow(DiagnosticEvent.ScanWindow.Phase.Stopped))
                 val estimate =
                     estimator.estimate(recognition.links()) { identifier, epoch ->
                         recognition.recognize(identifier, epoch, clock.wallClockMillis())
                     }
+                val before = classifier.current
                 val density = classifier.classify(estimate)
+                if (density != before) diagnose(DiagnosticEvent.DensityClassChanged(before, density))
                 delay(policy.offMillis(density))
-                (radio.startScanning() as? RadioResult.Failed)?.let { emit(RadioEvent.Failed(it.reason)) }
+                when (val started = radio.startScanning()) {
+                    is RadioResult.Failed -> emit(RadioEvent.Failed(started.reason))
+                    is RadioResult.Ok -> diagnose(DiagnosticEvent.ScanWindow(DiagnosticEvent.ScanWindow.Phase.Started))
+                }
             }
         }
 
@@ -319,6 +335,7 @@ internal class Scanner(
         val accepted = advertisement?.let { discovery.accept(it, epoch()) } != null
         if (!accepted) {
             stale[handle] = clock.monotonicMillis()
+            diagnose(DiagnosticEvent.StaleAddressMarked())
             estimator.forget(handle)
             mutableCandidates.update { it - handle }
         }
