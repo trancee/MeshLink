@@ -166,6 +166,22 @@ public sealed class DiagnosticEvent(
     }
 
     /**
+     * `ML2004`: the app moved to the background, or a node started there, so iOS took over scanning and
+     * advertising. iOS advertises the mesh only in Apple's overflow area and suspends the app 30–40 s
+     * after it leaves the foreground; two backgrounded iPhones
+     * found each other in 62% of 40 s trials (ADR 0010). iOS only: Android keeps discovering with its
+     * hardware filters.
+     *
+     * - Cause: the user left the app or locked the phone.
+     * - Fix: none needed. An app that must discover quickly keeps MeshLink in the foreground.
+     * - Related: [AppSuspendedByOs].
+     * - Symptom: peers not found.
+     */
+    public class BackgroundDiscoveryDegraded internal constructor() : DiagnosticEvent("ML2004", Severity.Warning) {
+        override val fields: List<Pair<String, Any>> get() = emptyList()
+    }
+
+    /**
      * `ML2006`: an address sighted without an advertisement, as a backgrounded iPhone advertises,
      * failed vetting: the node couldn't connect to it or read its capability record, or the record's
      * advertisement belongs to no peer of this mesh. Its sightings add no candidate until it goes
@@ -870,6 +886,41 @@ public sealed class DiagnosticEvent(
      * - Symptom: peers not found.
      */
     public class ScannerRegistrationFailed internal constructor() : DiagnosticEvent("ML8001", Severity.Warning) {
+        override val fields: List<Pair<String, Any>> get() = emptyList()
+    }
+
+    /**
+     * `ML8002`: iOS suspended the app for at least [suspendedMillis], reported once it runs again. The
+     * node checks every 10 s on a clock that counts sleep and reports a check that came 30 s or more
+     * late. While suspended, the node ran no timers: it neither relayed nor retried, and only iOS kept
+     * scanning and advertising for it. iOS only: Android reports a sleeping device as [DozeActive].
+     *
+     * - Cause: the app stayed in the background, where iOS suspends it 30–40 s after it leaves the
+     *   foreground.
+     * - Fix: none needed. An app that must relay or retry while the phone is locked declares the
+     *   Bluetooth background modes, and accepts that iOS still decides when it runs.
+     * - Related: [BackgroundDiscoveryDegraded].
+     * - Symptom: messages delivered slowly.
+     */
+    public class AppSuspendedByOs internal constructor(
+        /** How long the app was suspended, in ms; a lower bound. */
+        public val suspendedMillis: Long,
+    ) : DiagnosticEvent("ML8002", Severity.Info) {
+        override val fields: List<Pair<String, Any>> get() = listOf("suspendedMillis" to suspendedMillis)
+    }
+
+    /**
+     * `ML8003`: the device entered Doze, or a node started in it. In Doze the node's timers run late:
+     * a 4 s on, 4 s off scan schedule stretched to gaps of 30 s overnight, while links held (ADR 0010).
+     * Android only; it reports deep Doze, not light Doze, and not its end.
+     *
+     * - Cause: the screen stayed off and the device stayed still and unplugged.
+     * - Fix: none needed. An app that must discover peers on schedule runs a foreground service,
+     *   which the host app owns (ADR 0011).
+     * - Related: [MeshLinkConfig.power].
+     * - Symptom: peers not found.
+     */
+    public class DozeActive internal constructor() : DiagnosticEvent("ML8003", Severity.Info) {
         override val fields: List<Pair<String, Any>> get() = emptyList()
     }
 }

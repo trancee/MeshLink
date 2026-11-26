@@ -1,6 +1,6 @@
 # 0020: Diagnostics catalog
 
-Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 6 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c; 2026-11-27, ticket 54d; 2026-11-27, ticket 54e).
+Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 7 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c; 2026-11-27, ticket 54d; 2026-11-27, ticket 54e; 2026-11-26, ticket 54f).
 
 ## Context
 
@@ -85,7 +85,7 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML2001 | `ScanWindow(started or stopped)` | D |
    | ML2002 | `ScanFailed(platformCode)` | W |
    | ~~ML2003~~ | retired: `ScanRestarted` (amended 2026-11-26) | |
-   | ML2004 ★ | `BackgroundDiscoveryDegraded`; with the lifecycle work (amended 2026-11-26) | W |
+   | ML2004 ★ | `BackgroundDiscoveryDegraded`; iOS only (amended 2026-11-26, ticket 54f) | W |
    | ML2005 | `AdvertisingFailed(platformCode)` | W |
    | ML2006 ★ | `StaleAddressMarked` | D |
    | ML2007 ★ | `DensityClassChanged(from, to)` | I |
@@ -118,8 +118,8 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML7003 | `InboxFull(bound)` (amended 2026-11-26) | W |
    | ML7004 | `ReassemblyBudgetExhausted` | D |
    | ML8001 | `ScannerRegistrationFailed`, the leaked-registration symptom on Android | W |
-   | ML8002 | `AppSuspendedByOs`; with the lifecycle work (amended 2026-11-26) | I |
-   | ML8003 | `DozeActive`; with the lifecycle work (amended 2026-11-26) | I |
+   | ML8002 | `AppSuspendedByOs(suspendedMillis)`; iOS only (amended 2026-11-26, ticket 54f) | I |
+   | ML8003 | `DozeActive`; Android only (amended 2026-11-26, ticket 54f) | I |
 
    The list may change until 0.1.0.
 8. **Troubleshooting.**
@@ -196,6 +196,17 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
   - **Hand-written guidance:** checks in order of likelihood, each linking its codes; Android GATT status 133 (the stack's `GATT_ERROR`), 147 (`GATT_CONNECTION_TIMEOUT`) and scan error 2 (`SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`) are explained in prose (Risks, "Platform status codes vary by OEM"). Not every code needs prose; its table row links its fix.
   - **No code samples yet:** the pages name the API in prose. Compiled Kotlin and Swift regions (ADR 0006 decision 5) and the export-diagnostics how-to come with ticket 57.
 - **Status:** decision 8 is updated to match.
+
+2026-11-26, lifecycle codes (ticket 54f; user decisions on the ticket's five questions):
+
+- **Context:** iOS posts `UIApplication.didEnterBackgroundNotification` for scene-based apps too, but notifies no suspension. Android sends `PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED` (API 23) only to receivers registered at run time. Android's `System.nanoTime`, behind `TimeSource.Monotonic`, stops while the device sleeps; Darwin's `CLOCK_MONOTONIC` keeps counting.
+- **Decision:**
+  - **Platform port:** `PlatformPort` gains `background` and `doze`, each a `Flow<Boolean>` of the state now and on each change, and `suspensions`, a `Flow<Long>` of suspension lengths. The node that holds the radio reports each code while it runs: `ML2004` and `ML8003` each time their state turns on, and once at session start if it is already on; `ML8002` for each suspension.
+  - **`ML2004` is iOS only:** Android keeps discovering with its hardware filters in the background. A node starting in the background reads `applicationState` on the main queue.
+  - **`ML8002` is iOS only and gains `suspendedMillis`:** a check every 10 s on `CLOCK_MONOTONIC` reports a check at least 30 s late, with its lateness as a lower bound. Android doesn't report it: a late timer there mostly means the CPU slept, which `ML8003` covers.
+  - **`ML8003` is Android only:** deep Doze, not light Doze, and only its start.
+  - **Proof:** Robolectric and the `iosTest` fakes; device runs belong to the device-lab tickets.
+- **Status:** decision 7 is updated to match.
 
 ## Alternatives
 

@@ -6,6 +6,7 @@ import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 
@@ -24,6 +25,15 @@ internal class VirtualPlatform(
 
     /** What a node on this platform runs without; tests set it. */
     override val limitations: MutableStateFlow<Set<Limitation>> = MutableStateFlow(emptySet())
+
+    /** Whether the app runs in the background; tests set it. */
+    override val background: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
+    /** Whether the device is in Doze; tests set it. */
+    override val doze: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
+    /** The app's suspensions; tests emit them. */
+    override val suspensions: MutableSharedFlow<Long> = MutableSharedFlow()
 
     override val identityStore: IdentityStore = InMemoryIdentityStore()
 

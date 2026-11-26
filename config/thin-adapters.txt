@@ -13,6 +13,7 @@ meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/IosChannel.kt
 meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/IosCoreBluetooth.kt
 meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/QueueDispatcher.kt
 meshlink/src/iosSimulatorArm64Main/kotlin/ch/trancee/meshlink/internal/IosPort.iosSimulatorArm64.kt
+meshlink/src/iosAdaptersMain/kotlin/ch/trancee/meshlink/internal/IosAppLifecycle.kt
 meshlink/src/iosAdaptersMain/kotlin/ch/trancee/meshlink/internal/IosKeychain.kt
 meshlink/src/iosAdaptersMain/kotlin/ch/trancee/meshlink/internal/IosOsLog.kt
 meshlink/src/iosAdaptersMain/kotlin/ch/trancee/meshlink/internal/IosVersion.kt

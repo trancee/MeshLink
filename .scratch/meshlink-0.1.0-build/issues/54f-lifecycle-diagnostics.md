@@ -1,6 +1,6 @@
 # Emit the lifecycle diagnostics
 
-Status: needs-triage
+Status: ready-for-agent
 Type: AFK
 Blocked by: 54c
 
@@ -12,12 +12,13 @@ Split from ticket [54c](54c-platform-diagnostics.md) (owner decision, 2026-11-26
 - ML8002 `AppSuspendedByOs`: the operating system suspended the app, observed when it resumes;
 - ML8003 `DozeActive`: Android entered Doze, which stretched a 4 s on / 4 s off scan schedule to 30 s gaps (ADR 0008, ADR 0010).
 
-## Questions to settle in triage
+## Triage decisions (owner, 2026-11-26)
 
-- How each platform observes the app leaving the foreground without a new dependency: `UIApplication` notifications on iOS; activity callbacks or `ProcessLifecycleOwner` (a new dependency) on Android.
-- How MeshLink detects a suspension: a timer that fires late, and which clock, since `TimeSource.Monotonic` may not count device sleep on either platform; whether `AppSuspendedByOs` carries the gap.
-- Whether `DozeActive` reports entering Doze only, or entering and leaving, and whether a node that starts in Doze emits it.
-- Whether ML2004 also applies to Android, which scans with hardware filters and keeps discovering with the screen off.
+- Q1: `PlatformPort` gains `osState`, a `StateFlow<OsState>` of `background` and `doze`, and `suspensions`, a `Flow<Long>` of suspension lengths. The node that holds the radio emits each code when the state turns on, and once at session start if it is already on.
+- Q2: ML2004 is iOS only: iOS posts `UIApplication.didEnterBackgroundNotification` for scene-based apps too, and a node starting in the background reads `applicationState` on the main queue. Android, which scans with hardware filters, does not emit it. Warning; symptom "peers not found".
+- Q3: ML8002 is iOS only. iOS notifies no suspension, so a 10 s check measured on a clock that counts sleep (`CLOCK_MONOTONIC`) reports a check at least 30 s late as `AppSuspendedByOs(suspendedMillis)`, the lateness, a lower bound. Android does not emit it: a late timer there mostly means the CPU slept, which ML8003 covers. Info; symptom "messages delivered slowly". ADR 0020 gains the field.
+- Q4: ML8003 is Android only and covers deep Doze (`ACTION_DEVICE_IDLE_MODE_CHANGED`, `isDeviceIdleMode`, API 23), not light idle. It reports entering only. Info; symptom "peers not found".
+- Q5: Robolectric and `iosTest` fakes prove this ticket; device runs stay with tickets 62 and 63.
 
 ## Spec and ADR references
 
@@ -27,10 +28,10 @@ Split from ticket [54c](54c-platform-diagnostics.md) (owner decision, 2026-11-26
 
 ## Acceptance criteria
 
-- [ ] Each code is emitted from its platform observation, with a test through the Robolectric shadows or the `iosTest` fakes.
-- [ ] The redaction test covers every new event type (S1).
-- [ ] Any change to the code list or fields amends ADR 0020 in this PR.
-- [ ] Kover stays at 100%. `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `./gradlew dokkaGenerate` pass.
+- [x] Each code is emitted from its platform observation, with a test through the Robolectric shadows or the `iosTest` fakes.
+- [x] The redaction test covers every new event type (S1).
+- [x] Any change to the code list or fields amends ADR 0020 in this PR.
+- [x] Kover stays at 100%. `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `./gradlew dokkaGenerate` pass.
 
 ## Proof commands
 

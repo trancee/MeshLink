@@ -112,6 +112,13 @@ public final class ch/trancee/meshlink/DiagnosticEvent$AdvertisingFailed : ch/tr
 	public final fun getPlatformCode ()Ljava/lang/Integer;
 }
 
+public final class ch/trancee/meshlink/DiagnosticEvent$AppSuspendedByOs : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getSuspendedMillis ()J
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$BackgroundDiscoveryDegraded : ch/trancee/meshlink/DiagnosticEvent {
+}
+
 public final class ch/trancee/meshlink/DiagnosticEvent$BearerFallback : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
 	public final fun getReason ()Lch/trancee/meshlink/DiagnosticEvent$BearerFallback$Reason;
@@ -193,6 +200,9 @@ public final class ch/trancee/meshlink/DiagnosticEvent$DensityClassChanged : ch/
 
 public final class ch/trancee/meshlink/DiagnosticEvent$DiagnosticsDropped : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getDropped ()I
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$DozeActive : ch/trancee/meshlink/DiagnosticEvent {
 }
 
 public final class ch/trancee/meshlink/DiagnosticEvent$ExpiryFarFromLocalTime : ch/trancee/meshlink/DiagnosticEvent {
@@ -940,8 +950,10 @@ public abstract interface class ch/trancee/meshlink/internal/PlatformLog {
 }
 
 public abstract interface class ch/trancee/meshlink/internal/PlatformPort {
+	public abstract fun getBackground ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getClock ()Lch/trancee/meshlink/internal/Clock;
 	public abstract fun getDispatcher ()Lkotlinx/coroutines/CoroutineDispatcher;
+	public abstract fun getDoze ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getIdentityStore ()Lch/trancee/meshlink/internal/IdentityStore;
 	public abstract fun getLimitations ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getLog ()Lch/trancee/meshlink/internal/PlatformLog;
@@ -950,5 +962,6 @@ public abstract interface class ch/trancee/meshlink/internal/PlatformPort {
 	public abstract fun getRadio ()Lch/trancee/meshlink/internal/RadioPort;
 	public abstract fun getRandom ()Lch/trancee/meshlink/internal/RandomSource;
 	public abstract fun getRequirements ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun getSuspensions ()Lkotlinx/coroutines/flow/Flow;
 }
 

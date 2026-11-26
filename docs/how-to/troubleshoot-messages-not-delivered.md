@@ -57,6 +57,7 @@ If messages arrive but slowly, look for [`ML3005`](../reference/diagnostics.md#m
 | Code | Event | Severity | Cause |
 |---|---|---|---|
 | [ML3006](../reference/diagnostics.md#ml3006) | `GattOperationRetried` | `Debug` | Another app or the stack itself holds the phone's GATT queue. |
+| [ML8002](../reference/diagnostics.md#ml8002) | `AppSuspendedByOs` | `Info` | The app stayed in the background, where iOS suspends it 30–40 s after it leaves the foreground. |
 
 <!-- END generated -->
 

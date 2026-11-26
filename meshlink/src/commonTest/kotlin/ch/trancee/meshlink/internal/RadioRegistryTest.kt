@@ -10,7 +10,9 @@ import kotlin.test.assertSame
 
 class RadioRegistryTest {
     private val dispatcher = StandardTestDispatcher()
-    private val port = ApplePlatformPort(FakeCoreBluetooth(), FakeKeychain(), dispatcher, "18.2.0") { _, _, _ -> }
+    private val lifecycle = FakeAppLifecycle()
+    private val bluetooth = FakeCoreBluetooth()
+    private val port = ApplePlatformPort(bluetooth, FakeKeychain(), dispatcher, "18.2.0", lifecycle) { _, _, _ -> }
     private val holder = Any()
 
     @AfterTest
