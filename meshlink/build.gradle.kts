@@ -79,7 +79,8 @@ tasks.register<ch.trancee.meshlink.buildlogic.CheckNativeSymbols>("checkFramewor
 }
 
 // ADR 0006 decision 3: ConfigReferenceTest generates docs/reference/configuration.md and presets.md, and
-// DiagnosticReferenceTest docs/reference/diagnostics.md and docs/agents/diagnostics.json (ADR 0020), from the
+// DiagnosticReferenceTest docs/reference/diagnostics.md and docs/agents/diagnostics.json and
+// DiagnosticsExportReferenceTest docs/reference/diagnostics-export.md (ADR 0020), from the
 // Kotlin source. In testAndroidHostTest they fail when a committed file differs; updateReference rewrites them.
 val repositoryRoot: String = rootDir.path
 val referencePages = rootProject.layout.projectDirectory.dir("docs/reference")
@@ -93,6 +94,7 @@ tasks.withType<Test>().matching { it.name == "testAndroidHostTest" }.configureEa
             referencePages.file("configuration.md"),
             referencePages.file("presets.md"),
             referencePages.file("diagnostics.md"),
+            referencePages.file("diagnostics-export.md"),
             agentPages.file("diagnostics.json"),
         ).withPathSensitivity(PathSensitivity.RELATIVE)
 }
@@ -107,6 +109,7 @@ tasks.register<Test>("updateReference") {
     filter {
         includeTestsMatching("*ConfigReferenceTest")
         includeTestsMatching("*DiagnosticReferenceTest")
+        includeTestsMatching("*DiagnosticsExportReferenceTest")
     }
     systemProperty("reference.root", repositoryRoot)
     systemProperty("reference.update", "true")

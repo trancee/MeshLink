@@ -8,6 +8,7 @@ import ch.trancee.meshlink.MeshLinkConfig
 import ch.trancee.meshlink.MeshState
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.OutgoingMessage
+import ch.trancee.meshlink.QueueCounts
 import ch.trancee.meshlink.ReadReceiptRequest
 import ch.trancee.meshlink.RejectionReason
 import ch.trancee.meshlink.Requirement
@@ -100,7 +101,7 @@ internal class Post(
     private val scope: CoroutineScope,
     private val config: MeshLinkConfig,
     private val density: () -> DensityClass,
-    diagnostics: DiagnosticsHub,
+    private val diagnostics: DiagnosticsHub,
 ) : Mail {
     private val lifetimeSeconds = config.messageLifetimeSeconds
     private val profile = config.securityProfile.wireProfile
@@ -210,6 +211,13 @@ internal class Post(
         lookups?.begin(releases::arrived)
     }
 
+    /** How many messages, frames and certificates this node holds now. */
+    fun queues(): QueueCounts {
+        val nowMillis = clock.wallClockMillis()
+        val held = floods.holding.unicasts(nowMillis).size + floods.holding.broadcasts(nowMillis).size
+        return QueueCounts(outbox.size, held, inbox.waiting, lookups?.let { it.answers.held() } ?: 0)
+    }
+
     /** A secured node's static keys, which its first messages are sealed with and to, and their rotation. */
     val keys: KeyRing get() = securedEnd.keys
 
@@ -299,6 +307,10 @@ internal class Post(
         // A write that failed goes back to the front of the lane, for the peer's next or kept link.
         return Letter(parcel.render()) {
             lanes.written(peer)
+            if (it == Settled.SENT) {
+                diagnostics.tally(DiagnosticsHub.Tally.FramesSent)
+                if (parcel.relayed) diagnostics.tally(DiagnosticsHub.Tally.FramesRelayed)
+            }
             if (it == Settled.FAILED) lanes.putBack(peer, parcel) else parcel.settle(it)
         }
     }

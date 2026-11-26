@@ -32,6 +32,10 @@ internal class VirtualPlatform(
 
     override val log: PlatformLog = PlatformLog { severity, shown, hidden -> logged += "$severity|$shown|$hidden" }
 
+    override val platformName: String = "Virtual"
+
+    override val osVersion: String = "1"
+
     @OptIn(InternalMeshLinkApi::class)
     val meshPlatform: MeshPlatform = MeshPlatform.of(this)
 }

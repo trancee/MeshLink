@@ -204,6 +204,52 @@ class DiagnosticsHubTest {
             assertNotEquals<Any>(LinkRef(1), "link-1")
         }
 
+    @Test
+    fun theHubCountsEveryReportedEventAndEachTallyAndRestartsOnEachStart() =
+        runTest {
+            // Arrange
+            val hub = DiagnosticsHub(backgroundScope, debug = false, crypto = SodiumCryptoProvider)
+            hub.begin(SecurityProfile.Classical, Preset.OfflineChat)
+            hub.report(LinkCapReached(4))
+            hub.tally(DiagnosticsHub.Tally.FramesSent)
+            hub.begin(SecurityProfile.Classical, Preset.OfflineChat)
+
+            // Act
+            repeat(3) { hub.report(ConnectFailed(LinkRef(1), ConnectFailed.Reason.Transient, it + 1)) }
+            hub.report(LinkCapReached(4))
+            hub.tally(DiagnosticsHub.Tally.FramesRelayed)
+            hub.tally(DiagnosticsHub.Tally.FramesRelayed)
+
+            // Assert
+            assertEquals(mapOf("ML1001" to 1L, "ML3003" to 3L, "ML3004" to 1L), hub.counts)
+            assertEquals(mapOf(DiagnosticsHub.Tally.FramesRelayed to 2L), hub.tallies)
+        }
+
+    @Test
+    fun theHistoryKeepsTheLatestDeliveredEventsWithTheirTimeAcrossStarts() =
+        runTest {
+            // Arrange
+            var now = 1_000L
+            val hub = DiagnosticsHub(backgroundScope, debug = false, crypto = SodiumCryptoProvider) { now }
+            hub.begin(SecurityProfile.Unsecured, Preset.OfflineChat)
+
+            // Act
+            repeat(HISTORY) {
+                now += 1
+                hub.report(ConnectFailed(LinkRef(it), ConnectFailed.Reason.Transient, 1))
+            }
+            hub.report(LinkCapReached(4))
+            advanceTimeBy(WINDOW_MS + 1)
+            hub.begin(SecurityProfile.Unsecured, Preset.OfflineChat)
+
+            // Assert
+            val history = hub.history
+            assertEquals(HISTORY, history.size)
+            assertEquals("link-2", (history.first().event as ConnectFailed).link.toString())
+            assertEquals(1_003L, history.first().atMillis)
+            assertEquals(listOf("ML3003", "ML1001", "ML1003"), history.takeLast(3).map { it.event.code })
+        }
+
     private fun TestScope.collect(hub: DiagnosticsHub): List<DiagnosticEvent> {
         val events = mutableListOf<DiagnosticEvent>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { hub.events.collect { events += it } }
@@ -220,5 +266,6 @@ class DiagnosticsHubTest {
         const val WINDOW_MS = 10_000L
         const val BUFFER = 256
         const val SENT = 300
+        const val HISTORY = 500
     }
 }

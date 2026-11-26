@@ -1,7 +1,9 @@
 package ch.trancee.meshlink
 
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
+import ch.trancee.meshlink.internal.DiagnosticsExport
 import ch.trancee.meshlink.internal.DiagnosticsHub
+import ch.trancee.meshlink.internal.ExportHeader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import org.junit.Test
@@ -10,10 +12,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+private typealias Role = DiagnosticEvent.LinkOpened.Role
+
 /**
  * Renders one event of every catalog code and checks each field against an allowlist (S1, ADR 0020
  * decision 3): an event shows names, numbers, a [PeerRef], a [LinkRef] or a message id, and never a
- * key, payload, tag, salt, certificate, NodeId or Bluetooth address.
+ * key, payload, tag, salt, certificate, NodeId or Bluetooth address. An export (decision 6) adds only the
+ * configuration, with the mesh ID and mesh key redacted, and a snapshot of names, numbers and [PeerRef]s.
  */
 class DiagnosticRedactionTest {
     private val root = File(checkNotNull(System.getProperty("reference.root")) { "reference.root is not set" })
@@ -45,6 +50,50 @@ class DiagnosticRedactionTest {
             }
             assertTrue(node.toByteArray().toHexString() !in line, line)
         }
+    }
+
+    @Test
+    fun anExportShowsTheRedactedConfigurationAndOnlyNamesNumbersReferencesAndMessageIds() {
+        // Arrange
+        val node = NodeId(ByteArray(NODE_ID_BYTES) { (it + 1).toByte() })
+        val key = ByteArray(MESH_KEY_BYTES) { (it + 0x40).toByte() }
+        val config =
+            meshLinkConfig(Preset.OfflineChat, SecurityProfile.Classical) {
+                meshId = MESH_ID
+                meshKey = key.copyOf()
+            }.build()
+        val hub = DiagnosticsHub(CoroutineScope(Job()), debug = false, crypto = SodiumCryptoProvider)
+        hub.begin(SecurityProfile.Classical, Preset.OfflineChat)
+        val peer = hub.peer(node)
+        val link = LinkSnapshot(peer, LinkSnapshot.Bearer.Gatt, LinkSnapshot.Phy.Le1M, 247, Role.Central)
+        val counters = DiagnosticCounters(mapOf("ML1001" to 1L), 1, 0, 1)
+        val snapshot =
+            DiagnosticsSnapshot(
+                config.redacted(),
+                SecurityProfile.Classical,
+                DensityClass.Low,
+                listOf(link),
+                QueueCounts(0, 0, 0, 1),
+                counters,
+            )
+        val history = events(peer, hub.link()).map { DiagnosticsHub.Recorded(it, 0) }
+
+        // Act
+        val json = DiagnosticsExport.encode(ExportHeader("0.1.0", 1, "Android", "15 (API 35)"), snapshot, history)
+
+        // Assert
+        val strings =
+            STRING
+                .findAll(json)
+                .filter { it.groupValues[2].isEmpty() }
+                .map { it.groupValues[1].replace("\\\"", "\"") }
+                .toList()
+        val lines = config.describe().lines().filterNot { it.startsWith("meshId = ") }
+        val patterns = listOf(VALUE, NAME, MESSAGE_ID)
+        val allowed = strings.filterNot { string -> patterns.any { it.matches(string) } || string in HEADER + lines }
+        assertEquals(listOf("meshId = <redacted> (override)"), allowed)
+        assertTrue(MESH_ID !in json, json)
+        assertTrue(key.toHexString() !in json && node.toByteArray().toHexString() !in json, json)
     }
 
     private fun events(
@@ -97,6 +146,15 @@ class DiagnosticRedactionTest {
         const val SOURCE = "meshlink/src/commonMain/kotlin/ch/trancee/meshlink/DiagnosticEvent.kt"
         const val NODE_ID_BYTES = 32
         const val MESSAGE_ID_BYTES = 12
+        const val MESH_KEY_BYTES = 32
+        const val MESH_ID = "Secret Garden"
+
+        /** A JSON string, its text still escaped in group 1, and `:` in group 2 when it is a key. */
+        val STRING = Regex(""""((?:[^"\\]|\\.)*)"(:?)""")
+
+        /** The header values of the export, and a name with digits: a code or a PHY. */
+        val HEADER = setOf("0.1.0", "Android", "15 (API 35)")
+        val NAME = Regex("[A-Z][A-Za-z0-9]*")
         val FIELD = Regex(", (?=[a-z][A-Za-z]*=)")
         val EVENT = Regex("""ML\d{4} [A-Z][A-Za-z]*\((.*)\) x\d+""")
 

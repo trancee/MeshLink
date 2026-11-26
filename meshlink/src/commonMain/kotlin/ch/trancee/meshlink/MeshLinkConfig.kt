@@ -173,6 +173,10 @@ public class MeshLinkConfig internal constructor(
      * A mesh key prints as `<redacted>`.
      */
     public fun describe(): String = description
+
+    /** The lines of [describe] with the mesh ID shown as `<redacted>`, for diagnostics (ADR 0020 decision 5). */
+    internal fun redacted(): List<String> =
+        description.lines().map { if (it.startsWith("meshId = ")) "meshId = <redacted> (override)" else it }
 }
 
 /** The diagnostics settings of [MeshLinkConfigBuilder.diagnostics] (ADR 0020). */
@@ -181,13 +185,13 @@ public class DiagnosticsBuilder internal constructor(
     platformLog: Knob<Boolean>,
 ) {
     /**
-     * Whether [MeshLink.diagnostics] also emits [DiagnosticEvent.Severity.Debug] events, the detail for
+     * Whether [MeshDiagnostics.events] also emits [DiagnosticEvent.Severity.Debug] events, the detail for
      * an investigation; `false` by default. Debug events can be frequent in a dense mesh.
      */
     public var debug: Boolean by debug
 
     /**
-     * Whether each event [MeshLink.diagnostics] emits is also written to the platform log, Logcat
+     * Whether each event [MeshDiagnostics.events] emits is also written to the platform log, Logcat
      * with tag `MeshLink` on Android and `os_log` subsystem `ch.trancee.meshlink`, category
      * `diagnostics` on iOS, whether or not the app collects them; `false` by default. On iOS only
      * the code, name, count and numbers show publicly; `os_log` redacts every other field unless a

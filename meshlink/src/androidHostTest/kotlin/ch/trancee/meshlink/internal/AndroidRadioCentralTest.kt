@@ -32,6 +32,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -127,6 +128,43 @@ class AndroidRadioCentralTest {
                 assertFalse(radio.supportsLe2MPhy)
                 assertTrue(ShadowMeshGatt.phyRequests.isEmpty())
             }
+        }
+
+    @Test
+    fun theLinkReportsThePhyTheStackReadsAfterConnecting() =
+        runTest {
+            // Arrange
+            ShadowMeshGatt.phy = BluetoothDevice.PHY_LE_2M
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+
+            // Act
+            val link = connected(radio)
+
+            // Assert
+            assertEquals(RadioPhy.LE_2M, link.phy)
+        }
+
+    @Test
+    fun eachSuccessfulPhyUpdateReplacesThePhyAndAFailedOneOrAFailedReadLeavesIt() =
+        runTest {
+            // Arrange
+            ShadowMeshGatt.phyStatus = BluetoothGatt.GATT_FAILURE
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val link = connected(radio)
+            val unread = link.phy
+
+            // Act
+            callback().onPhyUpdate(gatt(), BluetoothDevice.PHY_LE_CODED, BluetoothDevice.PHY_LE_1M, SUCCESS)
+            val coded = link.phy
+            callback().onPhyUpdate(gatt(), BluetoothDevice.PHY_LE_2M, BluetoothDevice.PHY_LE_2M, FAILURE)
+            val kept = link.phy
+            callback().onPhyUpdate(gatt(), UNKNOWN_PHY, UNKNOWN_PHY, SUCCESS)
+
+            // Assert
+            assertNull(unread)
+            assertEquals(RadioPhy.LE_CODED, coded)
+            assertEquals(RadioPhy.LE_CODED, kept)
+            assertNull(link.phy)
         }
 
     @Test
@@ -709,6 +747,9 @@ class AndroidRadioCentralTest {
         const val TERMINATED_BY_PEER = 19
         const val SUPERVISION_TIMEOUT = 8
         const val FAILED_ESTABLISHMENT = 62
+        const val SUCCESS = BluetoothGatt.GATT_SUCCESS
+        const val FAILURE = BluetoothGatt.GATT_FAILURE
+        const val UNKNOWN_PHY = 0
         val ENABLE: ByteArray = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
     }
 }

@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 18 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast; 2026-11-20, broadcast; 2026-11-23, delivery receipts; 2026-11-25, central-only nodes).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 19 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast; 2026-11-20, broadcast; 2026-11-23, delivery receipts; 2026-11-25, central-only nodes; 2026-11-27, diagnostics snapshot and export).
 
 ## Context
 
@@ -239,3 +239,8 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
   - Why state and not only a diagnostic (ADR 0020): an app reads `state` already and must learn that the phone is reachable only by its own connections for as long as it is; a diagnostic is an event that a late collector misses.
 - **`AdvertisingFailed` lasts the run (owner decision):** after an advertising start or a running advertisement fails, the node stays central-only, with the reason in `state`, until the run ends: the next `start()`, Bluetooth turning off and on, or any requirement that blocks and clears. It doesn't retry within the run, so a failing stack isn't hammered.
 - **Link-role hook (amends the amendment of 2026-11-15):** a central-only node is a central whatever `restrictedLinkRole` says, even `PERIPHERAL`, because it can't be found.
+
+2026-11-27, diagnostics snapshot and export ([ADR 0020](0020-diagnostics-catalog.md) amendment of 2026-11-27, ticket 54d):
+
+- **Diagnostics (amends decision 12 and the amendment of 2026-11-08):** `MeshLink.diagnostics` is a `MeshDiagnostics`. Its `events` is the `Flow<DiagnosticEvent>` that `diagnostics` was, and it adds `suspend fun snapshot(): DiagnosticsSnapshot` and `suspend fun export(): String` in place of `diagnosticsSnapshot()` and `exportDiagnostics()`. Both are callable in any state, also after `close()`. The rename touches only unreleased API.
+  - Why one type: detekt allows `MeshLink` 11 functions and the project suppresses no finding; grouping the diagnostics also keeps `MeshLink`'s own surface about the mesh.

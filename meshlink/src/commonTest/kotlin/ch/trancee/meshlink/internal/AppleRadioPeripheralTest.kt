@@ -159,6 +159,7 @@ class AppleRadioPeripheralTest {
             assertEquals(1, seen.size)
             assertEquals(AppleCentralPeer("C"), link.peer)
             assertEquals(bluetooth.notifyLength + RadioPort.ATT_HEADER, link.attMtu)
+            assertNull(link.phy)
         }
 
     @Test

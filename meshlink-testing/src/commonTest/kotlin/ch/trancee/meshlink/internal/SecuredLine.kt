@@ -98,7 +98,7 @@ internal class SecuredLine(
                 }
             diagnostics +=
                 mutableListOf<DiagnosticEvent>().also { events ->
-                    scope.backgroundScope.launch { node.diagnostics.collect { events += it } }
+                    scope.backgroundScope.launch { node.diagnostics.events.collect { events += it } }
                 }
             node.start()
         }

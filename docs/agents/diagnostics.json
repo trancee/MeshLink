@@ -892,7 +892,7 @@
       "meaning": "This collector fell `dropped` events behind, so its oldest events were dropped. Each collector buffers 256 events.",
       "cause": "the collector does slow work for each event.",
       "fix": "collect on a fast path and move slow work elsewhere.",
-      "related": "`MeshLink.diagnostics`.",
+      "related": "`MeshDiagnostics.events`.",
       "symptom": "none.",
       "fields": [
         {

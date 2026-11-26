@@ -25,7 +25,7 @@ class ApplePlatformPortTest {
             val bluetooth = FakeCoreBluetooth()
             val dispatcher = StandardTestDispatcher(testScheduler)
             val keychain = FakeKeychain()
-            val port = ApplePlatformPort(bluetooth, keychain, dispatcher) { _, _, _ -> }
+            val port = ApplePlatformPort(bluetooth, keychain, dispatcher, OS_VERSION) { _, _, _ -> }
             val missing = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { port.requirements.first() }
 
             // Act
@@ -39,6 +39,8 @@ class ApplePlatformPortTest {
             val identity = assertNotNull(port.identityStore.loadOrCreate(SodiumCryptoProvider))
             assertContentEquals(identity.seed, keychain.added.single())
             assertSame(SystemClock, port.clock)
+            assertEquals("iOS", port.platformName)
+            assertEquals(OS_VERSION, port.osVersion)
         }
 
     @Test
@@ -46,7 +48,11 @@ class ApplePlatformPortTest {
         // Arrange
         val written = mutableListOf<Triple<UByte, String, String>>()
         val port =
-            ApplePlatformPort(FakeCoreBluetooth(), FakeKeychain(), StandardTestDispatcher()) { type, shown, hidden ->
+            ApplePlatformPort(FakeCoreBluetooth(), FakeKeychain(), StandardTestDispatcher(), OS_VERSION) {
+                type,
+                shown,
+                hidden,
+                ->
                 written += Triple(type, shown, hidden)
             }
 
@@ -65,6 +71,7 @@ class ApplePlatformPortTest {
     }
 
     private companion object {
+        const val OS_VERSION = "18.2.0"
         const val OS_LOG_TYPE_DEFAULT: UByte = 0x00u
         const val OS_LOG_TYPE_INFO: UByte = 0x01u
         const val OS_LOG_TYPE_DEBUG: UByte = 0x02u

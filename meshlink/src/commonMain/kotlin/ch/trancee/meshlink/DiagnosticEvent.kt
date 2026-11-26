@@ -1,7 +1,7 @@
 package ch.trancee.meshlink
 
 /**
- * An event on [MeshLink.diagnostics] (ADR 0020): a stable [code], a [severity] and typed fields.
+ * An event on [MeshDiagnostics.events] (ADR 0020): a stable [code], a [severity] and typed fields.
  *
  * Fields never hold keys, payloads, routing or conversation tags, advertisement identifiers, lookup
  * salts, certificates or Bluetooth addresses. A peer appears as a [PeerRef] and a link whose peer is
@@ -787,7 +787,7 @@ public sealed class DiagnosticEvent(
      *
      * - Cause: the collector does slow work for each event.
      * - Fix: collect on a fast path and move slow work elsewhere.
-     * - Related: [MeshLink.diagnostics].
+     * - Related: [MeshDiagnostics.events].
      * - Symptom: none.
      */
     public class DiagnosticsDropped internal constructor(

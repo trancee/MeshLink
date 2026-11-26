@@ -72,6 +72,7 @@ class AppleRadioCentralTest {
             )
             assertEquals(peer, link.peer)
             assertEquals(bluetooth.writeLength + RadioPort.ATT_HEADER, link.attMtu)
+            assertNull(link.phy)
         }
 
     @Test

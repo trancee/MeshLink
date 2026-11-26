@@ -140,6 +140,10 @@ abstract interface ch.trancee.meshlink.internal/PlatformPort { // ch.trancee.mes
         abstract fun <get-limitations>(): kotlinx.coroutines.flow/Flow<kotlin.collections/Set<ch.trancee.meshlink/Limitation>> // ch.trancee.meshlink.internal/PlatformPort.limitations.<get-limitations>|<get-limitations>(){}[0]
     abstract val log // ch.trancee.meshlink.internal/PlatformPort.log|{}log[0]
         abstract fun <get-log>(): ch.trancee.meshlink.internal/PlatformLog // ch.trancee.meshlink.internal/PlatformPort.log.<get-log>|<get-log>(){}[0]
+    abstract val osVersion // ch.trancee.meshlink.internal/PlatformPort.osVersion|{}osVersion[0]
+        abstract fun <get-osVersion>(): kotlin/String // ch.trancee.meshlink.internal/PlatformPort.osVersion.<get-osVersion>|<get-osVersion>(){}[0]
+    abstract val platformName // ch.trancee.meshlink.internal/PlatformPort.platformName|{}platformName[0]
+        abstract fun <get-platformName>(): kotlin/String // ch.trancee.meshlink.internal/PlatformPort.platformName.<get-platformName>|<get-platformName>(){}[0]
     abstract val radio // ch.trancee.meshlink.internal/PlatformPort.radio|{}radio[0]
         abstract fun <get-radio>(): ch.trancee.meshlink.internal/RadioPort // ch.trancee.meshlink.internal/PlatformPort.radio.<get-radio>|<get-radio>(){}[0]
     abstract val random // ch.trancee.meshlink.internal/PlatformPort.random|{}random[0]
@@ -393,6 +397,17 @@ final class ch.trancee.meshlink.internal/InMemoryIdentityStore : ch.trancee.mesh
     final fun loadOrCreate(ch.trancee.meshlink.internal/CryptoProvider): ch.trancee.meshlink.internal/Ed25519KeyPair // ch.trancee.meshlink.internal/InMemoryIdentityStore.loadOrCreate|loadOrCreate(ch.trancee.meshlink.internal.CryptoProvider){}[0]
 }
 
+final class ch.trancee.meshlink/DiagnosticCounters { // ch.trancee.meshlink/DiagnosticCounters|null[0]
+    final val events // ch.trancee.meshlink/DiagnosticCounters.events|{}events[0]
+        final fun <get-events>(): kotlin.collections/Map<kotlin/String, kotlin/Long> // ch.trancee.meshlink/DiagnosticCounters.events.<get-events>|<get-events>(){}[0]
+    final val framesRelayed // ch.trancee.meshlink/DiagnosticCounters.framesRelayed|{}framesRelayed[0]
+        final fun <get-framesRelayed>(): kotlin/Long // ch.trancee.meshlink/DiagnosticCounters.framesRelayed.<get-framesRelayed>|<get-framesRelayed>(){}[0]
+    final val framesSent // ch.trancee.meshlink/DiagnosticCounters.framesSent|{}framesSent[0]
+        final fun <get-framesSent>(): kotlin/Long // ch.trancee.meshlink/DiagnosticCounters.framesSent.<get-framesSent>|<get-framesSent>(){}[0]
+    final val handshakesSucceeded // ch.trancee.meshlink/DiagnosticCounters.handshakesSucceeded|{}handshakesSucceeded[0]
+        final fun <get-handshakesSucceeded>(): kotlin/Long // ch.trancee.meshlink/DiagnosticCounters.handshakesSucceeded.<get-handshakesSucceeded>|<get-handshakesSucceeded>(){}[0]
+}
+
 final class ch.trancee.meshlink/Diagnostics { // ch.trancee.meshlink/Diagnostics|null[0]
     final val debug // ch.trancee.meshlink/Diagnostics.debug|{}debug[0]
         final fun <get-debug>(): kotlin/Boolean // ch.trancee.meshlink/Diagnostics.debug.<get-debug>|<get-debug>(){}[0]
@@ -407,6 +422,21 @@ final class ch.trancee.meshlink/DiagnosticsBuilder { // ch.trancee.meshlink/Diag
     final var platformLog // ch.trancee.meshlink/DiagnosticsBuilder.platformLog|{}platformLog[0]
         final fun <get-platformLog>(): kotlin/Boolean // ch.trancee.meshlink/DiagnosticsBuilder.platformLog.<get-platformLog>|<get-platformLog>(){}[0]
         final fun <set-platformLog>(kotlin/Boolean) // ch.trancee.meshlink/DiagnosticsBuilder.platformLog.<set-platformLog>|<set-platformLog>(kotlin.Boolean){}[0]
+}
+
+final class ch.trancee.meshlink/DiagnosticsSnapshot { // ch.trancee.meshlink/DiagnosticsSnapshot|null[0]
+    final val configuration // ch.trancee.meshlink/DiagnosticsSnapshot.configuration|{}configuration[0]
+        final fun <get-configuration>(): kotlin.collections/List<kotlin/String> // ch.trancee.meshlink/DiagnosticsSnapshot.configuration.<get-configuration>|<get-configuration>(){}[0]
+    final val counters // ch.trancee.meshlink/DiagnosticsSnapshot.counters|{}counters[0]
+        final fun <get-counters>(): ch.trancee.meshlink/DiagnosticCounters // ch.trancee.meshlink/DiagnosticsSnapshot.counters.<get-counters>|<get-counters>(){}[0]
+    final val densityClass // ch.trancee.meshlink/DiagnosticsSnapshot.densityClass|{}densityClass[0]
+        final fun <get-densityClass>(): ch.trancee.meshlink/DensityClass? // ch.trancee.meshlink/DiagnosticsSnapshot.densityClass.<get-densityClass>|<get-densityClass>(){}[0]
+    final val links // ch.trancee.meshlink/DiagnosticsSnapshot.links|{}links[0]
+        final fun <get-links>(): kotlin.collections/List<ch.trancee.meshlink/LinkSnapshot> // ch.trancee.meshlink/DiagnosticsSnapshot.links.<get-links>|<get-links>(){}[0]
+    final val profile // ch.trancee.meshlink/DiagnosticsSnapshot.profile|{}profile[0]
+        final fun <get-profile>(): ch.trancee.meshlink/SecurityProfile // ch.trancee.meshlink/DiagnosticsSnapshot.profile.<get-profile>|<get-profile>(){}[0]
+    final val queues // ch.trancee.meshlink/DiagnosticsSnapshot.queues|{}queues[0]
+        final fun <get-queues>(): ch.trancee.meshlink/QueueCounts // ch.trancee.meshlink/DiagnosticsSnapshot.queues.<get-queues>|<get-queues>(){}[0]
 }
 
 final class ch.trancee.meshlink/Limits { // ch.trancee.meshlink/Limits|null[0]
@@ -431,13 +461,57 @@ final class ch.trancee.meshlink/LinkRef { // ch.trancee.meshlink/LinkRef|null[0]
     final fun toString(): kotlin/String // ch.trancee.meshlink/LinkRef.toString|toString(){}[0]
 }
 
+final class ch.trancee.meshlink/LinkSnapshot { // ch.trancee.meshlink/LinkSnapshot|null[0]
+    final val bearer // ch.trancee.meshlink/LinkSnapshot.bearer|{}bearer[0]
+        final fun <get-bearer>(): ch.trancee.meshlink/LinkSnapshot.Bearer // ch.trancee.meshlink/LinkSnapshot.bearer.<get-bearer>|<get-bearer>(){}[0]
+    final val mtu // ch.trancee.meshlink/LinkSnapshot.mtu|{}mtu[0]
+        final fun <get-mtu>(): kotlin/Int // ch.trancee.meshlink/LinkSnapshot.mtu.<get-mtu>|<get-mtu>(){}[0]
+    final val peer // ch.trancee.meshlink/LinkSnapshot.peer|{}peer[0]
+        final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/LinkSnapshot.peer.<get-peer>|<get-peer>(){}[0]
+    final val phy // ch.trancee.meshlink/LinkSnapshot.phy|{}phy[0]
+        final fun <get-phy>(): ch.trancee.meshlink/LinkSnapshot.Phy? // ch.trancee.meshlink/LinkSnapshot.phy.<get-phy>|<get-phy>(){}[0]
+    final val role // ch.trancee.meshlink/LinkSnapshot.role|{}role[0]
+        final fun <get-role>(): ch.trancee.meshlink/DiagnosticEvent.LinkOpened.Role // ch.trancee.meshlink/LinkSnapshot.role.<get-role>|<get-role>(){}[0]
+
+    final enum class Bearer : kotlin/Enum<ch.trancee.meshlink/LinkSnapshot.Bearer> { // ch.trancee.meshlink/LinkSnapshot.Bearer|null[0]
+        enum entry Gatt // ch.trancee.meshlink/LinkSnapshot.Bearer.Gatt|null[0]
+        enum entry L2capCoc // ch.trancee.meshlink/LinkSnapshot.Bearer.L2capCoc|null[0]
+
+        final val entries // ch.trancee.meshlink/LinkSnapshot.Bearer.entries|#static{}entries[0]
+            final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/LinkSnapshot.Bearer> // ch.trancee.meshlink/LinkSnapshot.Bearer.entries.<get-entries>|<get-entries>#static(){}[0]
+
+        final fun valueOf(kotlin/String): ch.trancee.meshlink/LinkSnapshot.Bearer // ch.trancee.meshlink/LinkSnapshot.Bearer.valueOf|valueOf#static(kotlin.String){}[0]
+        final fun values(): kotlin/Array<ch.trancee.meshlink/LinkSnapshot.Bearer> // ch.trancee.meshlink/LinkSnapshot.Bearer.values|values#static(){}[0]
+    }
+
+    final enum class Phy : kotlin/Enum<ch.trancee.meshlink/LinkSnapshot.Phy> { // ch.trancee.meshlink/LinkSnapshot.Phy|null[0]
+        enum entry Le1M // ch.trancee.meshlink/LinkSnapshot.Phy.Le1M|null[0]
+        enum entry Le2M // ch.trancee.meshlink/LinkSnapshot.Phy.Le2M|null[0]
+        enum entry LeCoded // ch.trancee.meshlink/LinkSnapshot.Phy.LeCoded|null[0]
+
+        final val entries // ch.trancee.meshlink/LinkSnapshot.Phy.entries|#static{}entries[0]
+            final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/LinkSnapshot.Phy> // ch.trancee.meshlink/LinkSnapshot.Phy.entries.<get-entries>|<get-entries>#static(){}[0]
+
+        final fun valueOf(kotlin/String): ch.trancee.meshlink/LinkSnapshot.Phy // ch.trancee.meshlink/LinkSnapshot.Phy.valueOf|valueOf#static(kotlin.String){}[0]
+        final fun values(): kotlin/Array<ch.trancee.meshlink/LinkSnapshot.Phy> // ch.trancee.meshlink/LinkSnapshot.Phy.values|values#static(){}[0]
+    }
+}
+
+final class ch.trancee.meshlink/MeshDiagnostics { // ch.trancee.meshlink/MeshDiagnostics|null[0]
+    final val events // ch.trancee.meshlink/MeshDiagnostics.events|{}events[0]
+        final fun <get-events>(): kotlinx.coroutines.flow/Flow<ch.trancee.meshlink/DiagnosticEvent> // ch.trancee.meshlink/MeshDiagnostics.events.<get-events>|<get-events>(){}[0]
+
+    final suspend fun export(): kotlin/String // ch.trancee.meshlink/MeshDiagnostics.export|export(){}[0]
+    final suspend fun snapshot(): ch.trancee.meshlink/DiagnosticsSnapshot // ch.trancee.meshlink/MeshDiagnostics.snapshot|snapshot(){}[0]
+}
+
 final class ch.trancee.meshlink/MeshLink : kotlin/AutoCloseable { // ch.trancee.meshlink/MeshLink|null[0]
     final val certificateLookups // ch.trancee.meshlink/MeshLink.certificateLookups|{}certificateLookups[0]
         final fun <get-certificateLookups>(): ch.trancee.meshlink.internal/CertificateLookups? // ch.trancee.meshlink/MeshLink.certificateLookups.<get-certificateLookups>|<get-certificateLookups>(){}[0]
     final val config // ch.trancee.meshlink/MeshLink.config|{}config[0]
         final fun <get-config>(): ch.trancee.meshlink/MeshLinkConfig // ch.trancee.meshlink/MeshLink.config.<get-config>|<get-config>(){}[0]
     final val diagnostics // ch.trancee.meshlink/MeshLink.diagnostics|{}diagnostics[0]
-        final fun <get-diagnostics>(): kotlinx.coroutines.flow/Flow<ch.trancee.meshlink/DiagnosticEvent> // ch.trancee.meshlink/MeshLink.diagnostics.<get-diagnostics>|<get-diagnostics>(){}[0]
+        final fun <get-diagnostics>(): ch.trancee.meshlink/MeshDiagnostics // ch.trancee.meshlink/MeshLink.diagnostics.<get-diagnostics>|<get-diagnostics>(){}[0]
     final val linkRoles // ch.trancee.meshlink/MeshLink.linkRoles|{}linkRoles[0]
         final fun <get-linkRoles>(): kotlin.collections/Map<ch.trancee.meshlink/NodeId, ch.trancee.meshlink.internal/LinkRole> // ch.trancee.meshlink/MeshLink.linkRoles.<get-linkRoles>|<get-linkRoles>(){}[0]
     final val messages // ch.trancee.meshlink/MeshLink.messages|{}messages[0]
@@ -566,6 +640,17 @@ final class ch.trancee.meshlink/Proximity { // ch.trancee.meshlink/Proximity|nul
         final fun <get-measuredAt>(): kotlin.time/Instant? // ch.trancee.meshlink/Proximity.measuredAt.<get-measuredAt>|<get-measuredAt>(){}[0]
     final val rssi // ch.trancee.meshlink/Proximity.rssi|{}rssi[0]
         final fun <get-rssi>(): kotlin/Double? // ch.trancee.meshlink/Proximity.rssi.<get-rssi>|<get-rssi>(){}[0]
+}
+
+final class ch.trancee.meshlink/QueueCounts { // ch.trancee.meshlink/QueueCounts|null[0]
+    final val certificates // ch.trancee.meshlink/QueueCounts.certificates|{}certificates[0]
+        final fun <get-certificates>(): kotlin/Int // ch.trancee.meshlink/QueueCounts.certificates.<get-certificates>|<get-certificates>(){}[0]
+    final val held // ch.trancee.meshlink/QueueCounts.held|{}held[0]
+        final fun <get-held>(): kotlin/Int // ch.trancee.meshlink/QueueCounts.held.<get-held>|<get-held>(){}[0]
+    final val inbox // ch.trancee.meshlink/QueueCounts.inbox|{}inbox[0]
+        final fun <get-inbox>(): kotlin/Int // ch.trancee.meshlink/QueueCounts.inbox.<get-inbox>|<get-inbox>(){}[0]
+    final val outgoing // ch.trancee.meshlink/QueueCounts.outgoing|{}outgoing[0]
+        final fun <get-outgoing>(): kotlin/Int // ch.trancee.meshlink/QueueCounts.outgoing.<get-outgoing>|<get-outgoing>(){}[0]
 }
 
 final class ch.trancee.meshlink/ReadReceipts { // ch.trancee.meshlink/ReadReceipts|null[0]

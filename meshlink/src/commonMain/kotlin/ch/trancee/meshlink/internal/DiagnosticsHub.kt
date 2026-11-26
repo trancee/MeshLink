@@ -22,19 +22,24 @@ import kotlinx.coroutines.launch
  * The diagnostics hub (ADR 0020): filters `Debug` events, coalesces repeats and fans events out to
  * every collector of [events], each with its own bounded buffer, and to [log], if set, whether or
  * not anyone collects. It also names peers and links for events with keys and counters drawn anew by
- * [begin] on each start.
+ * [begin] on each start, and keeps what the diagnostics snapshot and export show: [counts],
+ * [tallies], and the [history] of delivered events, each stamped with [wallClock].
  */
 internal class DiagnosticsHub(
     private val scope: CoroutineScope,
     private val debug: Boolean,
     private val crypto: CryptoProvider,
     private val log: PlatformLog? = null,
+    private val wallClock: () -> Long = { 0L },
 ) {
     private val subscribers = MutableStateFlow<List<Subscriber>>(emptyList())
     private val closed = MutableStateFlow(false)
     private val windows = MutableStateFlow<Map<Any, Repeats>>(emptyMap())
     private val peerKey = MutableStateFlow(crypto.randomBytes(PEER_KEY_BYTES))
     private val links = MutableStateFlow(0)
+    private val mutableCounts = MutableStateFlow<Map<String, Long>>(emptyMap())
+    private val mutableTallies = MutableStateFlow<Map<Tally, Long>>(emptyMap())
+    private val mutableHistory = MutableStateFlow<List<Recorded>>(emptyList())
 
     /** A hot flow of events from the moment of collection, without replay; completes on [close]. */
     val events: Flow<DiagnosticEvent> =
@@ -55,6 +60,7 @@ internal class DiagnosticsHub(
 
     /** Emits [event] at once, or counts it as a repeat within its code and reference's window. */
     fun report(event: DiagnosticEvent) {
+        mutableCounts.update { it + (event.code to (it[event.code] ?: 0L) + 1) }
         if (event.severity == DiagnosticEvent.Severity.Debug && !debug) return
         val key = event.code to event.reference
         var opened = false
@@ -82,6 +88,8 @@ internal class DiagnosticsHub(
     ) {
         peerKey.value = crypto.randomBytes(PEER_KEY_BYTES)
         links.value = 0
+        mutableCounts.value = emptyMap()
+        mutableTallies.value = emptyMap()
         report(DiagnosticEvent.Started(profile, preset))
         if (profile == SecurityProfile.Unsecured) report(DiagnosticEvent.UnsecuredProfile())
     }
@@ -95,6 +103,23 @@ internal class DiagnosticsHub(
 
     /** The next [LinkRef] of this start. */
     fun link(): LinkRef = LinkRef(links.updateAndGet { it + 1 })
+
+    /**
+     * How many events of each code were reported since the latest [begin], `Debug` events and coalesced
+     * repeats included.
+     */
+    val counts: Map<String, Long> get() = mutableCounts.value
+
+    /** Each [Tally]'s count since the latest [begin]; a tally never counted is absent. */
+    val tallies: Map<Tally, Long> get() = mutableTallies.value
+
+    /** The latest 500 delivered events, oldest first, across starts. */
+    val history: List<Recorded> get() = mutableHistory.value
+
+    /** Counts one [tally]. */
+    fun tally(tally: Tally) {
+        mutableTallies.update { it + (tally to (it[tally] ?: 0L) + 1) }
+    }
 
     /** Completes every current and later collector of [events]. */
     fun close() {
@@ -112,6 +137,8 @@ internal class DiagnosticsHub(
 
     private fun deliver(event: DiagnosticEvent) {
         log?.let { write(it, event) }
+        val recorded = Recorded(event, wallClock())
+        mutableHistory.update { (it + recorded).takeLast(HISTORY) }
         subscribers.value.forEach { it.channel.trySend(event) }
     }
 
@@ -127,6 +154,15 @@ internal class DiagnosticsHub(
 
     private fun field(field: Pair<String, Any>): String = "${field.first}=${field.second}"
 
+    /** What the hub counts beyond events. */
+    enum class Tally { FramesSent, FramesRelayed, HandshakesSucceeded }
+
+    /** A delivered [event] and the wall-clock time it was delivered at. */
+    class Recorded(
+        val event: DiagnosticEvent,
+        val atMillis: Long,
+    )
+
     private class Repeats(
         val count: Int,
         val latest: DiagnosticEvent,
@@ -141,6 +177,7 @@ internal class DiagnosticsHub(
     private companion object {
         const val WINDOW_MS = 10_000L
         const val BUFFER = 256
+        const val HISTORY = 500
         const val PEER_KEY_BYTES = 32
         const val PEER_HASH_BYTES = 16
     }

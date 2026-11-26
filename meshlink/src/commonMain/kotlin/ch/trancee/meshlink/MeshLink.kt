@@ -75,7 +75,13 @@ public class MeshLink private constructor(
     private val profile = config.securityProfile.wireProfile
     private val meshKey = config.meshKey
     private val hub =
-        DiagnosticsHub(scope, config.diagnostics.debug, crypto, port.log.takeIf { config.diagnostics.platformLog })
+        DiagnosticsHub(
+            scope,
+            config.diagnostics.debug,
+            crypto,
+            port.log.takeIf { config.diagnostics.platformLog },
+            port.clock::wallClockMillis,
+        )
     private val scanner =
         Scanner(
             port.radio,
@@ -111,14 +117,19 @@ public class MeshLink private constructor(
      */
     public val messages: Flow<ReceivedMessage> = post.inbox.messages
 
-    /**
-     * This node's diagnostic events (ADR 0020), from the moment a collector starts, without replay; the
-     * flow completes when the node closes. Every collector gets every event. Each buffers 256 events:
-     * a collector that falls further behind loses its oldest ones and then gets
-     * [DiagnosticEvent.DiagnosticsDropped]. [DiagnosticEvent.Severity.Debug] events appear only with
-     * [DiagnosticsBuilder.debug] on.
-     */
-    public val diagnostics: Flow<DiagnosticEvent> = hub.events
+    /** This node's diagnostics (ADR 0020): its events and a snapshot of its state. */
+    public val diagnostics: MeshDiagnostics =
+        MeshDiagnostics(hub, port) { counters ->
+            val session = links.value
+            DiagnosticsSnapshot(
+                config.redacted(),
+                config.securityProfile,
+                session?.let { scanner.density },
+                session?.snapshots.orEmpty(),
+                post.queues(),
+                counters,
+            )
+        }
 
     /**
      * Starts the node and returns once it is [MeshState.Running] or [MeshState.Blocked]. A blocked

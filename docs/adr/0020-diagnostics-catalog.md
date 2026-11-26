@@ -1,6 +1,6 @@
 # 0020: Diagnostics catalog
 
-Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 4 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c).
+Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 5 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c; 2026-11-27, ticket 54d).
 
 ## Context
 
@@ -63,15 +63,15 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
 4. **Flood control.**
    - A repeat of the same code and reference within 10 s is coalesced into one event with a count (amended 2026-11-26).
    - Each collector's buffer holds 256 events and drops the oldest first, then emits `ML7001` (amended 2026-11-26).
-5. **Snapshot.** `diagnosticsSnapshot()` returns the current redacted state:
+5. **Snapshot.** `diagnostics.snapshot()` returns the current redacted state (amended 2026-11-27):
    - configuration, profile and density class;
    - each link, with its bearer, PHY, MTU and role;
    - queue and held-message counts, and the size of the certificate cache;
-   - cumulative counters: frames sent, relayed and dropped by reason; handshakes succeeded and failed by reason; retries; scan restarts.
+   - cumulative counters: every reported event by code, and frames sent, frames relayed and handshakes succeeded.
 
    It has no time series.
 6. **Field tooling.**
-   - `exportDiagnostics()` returns a JSON report: the snapshot, the last 500 events, the MeshLink and protocol versions, the platform and the OS version. MeshLink never uploads it; the app decides what happens to it.
+   - `diagnostics.export()` returns a JSON report ([`docs/reference/diagnostics-export.md`](../reference/diagnostics-export.md)): the snapshot, the last 500 events, the MeshLink and protocol versions, the platform and the OS version. MeshLink never uploads it; the app decides what happens to it.
    - Opt-in `diagnostics.platformLog` writes events to Logcat or `os_log`. In `os_log`, fields other than codes and numbers are marked private. The line format is fixed by the 2026-11-26 platform-codes amendment.
    - The device-lab scripts (ADR 0017) read these logs.
 7. **v1 codes.** Severity: D Debug, I Info, W Warning. ★ marks codes promised by an earlier ADR.
@@ -174,6 +174,18 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
   - **The iOS writer is a C wrapper in a cinterop definition**, because `os_log` is a macro over a variadic call and needs a constant format string; Kotlin/Native can call neither. Formatting stays in common code.
 - **Status:** decisions 6 and 7 are updated to match.
 
+2026-11-27, snapshot and export (ticket 54d; user decisions on the ticket's eight questions and an amended third):
+
+- **Context:** the snapshot and the export are implemented. Detekt's limit of 11 functions per class, which the project does not suppress, left no room on `MeshLink` for two more functions, and its limit of 6 constructor parameters left none on a flat snapshot.
+- **Decision:**
+  - **One diagnostics type:** `MeshLink.diagnostics` is a `MeshDiagnostics` with `events`, the flow of ADR 0007 decision 12, `suspend fun snapshot()` and `suspend fun export()`, each callable in any state, also after `close()`. It is not named `Diagnostics`, which is the type of the config value `diagnostics`.
+  - **Grouped snapshot:** `DiagnosticsSnapshot` holds `configuration`, `profile`, `densityClass` (`null` while the node isn't running), `links`, `queues` (`QueueCounts`: `outgoing`, `held`, `inbox`, `certificates`) and `counters` (`DiagnosticCounters`).
+  - **Counters (decision 5):** every reported event is counted by code, before the Debug filter and coalescing, so a failure by reason, a retry or a scan window is the count of its code. Three counts no event carries are explicit: `framesSent`, `framesRelayed` and `handshakesSucceeded`. All reset on each `start()`.
+  - **PHY:** each `LinkSnapshot` has `phy`: `Le1M`, `Le2M` or `LeCoded`. Android reads it with `readPhy` when the link opens and follows `onPhyUpdate`; iOS doesn't expose it, so it is `null`.
+  - **Redaction (decision 3):** the configuration shows `meshId = <redacted>`, and a mesh key was already `<redacted>`. Only links past their hellos are listed, each by `PeerRef`.
+  - **Export (decision 6):** a JSON document with `"format": 1`, the MeshLink, protocol, platform and OS versions, the snapshot, and the last 500 events emitted after the Debug filter and coalescing, each with its wall-clock time `at`. The history spans starts and is cleared only when the node is created; `ML7001` is not in it. A hand-written encoder in common code writes it, with no new dependency (E3). `format` grows only when a field changes meaning or goes. `DiagnosticsExportReferenceTest` generates the reference from the KDoc and the encoder.
+- **Status:** decisions 5 and 6 and the consequences are updated to match.
+
 ## Alternatives
 
 - **Free-text log lines:** neither stable nor machine-readable (C5). Rejected.
@@ -193,6 +205,6 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
 
 ## Consequences
 
-- **[ADR 0007](0007-public-api-shape.md):** gains `diagnosticsSnapshot()`, `exportDiagnostics()`, `diagnostics.debug` and `diagnostics.platformLog`.
+- **[ADR 0007](0007-public-api-shape.md):** gains `diagnostics.snapshot()`, `diagnostics.export()`, `diagnostics.debug` and `diagnostics.platformLog` (amended 2026-11-27).
 - **The generated diagnostic index and the troubleshooting pages** arrive with the code (ADR 0006).
 - **The device-lab scripts (ADR 0017)** parse the platform log format.

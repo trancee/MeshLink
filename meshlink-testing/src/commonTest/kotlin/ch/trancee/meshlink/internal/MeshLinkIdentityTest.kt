@@ -163,7 +163,7 @@ class MeshLinkIdentityTest {
             platform.radio.report(setOf(Requirement.BluetoothOff))
             node.start()
             val stops = mutableListOf<DiagnosticEvent>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.diagnostics.toList(stops) }
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.diagnostics.events.toList(stops) }
 
             // Act
             val reset = node.resetIdentity()

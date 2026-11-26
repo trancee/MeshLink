@@ -446,6 +446,31 @@ class AndroidRadioServerTest {
         }
 
     @Test
+    fun aCentralsLinkReportsThePhyTheStackReadsEachSuccessfulUpdateAndNoneForAnUnknownPhy() =
+        runTest {
+            // Arrange
+            ShadowMeshGattServer.phy = BluetoothDevice.PHY_LE_2M
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val events = collect(radio)
+            radio.serveCapability(record)
+            val link = connect(central, events)
+            val read = link.phy
+
+            // Act
+            callback().onPhyUpdate(central, BluetoothDevice.PHY_LE_1M, BluetoothDevice.PHY_LE_1M, FAILURE)
+            val kept = link.phy
+            callback().onPhyUpdate(central, BluetoothDevice.PHY_LE_CODED, BluetoothDevice.PHY_LE_CODED, SUCCESS)
+            val updated = link.phy
+            callback().onPhyUpdate(central, UNKNOWN_PHY, UNKNOWN_PHY, SUCCESS)
+
+            // Assert
+            assertEquals(RadioPhy.LE_2M, read)
+            assertEquals(RadioPhy.LE_2M, kept)
+            assertEquals(RadioPhy.LE_CODED, updated)
+            assertNull(link.phy)
+        }
+
+    @Test
     fun aDisconnectForgetsTheCentralsMtuAndLink() =
         runTest {
             // Arrange
@@ -581,7 +606,10 @@ class AndroidRadioServerTest {
         const val OFFSET = 5
         const val REQUEST = 7
         const val SMALL_MTU = 8
+        const val SUCCESS = BluetoothGatt.GATT_SUCCESS
+        const val FAILURE = BluetoothGatt.GATT_FAILURE
         const val SUPERVISION_TIMEOUT = 8
+        const val UNKNOWN_PHY = 0
         const val FIRST_RETRY_MILLIS = 250L
         const val SECOND_RETRY_MILLIS = 500L
         const val ALL_RETRIES_MILLIS = 3_750L

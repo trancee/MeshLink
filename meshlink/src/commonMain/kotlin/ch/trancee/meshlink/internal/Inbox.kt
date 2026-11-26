@@ -42,6 +42,9 @@ internal class Inbox(
             }
         }
 
+    /** How many messages wait for the app. */
+    val waiting: Int get() = usage.value.count
+
     /**
      * Adds [message] unless it would cross a bound; returns whether it was added. [taken] runs, on the
      * collector's thread, when the app takes the message.

@@ -30,14 +30,14 @@ Whether this node moves its links from GATT to an L2CAP connection-oriented chan
 - Type: `Boolean`
 - Default: `false`
 
-Whether `MeshLink.diagnostics` also emits `DiagnosticEvent.Severity.Debug` events, the detail for an investigation; `false` by default. Debug events can be frequent in a dense mesh.
+Whether `MeshDiagnostics.events` also emits `DiagnosticEvent.Severity.Debug` events, the detail for an investigation; `false` by default. Debug events can be frequent in a dense mesh.
 
 ## `diagnostics.platformLog`
 
 - Type: `Boolean`
 - Default: `false`
 
-Whether each event `MeshLink.diagnostics` emits is also written to the platform log, Logcat with tag `MeshLink` on Android and `os_log` subsystem `ch.trancee.meshlink`, category `diagnostics` on iOS, whether or not the app collects them; `false` by default. On iOS only the code, name, count and numbers show publicly; `os_log` redacts every other field unless a debugger is attached or a logging profile reveals private data. On Android every field shows, so turn it on only for investigations.
+Whether each event `MeshDiagnostics.events` emits is also written to the platform log, Logcat with tag `MeshLink` on Android and `os_log` subsystem `ch.trancee.meshlink`, category `diagnostics` on iOS, whether or not the app collects them; `false` by default. On iOS only the code, name, count and numbers show publicly; `os_log` redacts every other field unless a debugger is attached or a logging profile reveals private data. On Android every field shows, so turn it on only for investigations.
 
 ## `density`
 

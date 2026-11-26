@@ -41,6 +41,9 @@ internal class AppleCentralLink(
 
     override val attMtu: Int get() = bluetooth.maximumWriteLength(peripheral) + RadioPort.ATT_HEADER
 
+    // Core Bluetooth doesn't expose the PHY.
+    override val phy: RadioPhy? get() = null
+
     /** Connects and discovers the MeshLink service; on failure or cancellation the link is closed. */
     suspend fun open(): RadioResult<CentralLink> {
         val failure =

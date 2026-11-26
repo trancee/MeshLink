@@ -3,6 +3,7 @@ package ch.trancee.meshlink.internal
 import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.DiagnosticEvent.BusyReply
 import ch.trancee.meshlink.DiagnosticEvent.LinkOpened
+import ch.trancee.meshlink.LinkSnapshot
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.Peer
 import ch.trancee.meshlink.Proximity
@@ -171,6 +172,15 @@ internal class Links(
             else -> {}
         }
     }
+
+    /** The kept links, each past its hellos, for a diagnostics snapshot. */
+    val snapshots: List<LinkSnapshot>
+        get() =
+            table.map { (id, conn) ->
+                val bearer = if (conn.bearer.channel == null) LinkSnapshot.Bearer.Gatt else LinkSnapshot.Bearer.L2capCoc
+                val role = if (conn.central) LinkOpened.Role.Central else LinkOpened.Role.Peripheral
+                LinkSnapshot(diagnostics.peer(id), bearer, conn.link.phy?.let(::phy), conn.link.attMtu, role)
+            }
 
     /** Sends this node's [next] resolving key on every kept link (spec "Resolving key update"). */
     fun announce(next: ResolvingKey) {
@@ -1036,3 +1046,10 @@ private fun MutableMap<PeerHandle, Int>.decrement(handle: PeerHandle) {
     val left = getValue(handle) - 1
     if (left == 0) remove(handle) else this[handle] = left
 }
+
+private fun phy(phy: RadioPhy): LinkSnapshot.Phy =
+    when (phy) {
+        RadioPhy.LE_1M -> LinkSnapshot.Phy.Le1M
+        RadioPhy.LE_2M -> LinkSnapshot.Phy.Le2M
+        RadioPhy.LE_CODED -> LinkSnapshot.Phy.LeCoded
+    }

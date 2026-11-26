@@ -44,7 +44,7 @@ class DiagnosticReferenceTest {
             "",
             GENERATED,
             "",
-            "`MeshLink.diagnostics` emits each event below as a `DiagnosticEvent`. A code never changes " +
+            "`MeshLink.diagnostics.events` emits each event below as a `DiagnosticEvent`. A code never changes " +
                 "meaning and is never reused, and its anchor here is the code in lower case. " +
                 "Each event's `toString()` shows its code, its name, its fields and its count; no field holds a " +
                 "key, a payload, a NodeId or a Bluetooth address. A peer appears as a `PeerRef` and a link whose " +

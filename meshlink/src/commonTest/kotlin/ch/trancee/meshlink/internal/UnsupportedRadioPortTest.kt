@@ -23,7 +23,7 @@ class UnsupportedRadioPortTest {
         runTest {
             // Arrange
             val config = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "No radio" }.build()
-            val node = MeshLink.create(config, MeshPlatform(UnsupportedRadioPort(QuietLog)))
+            val node = MeshLink.create(config, MeshPlatform(UnsupportedRadioPort(QuietLog, "iOS", "18.2.0")))
 
             // Act
             node.start()
@@ -38,7 +38,7 @@ class UnsupportedRadioPortTest {
     fun radioRefusesEveryOperationAsUnsupportedAndReportsNothing() =
         runTest {
             // Arrange
-            val radio = UnsupportedRadioPort(QuietLog).radio
+            val radio = UnsupportedRadioPort(QuietLog, "iOS", "18.2.0").radio
 
             // Act
             val results =
@@ -62,12 +62,22 @@ class UnsupportedRadioPortTest {
 
     @Test
     fun clockIsTheSystemClock() {
-        assertSame(SystemClock, UnsupportedRadioPort(QuietLog).clock)
+        assertSame(SystemClock, UnsupportedRadioPort(QuietLog, "iOS", "18.2.0").clock)
+    }
+
+    @Test
+    fun thePortNamesThePlatformAndOsVersionItIsGiven() {
+        // Act
+        val port = UnsupportedRadioPort(QuietLog, "iOS", "18.2.0")
+
+        // Assert
+        assertEquals("iOS", port.platformName)
+        assertEquals("18.2.0", port.osVersion)
     }
 
     @Test
     fun logIsThePlatformLogItIsGiven() {
-        assertSame(QuietLog, UnsupportedRadioPort(QuietLog).log)
+        assertSame(QuietLog, UnsupportedRadioPort(QuietLog, "iOS", "18.2.0").log)
     }
 
     private object QuietLog : PlatformLog {

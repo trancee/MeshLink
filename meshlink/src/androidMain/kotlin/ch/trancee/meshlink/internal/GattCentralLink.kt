@@ -51,6 +51,9 @@ internal class GattCentralLink(
 
     override val attMtu: Int get() = mtu
 
+    @Volatile override var phy: RadioPhy? = null
+        private set
+
     /** Connects and discovers the MeshLink service; on failure or cancellation the link is closed. */
     suspend fun open(): RadioResult<CentralLink> {
         val failure =
@@ -115,6 +118,8 @@ internal class GattCentralLink(
         val gatt = connect() ?: return RadioFailure.PEER_UNREACHABLE
         // An HCI request, not ATT: nothing waits for onPhyUpdate, and a refusal keeps the link on 1M.
         if (le2M) gatt.setPreferredPhy(BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, NO_PREFERRED)
+        // Also HCI: onPhyRead sets phy whenever it comes, and onPhyUpdate keeps it current.
+        gatt.readPhy()
         // Asks for the largest MTU; a refused or failed exchange keeps the default, and a closed link fails discovery.
         val answer = exchange.request { GattExchange.legacy(gatt.requestMtu(MeshGatt.REQUESTED_ATT_MTU)) }
         mtu = answer?.takeIf { it.status == BluetoothGatt.GATT_SUCCESS }?.number ?: MeshGatt.DEFAULT_ATT_MTU
@@ -186,7 +191,7 @@ internal class GattCentralLink(
     }
 
     /** Answers [exchange] from the stack's callbacks and feeds notifications to the stream. */
-    private inner class Callback : BluetoothGattCallback() {
+    private inner class Callback : ValueGattCallback() {
         override fun onConnectionStateChange(
             gatt: BluetoothGatt,
             status: Int,
@@ -208,6 +213,24 @@ internal class GattCentralLink(
             exchange.answer(GattAnswer(status, number = mtu))
         }
 
+        override fun onPhyRead(
+            gatt: BluetoothGatt,
+            txPhy: Int,
+            rxPhy: Int,
+            status: Int,
+        ) {
+            phy = AndroidGatt.phy(phy, txPhy, status)
+        }
+
+        override fun onPhyUpdate(
+            gatt: BluetoothGatt,
+            txPhy: Int,
+            rxPhy: Int,
+            status: Int,
+        ) {
+            phy = AndroidGatt.phy(phy, txPhy, status)
+        }
+
         override fun onServicesDiscovered(
             gatt: BluetoothGatt,
             status: Int,
@@ -215,22 +238,12 @@ internal class GattCentralLink(
             exchange.answer(GattAnswer(status))
         }
 
-        override fun onCharacteristicRead(
-            gatt: BluetoothGatt,
+        override fun read(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
             status: Int,
         ) {
-            exchange.answer(GattAnswer(status, bytes = value.copyOf()))
-        }
-
-        @Deprecated("API 26–32 only; API 33+ calls the overload that carries the value.")
-        override fun onCharacteristicRead(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic,
-            status: Int,
-        ) {
-            exchange.answer(GattAnswer(status, bytes = LegacyGatt.value(characteristic)))
+            exchange.answer(GattAnswer(status, bytes = value))
         }
 
         override fun onReadRemoteRssi(
@@ -257,20 +270,11 @@ internal class GattCentralLink(
             exchange.answer(GattAnswer(status))
         }
 
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
+        override fun changed(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
         ) {
-            if (characteristic.uuid == MeshGatt.TO_CENTRAL) receive(value.copyOf())
-        }
-
-        @Deprecated("API 26–32 only; API 33+ calls the overload that carries the value.")
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic,
-        ) {
-            if (characteristic.uuid == MeshGatt.TO_CENTRAL) receive(LegacyGatt.value(characteristic))
+            if (characteristic.uuid == MeshGatt.TO_CENTRAL) receive(value)
         }
     }
 }

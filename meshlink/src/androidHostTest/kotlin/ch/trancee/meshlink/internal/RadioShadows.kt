@@ -211,6 +211,11 @@ class ShadowMeshGattServer : ShadowBluetoothGattServer() {
         confirm: Boolean,
     ): Boolean = notify(device, characteristic, confirm, characteristic.value) == GattExchange.STARTED
 
+    @Implementation
+    fun readPhy(device: BluetoothDevice) {
+        gattServerCallback.onPhyRead(device, phy, phy, BluetoothGatt.GATT_SUCCESS)
+    }
+
     private fun notify(
         device: BluetoothDevice,
         characteristic: BluetoothGattCharacteristic,
@@ -245,6 +250,9 @@ class ShadowMeshGattServer : ShadowBluetoothGattServer() {
     companion object {
         val notified = mutableListOf<Notified>()
 
+        /** The PHY `readPhy` answers with. */
+        var phy = BluetoothDevice.PHY_LE_1M
+
         /** The results of the next notify calls; [GattExchange.STARTED] once used up. */
         val notifyResults = ArrayDeque<Int>()
 
@@ -253,6 +261,7 @@ class ShadowMeshGattServer : ShadowBluetoothGattServer() {
 
         fun clear() {
             notified.clear()
+            phy = BluetoothDevice.PHY_LE_1M
             notifyResults.clear()
             sentStatuses.clear()
         }
@@ -387,6 +396,11 @@ class ShadowMeshGatt : ShadowBluetoothGatt() {
     }
 
     @Implementation
+    override fun readPhy() {
+        gattCallback.onPhyRead(gatt, phy, phy, phyStatus)
+    }
+
+    @Implementation
     override fun readRemoteRssi(): Boolean {
         if (refuseRssi) return false
         gattCallback.onReadRemoteRssi(gatt, rssi, rssiStatus)
@@ -487,6 +501,10 @@ class ShadowMeshGatt : ShadowBluetoothGatt() {
 
         /** Every `setPreferredPhy` call's transmit PHYs, receive PHYs and options. */
         val phyRequests = mutableListOf<List<Int>>()
+
+        /** The PHY and status `readPhy` answers with. */
+        var phy = BluetoothDevice.PHY_LE_1M
+        var phyStatus = BluetoothGatt.GATT_SUCCESS
         var rssi = 0
         var rssiStatus = BluetoothGatt.GATT_SUCCESS
         var refuseRssi = false
@@ -513,6 +531,8 @@ class ShadowMeshGatt : ShadowBluetoothGatt() {
             written.clear()
             writeTypes.clear()
             phyRequests.clear()
+            phy = BluetoothDevice.PHY_LE_1M
+            phyStatus = BluetoothGatt.GATT_SUCCESS
             rssi = 0
             rssiStatus = BluetoothGatt.GATT_SUCCESS
             refuseRssi = false

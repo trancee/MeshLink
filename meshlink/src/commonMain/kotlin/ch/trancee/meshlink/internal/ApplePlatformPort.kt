@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.flowOf
 /**
  * The port of an iPhone or iPad: the CoreBluetooth radio [AppleRadio] over [bluetooth]. The
  * [dispatcher] runs on the serial queue CoreBluetooth calls back on, so the radio's state needs no
- * lock. The identity's seed lives in the item of [keychain].
+ * lock. The identity's seed lives in the item of [keychain]. [osVersion] is `major.minor.patch`.
  *
  * The host app must declare `NSBluetoothAlwaysUsageDescription` in its `Info.plist`; iOS shows the
  * Bluetooth prompt when a node first starts, never on `create()`.
@@ -18,6 +18,7 @@ internal class ApplePlatformPort(
     bluetooth: CoreBluetooth,
     keychain: Keychain,
     override val dispatcher: CoroutineDispatcher,
+    override val osVersion: String,
     osLog: OsLog,
 ) : PlatformPort {
     private val apple = AppleRadio(bluetooth)
@@ -35,4 +36,6 @@ internal class ApplePlatformPort(
     override val random: RandomSource = SystemRandom
 
     override val log: PlatformLog = AppleLog(osLog)
+
+    override val platformName: String = "iOS"
 }
