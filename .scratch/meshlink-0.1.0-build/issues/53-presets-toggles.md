@@ -1,6 +1,6 @@
 # Configure nodes with presets and toggles
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 32, 39a, 46, 48, 50, 52
 
@@ -31,7 +31,7 @@ An app builds its config with `meshLinkConfig(preset, securityProfile) { … }` 
 - [x] No extended-advertising or Live Activity toggle exists in the config, the presets or `describe()`; no test or doc claims background behavior.
 - [x] If a preset value such as `EmergencyBroadcast`'s "broadcast first" needs behavior beyond what the ADRs define, stop and ask. Do not invent it; an ADR 0011 amendment comes first.
 - [x] A JVM test generates `docs/reference/configuration.md` (options, defaults, bounds) and `docs/reference/presets.md` (the preset table) from the Kotlin source. It fails when the committed files differ. `./gradlew updateReference` rewrites them.
-- [ ] The public API is in the ABI dump with KDoc on every declaration. Kover stays at 100%. `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `./gradlew dokkaGenerate` pass.
+- [x] The public API is in the ABI dump with KDoc on every declaration. Kover stays at 100%. `./gradlew check`, `./gradlew iosSimulatorArm64Test` and `./gradlew dokkaGenerate` pass.
 
 ## Prototype: broadcast priority under a flood
 
