@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshPlatform
 import ch.trancee.meshlink.MeshState
@@ -22,7 +23,7 @@ class UnsupportedRadioPortTest {
         runTest {
             // Arrange
             val config = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "No radio" }.build()
-            val node = MeshLink.create(config, MeshPlatform(UnsupportedRadioPort()))
+            val node = MeshLink.create(config, MeshPlatform(UnsupportedRadioPort(QuietLog)))
 
             // Act
             node.start()
@@ -37,7 +38,7 @@ class UnsupportedRadioPortTest {
     fun radioRefusesEveryOperationAsUnsupportedAndReportsNothing() =
         runTest {
             // Arrange
-            val radio = UnsupportedRadioPort().radio
+            val radio = UnsupportedRadioPort(QuietLog).radio
 
             // Act
             val results =
@@ -61,6 +62,19 @@ class UnsupportedRadioPortTest {
 
     @Test
     fun clockIsTheSystemClock() {
-        assertSame(SystemClock, UnsupportedRadioPort().clock)
+        assertSame(SystemClock, UnsupportedRadioPort(QuietLog).clock)
+    }
+
+    @Test
+    fun logIsThePlatformLogItIsGiven() {
+        assertSame(QuietLog, UnsupportedRadioPort(QuietLog).log)
+    }
+
+    private object QuietLog : PlatformLog {
+        override fun write(
+            severity: DiagnosticEvent.Severity,
+            shown: String,
+            hidden: String,
+        ) = Unit
     }
 }

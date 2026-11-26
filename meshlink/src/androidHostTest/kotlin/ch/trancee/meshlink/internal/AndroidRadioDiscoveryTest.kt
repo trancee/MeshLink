@@ -158,7 +158,9 @@ class AndroidRadioDiscoveryTest {
             current.onAdvertisingSetStarted(null, 0, AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS)
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.AdvertisingFailed>(events.single()).reason)
+            val failed = assertIs<RadioEvent.AdvertisingFailed>(events.single())
+            val expected = RadioFailure.RADIO_ERROR to AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS
+            assertEquals(expected, failed.reason to failed.platformCode)
         }
 
     @Test
@@ -285,7 +287,7 @@ class AndroidRadioDiscoveryTest {
             idle(BUDGET_WINDOW)
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.Failed>(events.single()).reason)
+            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.ScanFailed>(events.single()).reason)
         }
 
     @Test
@@ -349,7 +351,7 @@ class AndroidRadioDiscoveryTest {
         }
 
     @Test
-    fun aScanFailureIsReportedAndStoppingStillStopsTheScan() =
+    fun aScanFailureIsReportedWithItsCodeAndStoppingStillStopsTheScan() =
         runTest {
             // Arrange
             val radio = AndroidRadio(context, manager, adapter, backgroundScope)
@@ -357,11 +359,18 @@ class AndroidRadioDiscoveryTest {
             radio.startScanning()
 
             // Act
+            scanCallback().onScanFailed(ScanCallback.SCAN_FAILED_INTERNAL_ERROR)
             scanCallback().onScanFailed(ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED)
             radio.stopScanning()
 
             // Assert
-            assertEquals(RadioFailure.RADIO_ERROR, assertIs<RadioEvent.Failed>(events.single()).reason)
+            val expected =
+                listOf(
+                    Triple(RadioFailure.RADIO_ERROR, ScanCallback.SCAN_FAILED_INTERNAL_ERROR, false),
+                    Triple(RadioFailure.RADIO_ERROR, ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED, true),
+                )
+            val failed = events.map { assertIs<RadioEvent.ScanFailed>(it) }
+            assertEquals(expected, failed.map { Triple(it.reason, it.platformCode, it.registrationFailed) })
             assertTrue(shadowOf(adapter.bluetoothLeScanner).activeScans.isEmpty())
         }
 

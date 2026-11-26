@@ -148,6 +148,24 @@ public sealed class DiagnosticEvent(
     }
 
     /**
+     * `ML2002`: the platform refused or stopped a scan, so the node stopped discovery;
+     * [platformCode] is Android's scan error or iOS's `CBError` code, if the platform gave one.
+     *
+     * - Cause: Bluetooth turned off, the app lacks scan permission, or the platform ran out of
+     *   scanners; Android error 2 also reports `ML8001`.
+     * - Fix: check that Bluetooth is on and the app holds its permissions, then call
+     *   [MeshLink.start] again.
+     * - Related: [MeshLink.radioFailure].
+     * - Symptom: peers not found.
+     */
+    public class ScanFailed internal constructor(
+        /** The platform's error code, or `null` if it gave none. */
+        public val platformCode: Int?,
+    ) : DiagnosticEvent("ML2002", Severity.Warning) {
+        override val fields: List<Pair<String, Any>> get() = listOfNotNull(platformCode?.let { "platformCode" to it })
+    }
+
+    /**
      * `ML2006`: an address sighted without an advertisement, as a backgrounded iPhone advertises,
      * failed vetting: the node couldn't connect to it or read its capability record, or the record's
      * advertisement belongs to no peer of this mesh. Its sightings add no candidate until it goes
@@ -181,6 +199,42 @@ public sealed class DiagnosticEvent(
         public val to: DensityClass,
     ) : DiagnosticEvent("ML2007", Severity.Info) {
         override val fields: List<Pair<String, Any>> get() = listOf("from" to from, "to" to to)
+    }
+
+    /**
+     * `ML2005`: the platform refused or stopped advertising, so centrals can't find the node for the
+     * rest of the run, as [CentralOnlyReason.AdvertisingFailed] shows; [platformCode] is Android's
+     * advertise error or iOS's `CBError` code, if the platform gave one. The node still scans and
+     * links as central.
+     *
+     * - Cause: the platform ran out of advertisers, or another app holds them; Android error 1 means
+     *   the advertisement is too large, a MeshLink defect.
+     * - Fix: close other Bluetooth apps, then call [MeshLink.start] again.
+     * - Related: [CentralOnlyReason.AdvertisingFailed].
+     * - Symptom: peers not found.
+     */
+    public class AdvertisingFailed internal constructor(
+        /** The platform's error code, or `null` if it gave none. */
+        public val platformCode: Int?,
+    ) : DiagnosticEvent("ML2005", Severity.Warning) {
+        override val fields: List<Pair<String, Any>> get() = listOfNotNull(platformCode?.let { "platformCode" to it })
+    }
+
+    /**
+     * `ML2008`: the platform failed to publish the GATT service that serves the capability record,
+     * so the node stopped discovery; [platformCode] is Android's GATT status or iOS's `CBError`
+     * code, if the platform gave one.
+     *
+     * - Cause: Bluetooth turned off, or the platform's GATT server failed.
+     * - Fix: turn Bluetooth off and on, then call [MeshLink.start] again.
+     * - Related: [MeshLink.radioFailure].
+     * - Symptom: peers not found.
+     */
+    public class GattServiceFailed internal constructor(
+        /** The platform's error code, or `null` if it gave none. */
+        public val platformCode: Int?,
+    ) : DiagnosticEvent("ML2008", Severity.Warning) {
+        override val fields: List<Pair<String, Any>> get() = listOfNotNull(platformCode?.let { "platformCode" to it })
     }
 
     /**
@@ -235,10 +289,21 @@ public sealed class DiagnosticEvent(
         public val reason: Reason,
         /** Whether the peer closed the link; `false` if this node did or the connection was lost. */
         public val byPeer: Boolean,
+        /**
+         * For [Reason.ConnectionLost], the platform's status: Android's GATT status, such as 8 for a
+         * supervision timeout, or iOS's `CBError` code; otherwise, or if the platform gave none, `null`.
+         */
+        public val platformCode: Int? = null,
     ) : DiagnosticEvent("ML3002", Severity.Info) {
         override val reference: Any get() = peer
         override val fields: List<Pair<String, Any>>
-            get() = listOf("peer" to peer, "reason" to reason, "byPeer" to byPeer)
+            get() =
+                listOfNotNull(
+                    "peer" to peer,
+                    "reason" to reason,
+                    "byPeer" to byPeer,
+                    platformCode?.let { "platformCode" to it },
+                )
 
         /** Why a link closed: the spec's close reasons, and a lost connection. */
         public enum class Reason {
@@ -290,10 +355,21 @@ public sealed class DiagnosticEvent(
         public val reason: Reason,
         /** The attempt that failed, from 1. */
         public val attempt: Int,
+        /**
+         * The platform's status: Android's GATT status, such as 133, or the `CBError` code of
+         * iOS's `didFailToConnect`; `null` if the platform gave none.
+         */
+        public val platformCode: Int? = null,
     ) : DiagnosticEvent("ML3003", Severity.Warning) {
         override val reference: Any get() = link
         override val fields: List<Pair<String, Any>>
-            get() = listOf("link" to link, "reason" to reason, "attempt" to attempt)
+            get() =
+                listOfNotNull(
+                    "link" to link,
+                    "reason" to reason,
+                    "attempt" to attempt,
+                    platformCode?.let { "platformCode" to it },
+                )
 
         /** Why a connect failed. */
         public enum class Reason {
@@ -372,6 +448,23 @@ public sealed class DiagnosticEvent(
             /** A cause that often clears on retry. */
             Transient,
         }
+    }
+
+    /**
+     * `ML3006`: an Android GATT request found the stack busy and is being retried, every 10 ms for
+     * up to 1 s; reported once per request. [platformCode] is the busy status, 201, on Android 13
+     * and later; older Android gives none.
+     *
+     * - Cause: another app or the stack itself holds the phone's GATT queue.
+     * - Fix: none needed unless it repeats; then close other Bluetooth apps on the phone.
+     * - Related: [LinkClosed].
+     * - Symptom: messages delivered slowly.
+     */
+    public class GattOperationRetried internal constructor(
+        /** The platform's busy status, or `null` if it gave none. */
+        public val platformCode: Int?,
+    ) : DiagnosticEvent("ML3006", Severity.Debug) {
+        override val fields: List<Pair<String, Any>> get() = listOfNotNull(platformCode?.let { "platformCode" to it })
     }
 
     /**
@@ -763,6 +856,20 @@ public sealed class DiagnosticEvent(
      * - Symptom: messages not delivered.
      */
     public class ReassemblyBudgetExhausted internal constructor() : DiagnosticEvent("ML7004", Severity.Debug) {
+        override val fields: List<Pair<String, Any>> get() = emptyList()
+    }
+
+    /**
+     * `ML8001`: Android refused a scan with error 2, `SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`:
+     * the Bluetooth stack holds scanner registrations an earlier process leaked. Reported beside
+     * `ML2002`.
+     *
+     * - Cause: an app, often this one after a crash, leaked scanner registrations.
+     * - Fix: turn Bluetooth off and on; if that fails, restart the phone.
+     * - Related: [MeshLink.radioFailure].
+     * - Symptom: peers not found.
+     */
+    public class ScannerRegistrationFailed internal constructor() : DiagnosticEvent("ML8001", Severity.Warning) {
         override val fields: List<Pair<String, Any>> get() = emptyList()
     }
 }

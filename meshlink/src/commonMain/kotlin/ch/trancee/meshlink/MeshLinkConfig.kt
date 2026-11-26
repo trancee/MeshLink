@@ -51,8 +51,10 @@ public class MeshLinkConfigBuilder internal constructor(
 
     private val debug = Knob("diagnostics.debug", false)
 
+    private val platformLog = Knob("diagnostics.platformLog", false)
+
     /** The diagnostics settings; see [DiagnosticsBuilder]. */
-    public val diagnostics: DiagnosticsBuilder = DiagnosticsBuilder(debug)
+    public val diagnostics: DiagnosticsBuilder = DiagnosticsBuilder(debug, platformLog)
 
     /**
      * Validates the settings and returns the immutable config.
@@ -74,10 +76,8 @@ public class MeshLinkConfigBuilder internal constructor(
                 "securityProfile = $securityProfile (override)",
                 "meshId = \"$meshId\" (override)",
                 if (meshKey == null) "meshKey = none (default)" else "meshKey = <redacted> (override)",
-                "l2capUpgrade = ${upgrade.value} (${if (upgrade.overridden) "override" else "default"})",
-                "diagnostics.debug = ${debug.value} (${if (debug.overridden) "override" else "default"})",
-            )
-        val presetLines = knobs.all.map { "${it.key} = ${it.value} (${if (it.overridden) "override" else "preset"})" }
+            ) + listOf(upgrade, debug, platformLog).map { "${it.key} = ${it.value} (${source(it, "default")})" }
+        val presetLines = knobs.all.map { "${it.key} = ${it.value} (${source(it, "preset")})" }
         return (fixed + presetLines).joinToString("\n")
     }
 
@@ -135,7 +135,7 @@ public class MeshLinkConfig internal constructor(
     public val l2capUpgrade: Boolean = builder.l2capUpgrade
 
     /** The effective diagnostics settings; see [DiagnosticsBuilder]. */
-    public val diagnostics: Diagnostics = Diagnostics(builder.diagnostics.debug)
+    public val diagnostics: Diagnostics = Diagnostics(builder.diagnostics.debug, builder.diagnostics.platformLog)
 
     /** A copy of the mesh key, or `null` for an open mesh; see [MeshLinkConfigBuilder.meshKey]. */
     public val meshKey: ByteArray? get() = key?.copyOf()
@@ -178,18 +178,31 @@ public class MeshLinkConfig internal constructor(
 /** The diagnostics settings of [MeshLinkConfigBuilder.diagnostics] (ADR 0020). */
 public class DiagnosticsBuilder internal constructor(
     debug: Knob<Boolean>,
+    platformLog: Knob<Boolean>,
 ) {
     /**
      * Whether [MeshLink.diagnostics] also emits [DiagnosticEvent.Severity.Debug] events, the detail for
      * an investigation; `false` by default. Debug events can be frequent in a dense mesh.
      */
     public var debug: Boolean by debug
+
+    /**
+     * Whether each event [MeshLink.diagnostics] emits is also written to the platform log, Logcat
+     * with tag `MeshLink` on Android and `os_log` subsystem `ch.trancee.meshlink`, category
+     * `diagnostics` on iOS, whether or not the app collects them; `false` by default. On iOS only
+     * the code, name, count and numbers show publicly; `os_log` redacts every other field unless a
+     * debugger is attached or a logging profile reveals private data. On Android every field shows,
+     * so turn it on only for investigations.
+     */
+    public var platformLog: Boolean by platformLog
 }
 
 /** The effective diagnostics settings of a [MeshLinkConfig]; see [DiagnosticsBuilder]. */
 public class Diagnostics internal constructor(
     /** See [DiagnosticsBuilder.debug]. */
     public val debug: Boolean,
+    /** See [DiagnosticsBuilder.platformLog]. */
+    public val platformLog: Boolean,
 )
 
 /** The effective read receipt settings of a [MeshLinkConfig]; see [ReadReceiptsBuilder]. */
@@ -253,3 +266,9 @@ public class Limits internal constructor(
     /** The largest payload of a mesh broadcast, in bytes; see [LimitsBuilder.maxBroadcastPayload]. */
     public val maxBroadcastPayload: Int,
 )
+
+// The source describe() names for [knob]: "override" once set, else [unset].
+private fun source(
+    knob: Knob<*>,
+    unset: String,
+): String = if (knob.overridden) "override" else unset

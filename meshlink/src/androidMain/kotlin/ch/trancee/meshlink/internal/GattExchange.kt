@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.internal.RadioEvent.GattRetried
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -16,9 +17,11 @@ internal class GattAnswer(
  * One GATT request at a time and the callback that answers it (library rules R12 and R14). Android
  * drops or refuses a request issued while another is outstanding, so every request waits for the
  * previous one's callback; a request the stack reports busy retries every [BUSY_RETRY_MILLIS] up to
- * [BUSY_RETRIES] times.
+ * [BUSY_RETRIES] times, and [emit]s one [GattRetried] when it first retries.
  */
-internal class GattExchange {
+internal class GattExchange(
+    private val emit: (RadioEvent) -> Unit,
+) {
     private val mutex = Mutex()
 
     @Volatile private var pending: Pending? = null
@@ -60,14 +63,17 @@ internal class GattExchange {
 
     private suspend fun begin(start: () -> Int): Boolean {
         var result = start()
+        if (busy(result)) emit(GattRetried(result.takeIf { it == BUSY }))
         var attempts = 1
-        while (result == BUSY && attempts < BUSY_RETRIES) {
+        while (busy(result) && attempts < BUSY_RETRIES) {
             delay(BUSY_RETRY_MILLIS)
             result = start()
             attempts++
         }
         return result == STARTED
     }
+
+    private fun busy(result: Int): Boolean = result == BUSY || result == LEGACY_BUSY
 
     private class Pending(
         val owner: Any?,
@@ -90,7 +96,10 @@ internal class GattExchange {
         /** A request that was refused before it reached the stack, for example on a closed link. */
         const val REFUSED: Int = -1
 
-        /** [STARTED] if [started], else [BUSY]: a legacy request reports a busy stack only as false. */
-        fun legacy(started: Boolean): Int = if (started) STARTED else BUSY
+        /** A legacy request found the stack busy; it gave no status, so none is reported. */
+        private const val LEGACY_BUSY: Int = -2
+
+        /** [STARTED] if [started], else a busy stack: a legacy request reports one only as false. */
+        fun legacy(started: Boolean): Int = if (started) STARTED else LEGACY_BUSY
     }
 }

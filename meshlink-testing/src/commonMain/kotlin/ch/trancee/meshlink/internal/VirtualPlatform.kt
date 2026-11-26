@@ -27,6 +27,11 @@ internal class VirtualPlatform(
 
     override val identityStore: IdentityStore = InMemoryIdentityStore()
 
+    /** The lines written to [log], each `severity|shown|hidden`. */
+    val logged: MutableList<String> = mutableListOf()
+
+    override val log: PlatformLog = PlatformLog { severity, shown, hidden -> logged += "$severity|$shown|$hidden" }
+
     @OptIn(InternalMeshLinkApi::class)
     val meshPlatform: MeshPlatform = MeshPlatform.of(this)
 }

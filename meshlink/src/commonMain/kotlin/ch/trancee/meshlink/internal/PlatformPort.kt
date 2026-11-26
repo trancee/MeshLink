@@ -2,6 +2,7 @@
 
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.Limitation
 import ch.trancee.meshlink.Requirement
 import kotlinx.coroutines.CoroutineDispatcher
@@ -45,6 +46,23 @@ public interface PlatformPort {
 
     /** The platform's non-cryptographic randomness, such as [SystemRandom]. */
     public val random: RandomSource
+
+    /** The platform log, which nodes with `diagnostics.platformLog` on write their events to. */
+    public val log: PlatformLog
+}
+
+/** The platform log (ADR 0020 decision 6): Logcat on Android, `os_log` on iOS. */
+public fun interface PlatformLog {
+    /**
+     * Writes one event line at [severity]'s level: [shown], its code, name, count and numbers, which
+     * the log may show publicly, then [hidden], its other fields, empty if it has none, which the
+     * log should redact where it can.
+     */
+    public fun write(
+        severity: DiagnosticEvent.Severity,
+        shown: String,
+        hidden: String,
+    )
 }
 
 /**

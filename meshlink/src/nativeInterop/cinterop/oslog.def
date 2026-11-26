@@ -1,0 +1,13 @@
+# ADR 0020 "Platform log": os_log is a macro over a variadic call that Kotlin/Native can't make, and
+# it needs a constant format string, so this non-variadic wrapper owns the two formats.
+package = ch.trancee.meshlink.oslog
+language = Objective-C
+headers = os/log.h
+---
+static inline void meshlink_os_log(os_log_t log, os_log_type_t type, const char *shown, const char *hidden) {
+    if (hidden[0] != '\0') {
+        os_log_with_type(log, type, "%{public}s %{private}s", shown, hidden);
+    } else {
+        os_log_with_type(log, type, "%{public}s", shown);
+    }
+}

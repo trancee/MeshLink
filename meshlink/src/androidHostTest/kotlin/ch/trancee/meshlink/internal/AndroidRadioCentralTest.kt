@@ -238,7 +238,8 @@ class AndroidRadioCentralTest {
             callback().onConnectionStateChange(gatt(), FAILED_ESTABLISHMENT, BluetoothProfile.STATE_DISCONNECTED)
 
             // Assert
-            assertEquals(RadioFailure.PEER_UNREACHABLE, assertIs<RadioResult.Failed>(result.await()).reason)
+            val failed = assertIs<RadioResult.Failed>(result.await())
+            assertEquals(RadioFailure.PEER_UNREACHABLE to FAILED_ESTABLISHMENT, failed.reason to failed.platformCode)
             assertTrue(shadow().isClosed)
             assertTrue(events.isEmpty())
         }
@@ -274,8 +275,8 @@ class AndroidRadioCentralTest {
 
             // Assert
             assertEquals(
-                listOf(RadioFailure.TRANSIENT, RadioFailure.TRANSIENT),
-                results.map { assertIs<RadioResult.Failed>(it).reason },
+                listOf(RadioFailure.TRANSIENT to GATT_ERROR, RadioFailure.TRANSIENT to GATT_CONNECTION_TIMEOUT),
+                results.map { assertIs<RadioResult.Failed>(it).let { failed -> failed.reason to failed.platformCode } },
             )
             assertTrue(events.isEmpty())
         }
@@ -311,7 +312,8 @@ class AndroidRadioCentralTest {
             }
 
             // Assert
-            assertEquals(listOf(true, true, true), events.map { assertIs<RadioEvent.Disconnected>(it).transient })
+            val ended = events.map { assertIs<RadioEvent.Disconnected>(it) }
+            assertEquals(statuses.map { true to it }, ended.map { it.transient to it.link.platformCode })
         }
 
     @Test
@@ -330,7 +332,9 @@ class AndroidRadioCentralTest {
             callback().onConnectionStateChange(gatt(), GATT_ERROR, BluetoothProfile.STATE_DISCONNECTED)
 
             // Assert
-            assertEquals(listOf(false, false, false), events.map { assertIs<RadioEvent.Disconnected>(it).transient })
+            val ended = events.map { assertIs<RadioEvent.Disconnected>(it) }
+            val expected = listOf(false to TERMINATED_BY_PEER, false to SUPERVISION_TIMEOUT, false to null)
+            assertEquals(expected, ended.map { it.transient to it.link.platformCode })
         }
 
     @Test
@@ -349,7 +353,7 @@ class AndroidRadioCentralTest {
         }
 
     @Test
-    fun aDisconnectDuringTheMtuExchangeClosesTheLink() =
+    fun aDisconnectDuringTheMtuExchangeClosesTheLinkWithoutAPlatformCode() =
         runTest {
             // Arrange
             ShadowMeshGatt.answerMtu = false
@@ -361,7 +365,8 @@ class AndroidRadioCentralTest {
             callback().onConnectionStateChange(gatt(), BluetoothGatt.GATT_SUCCESS, BluetoothProfile.STATE_DISCONNECTED)
 
             // Assert
-            assertEquals(RadioFailure.LINK_CLOSED, assertIs<RadioResult.Failed>(result.await()).reason)
+            val failed = assertIs<RadioResult.Failed>(result.await())
+            assertEquals(RadioFailure.LINK_CLOSED to null, failed.reason to failed.platformCode)
             assertTrue(shadow().isClosed)
         }
 
@@ -552,10 +557,12 @@ class AndroidRadioCentralTest {
         }
 
     @Test
-    fun aBusyWriteIsRetried() =
+    fun aBusyWriteIsRetriedAndReportedOnce() =
         runTest {
             // Arrange
-            val link = connected(AndroidRadio(context, manager, adapter, backgroundScope))
+            val radio = AndroidRadio(context, manager, adapter, backgroundScope)
+            val events = collect(radio)
+            val link = connected(radio)
             ShadowMeshGatt.writeResults += listOf(GattExchange.BUSY, GattExchange.BUSY)
 
             // Act
@@ -563,6 +570,7 @@ class AndroidRadioCentralTest {
 
             // Assert
             assertIs<RadioResult.Ok<Unit>>(result)
+            assertEquals(listOf(busyCode()), events.filterIsInstance<RadioEvent.GattRetried>().map { it.platformCode })
             assertEquals(1, ShadowMeshGatt.written.size)
             assertEquals(2 * GattExchange.BUSY_RETRY_MILLIS, testScheduler.currentTime)
         }

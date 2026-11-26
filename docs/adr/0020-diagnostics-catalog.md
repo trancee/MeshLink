@@ -1,6 +1,6 @@
 # 0020: Diagnostics catalog
 
-Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 3 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b).
+Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 4 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c).
 
 ## Context
 
@@ -72,7 +72,7 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    It has no time series.
 6. **Field tooling.**
    - `exportDiagnostics()` returns a JSON report: the snapshot, the last 500 events, the MeshLink and protocol versions, the platform and the OS version. MeshLink never uploads it; the app decides what happens to it.
-   - Opt-in `diagnostics.platformLog` writes events to Logcat or `os_log`. In `os_log`, fields other than codes and numbers are marked private.
+   - Opt-in `diagnostics.platformLog` writes events to Logcat or `os_log`. In `os_log`, fields other than codes and numbers are marked private. The line format is fixed by the 2026-11-26 platform-codes amendment.
    - The device-lab scripts (ADR 0017) read these logs.
 7. **v1 codes.** Severity: D Debug, I Info, W Warning. ★ marks codes promised by an earlier ADR.
 
@@ -85,13 +85,14 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML2001 | `ScanWindow(started or stopped)` | D |
    | ML2002 | `ScanFailed(platformCode)` | W |
    | ~~ML2003~~ | retired: `ScanRestarted` (amended 2026-11-26) | |
-   | ML2004 ★ | `BackgroundDiscoveryDegraded` | W |
+   | ML2004 ★ | `BackgroundDiscoveryDegraded`; with the lifecycle work (amended 2026-11-26) | W |
    | ML2005 | `AdvertisingFailed(platformCode)` | W |
    | ML2006 ★ | `StaleAddressMarked` | D |
    | ML2007 ★ | `DensityClassChanged(from, to)` | I |
-   | ML3001 | `LinkOpened(peer, role, mtu)`; `phy` arrives with the platform codes (amended 2026-11-26) | I |
-   | ML3002 | `LinkClosed(peer, reason, byPeer)`; `platformCode` arrives with the platform codes (amended 2026-11-26) | I |
-   | ML3003 | `ConnectFailed(link, reason, attempt)`; `platformCode` arrives with the platform codes (amended 2026-11-26) | W |
+   | ML2008 | `GattServiceFailed(platformCode)` (amended 2026-11-26) | W |
+   | ML3001 | `LinkOpened(peer, role, mtu)`; no `phy` (amended 2026-11-26) | I |
+   | ML3002 | `LinkClosed(peer, reason, byPeer, platformCode)` (amended 2026-11-26) | I |
+   | ML3003 | `ConnectFailed(link, reason, attempt, platformCode)` (amended 2026-11-26) | W |
    | ML3004 | `LinkCapReached(cap)` | D |
    | ML3005 | `BearerFallback(peer, reason)`, L2CAP CoC to GATT | I |
    | ML3006 | `GattOperationRetried(platformCode)` | D |
@@ -117,8 +118,8 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML7003 | `InboxFull(bound)` (amended 2026-11-26) | W |
    | ML7004 | `ReassemblyBudgetExhausted` | D |
    | ML8001 | `ScannerRegistrationFailed`, the leaked-registration symptom on Android | W |
-   | ML8002 | `AppSuspendedByOs` | I |
-   | ML8003 | `DozeActive` | I |
+   | ML8002 | `AppSuspendedByOs`; with the lifecycle work (amended 2026-11-26) | I |
+   | ML8003 | `DozeActive`; with the lifecycle work (amended 2026-11-26) | I |
 
    The list may change until 0.1.0.
 8. **Troubleshooting.**
@@ -157,6 +158,21 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
   - **`InboxFull(bound)`:** the bound the message would have crossed: `Count`, `Bytes` or `Sender`.
   - **Booleans and negative numbers are allowed field values** (decision 3), for `byPeer` and `skewSeconds`.
 - **Status:** decision 7 is updated to match.
+
+2026-11-26, platform codes and the platform log (ticket 54c; user decisions on the ticket's eight questions):
+
+- **Context:** the Android and iOS radio adapters report their failures. Decision 7 left `platformCode` and `phy` open, and decision 6 named the platform log without fixing its format.
+- **Decision:**
+  - **`platformCode`** is Android's raw status or error code, or on iOS the code of an `NSError` in `CBErrorDomain`; any other iOS error domain gives `null`. It is `null` whenever the platform gave none.
+  - **Scan and service failures are separate:** `ML2002 ScanFailed` covers scanning only, and the new `ML2008 GattServiceFailed(platformCode)`, severity Warning, covers a GATT service the platform failed to publish. Both stop discovery.
+  - **`ML8001`** is emitted beside `ML2002` when Android refuses a scan with error 2, `SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`.
+  - **`ML3006 GattOperationRetried`** is emitted once per Android GATT request that found the stack busy, with `platformCode` 201 (`ERROR_GATT_WRITE_REQUEST_BUSY`) on Android 13 and later, and `null` before, where the busy result is a `false` return. iOS queues requests itself and never emits it.
+  - **`LinkClosed.platformCode`** is set only for reason `ConnectionLost`: it is the status of the first platform disconnect, such as 8 for a supervision timeout. A close MeshLink starts records none. **`ConnectFailed.platformCode`** is the connect status, such as 133 or 147, or the `CBError` of `didFailToConnect`.
+  - **No `phy` on `ML3001`:** iOS does not expose the PHY, and Android reports it only through `readPhy` or a later `onPhyUpdate`, after the link opens. The per-link PHY belongs in the diagnostics snapshot.
+  - **The lifecycle codes `ML2004`, `ML8002` and `ML8003` move** to the lifecycle work, which watches app suspension and Doze.
+  - **Platform log line:** `ML3002 LinkClosed count=1 platformCode=8 peer=ab12cd34 reason=ConnectionLost byPeer=false`: the code, the event name, the coalesced count and every number field, then every other field. Android writes it to Logcat with tag `MeshLink` at the priority of the severity. iOS writes it to `os_log` subsystem `ch.trancee.meshlink`, category `diagnostics`, with the first part `%{public}s` and the rest `%{private}s`; Debug, Info, Warning and Error map to `debug`, `info`, `default` and `error`. Every emitted event is written, whether or not the app collects; `ML7001`, which counts one collector's drops, is not.
+  - **The iOS writer is a C wrapper in a cinterop definition**, because `os_log` is a macro over a variadic call and needs a constant format string; Kotlin/Native can call neither. Formatting stays in common code.
+- **Status:** decisions 6 and 7 are updated to match.
 
 ## Alternatives
 

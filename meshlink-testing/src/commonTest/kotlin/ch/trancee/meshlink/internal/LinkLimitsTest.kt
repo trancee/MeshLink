@@ -37,7 +37,7 @@ class LinkLimitsTest {
                 object : RadioPort by virtual.radio {
                     override suspend fun connect(peer: PeerHandle): RadioResult<CentralLink> {
                         attempts += testScheduler.currentTime
-                        return RadioResult.Failed(RadioFailure.TRANSIENT)
+                        return RadioResult.Failed(RadioFailure.TRANSIENT, platformCode = GATT_ERROR)
                     }
                 }
             advertiseFake(air, versions = listOf(1))
@@ -55,6 +55,7 @@ class LinkLimitsTest {
             val failed = seen.filterIsInstance<DiagnosticEvent.ConnectFailed>()
             val first = failed.filter { it.link == failed.first().link }
             assertEquals(listOf(1 to 1, 4 to 3), first.map { it.attempt to it.count })
+            assertTrue(first.all { it.platformCode == GATT_ERROR })
             assertTrue(first.all { it.reason == DiagnosticEvent.ConnectFailed.Reason.Transient && it.code == "ML3003" })
         }
 
@@ -83,7 +84,8 @@ class LinkLimitsTest {
             // Assert
             assertEquals(1, attempts)
             val failed = assertIs<DiagnosticEvent.ConnectFailed>(seen.single())
-            assertEquals(DiagnosticEvent.ConnectFailed.Reason.RadioError to 1, failed.reason to failed.attempt)
+            val expected = Triple(DiagnosticEvent.ConnectFailed.Reason.RadioError, 1, null)
+            assertEquals(expected, Triple(failed.reason, failed.attempt, failed.platformCode))
         }
 
     @Test
@@ -476,6 +478,9 @@ class LinkLimitsTest {
     }
 
     private companion object {
+        /** Android's GATT status 133, `GATT_ERROR`. */
+        const val GATT_ERROR = 133
+
         const val CAP = 2
         const val BUDGET = 6
         const val NODES = 6

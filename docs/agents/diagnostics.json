@@ -137,6 +137,25 @@
       ]
     },
     {
+      "code": "ML2002",
+      "name": "ScanFailed",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml2002",
+      "meaning": "The platform refused or stopped a scan, so the node stopped discovery; `platformCode` is Android's scan error or iOS's `CBError` code, if the platform gave one.",
+      "cause": "Bluetooth turned off, the app lacks scan permission, or the platform ran out of scanners; Android error 2 also reports `ML8001`.",
+      "fix": "check that Bluetooth is on and the app holds its permissions, then call `MeshLink.start` again.",
+      "related": "`MeshLink.radioFailure`.",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "platformCode",
+          "type": "Int",
+          "meaning": "The platform's error code, or `null` if it gave none."
+        }
+      ],
+      "values": []
+    },
+    {
       "code": "ML2006",
       "name": "StaleAddressMarked",
       "severity": "Debug",
@@ -169,6 +188,44 @@
           "name": "to",
           "type": "DensityClass",
           "meaning": "The class after the switch."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML2005",
+      "name": "AdvertisingFailed",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml2005",
+      "meaning": "The platform refused or stopped advertising, so centrals can't find the node for the rest of the run, as `CentralOnlyReason.AdvertisingFailed` shows; `platformCode` is Android's advertise error or iOS's `CBError` code, if the platform gave one. The node still scans and links as central.",
+      "cause": "the platform ran out of advertisers, or another app holds them; Android error 1 means the advertisement is too large, a MeshLink defect.",
+      "fix": "close other Bluetooth apps, then call `MeshLink.start` again.",
+      "related": "`CentralOnlyReason.AdvertisingFailed`.",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "platformCode",
+          "type": "Int",
+          "meaning": "The platform's error code, or `null` if it gave none."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML2008",
+      "name": "GattServiceFailed",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml2008",
+      "meaning": "The platform failed to publish the GATT service that serves the capability record, so the node stopped discovery; `platformCode` is Android's GATT status or iOS's `CBError` code, if the platform gave one.",
+      "cause": "Bluetooth turned off, or the platform's GATT server failed.",
+      "fix": "turn Bluetooth off and on, then call `MeshLink.start` again.",
+      "related": "`MeshLink.radioFailure`.",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "platformCode",
+          "type": "Int",
+          "meaning": "The platform's error code, or `null` if it gave none."
         }
       ],
       "values": []
@@ -241,6 +298,11 @@
           "name": "byPeer",
           "type": "Boolean",
           "meaning": "Whether the peer closed the link; `false` if this node did or the connection was lost."
+        },
+        {
+          "name": "platformCode",
+          "type": "Int",
+          "meaning": "For `Reason.ConnectionLost`, the platform's status: Android's GATT status, such as 8 for a supervision timeout, or iOS's `CBError` code; otherwise, or if the platform gave none, `null`."
         }
       ],
       "values": [
@@ -312,6 +374,11 @@
           "name": "attempt",
           "type": "Int",
           "meaning": "The attempt that failed, from 1."
+        },
+        {
+          "name": "platformCode",
+          "type": "Int",
+          "meaning": "The platform's status: Android's GATT status, such as 133, or the `CBError` code of iOS's `didFailToConnect`; `null` if the platform gave none."
         }
       ],
       "values": [
@@ -418,6 +485,25 @@
           ]
         }
       ]
+    },
+    {
+      "code": "ML3006",
+      "name": "GattOperationRetried",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml3006",
+      "meaning": "An Android GATT request found the stack busy and is being retried, every 10 ms for up to 1 s; reported once per request. `platformCode` is the busy status, 201, on Android 13 and later; older Android gives none.",
+      "cause": "another app or the stack itself holds the phone's GATT queue.",
+      "fix": "none needed unless it repeats; then close other Bluetooth apps on the phone.",
+      "related": "`LinkClosed`.",
+      "symptom": "messages delivered slowly.",
+      "fields": [
+        {
+          "name": "platformCode",
+          "type": "Int",
+          "meaning": "The platform's busy status, or `null` if it gave none."
+        }
+      ],
+      "values": []
     },
     {
       "code": "ML3007",
@@ -883,6 +969,19 @@
       "fix": "none needed; the senders retry later. If it repeats, send fewer large messages at once.",
       "related": "spec \"Busy reply\".",
       "symptom": "messages not delivered.",
+      "fields": [],
+      "values": []
+    },
+    {
+      "code": "ML8001",
+      "name": "ScannerRegistrationFailed",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml8001",
+      "meaning": "Android refused a scan with error 2, `SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`: the Bluetooth stack holds scanner registrations an earlier process leaked. Reported beside `ML2002`.",
+      "cause": "an app, often this one after a crash, leaked scanner registrations.",
+      "fix": "turn Bluetooth off and on; if that fails, restart the phone.",
+      "related": "`MeshLink.radioFailure`.",
+      "symptom": "peers not found.",
       "fields": [],
       "values": []
     }

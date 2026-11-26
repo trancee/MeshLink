@@ -59,6 +59,29 @@ class DiagnosticsHubTest {
         }
 
     @Test
+    fun theLogShowsTheNumbersAndHidesTheOtherFieldsAndLeavesOutAMissingPlatformCode() =
+        runTest {
+            // Arrange
+            val logged = mutableListOf<String>()
+            val log = PlatformLog { severity, shown, hidden -> logged += "$severity|$shown|$hidden" }
+            val hub = DiagnosticsHub(backgroundScope, debug = true, crypto = SodiumCryptoProvider, log = log)
+
+            // Act
+            hub.report(ConnectFailed(LinkRef(1), ConnectFailed.Reason.Transient, 1, platformCode = 133))
+            hub.report(ConnectFailed(LinkRef(2), ConnectFailed.Reason.Transient, 1))
+            hub.report(DiagnosticEvent.GattOperationRetried(platformCode = null))
+
+            // Assert
+            val expected =
+                listOf(
+                    "Warning|ML3003 ConnectFailed count=1 attempt=1 platformCode=133|link=link-1 reason=Transient",
+                    "Warning|ML3003 ConnectFailed count=1 attempt=1|link=link-2 reason=Transient",
+                    "Debug|ML3006 GattOperationRetried count=1|",
+                )
+            assertEquals(expected, logged)
+        }
+
+    @Test
     fun repeatsOfOneCodeAndReferenceWithinTenSecondsAreCoalesced() =
         runTest {
             // Arrange

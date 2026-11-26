@@ -30,6 +30,7 @@ class ConfigReferenceTest {
                 "meshKey" to builder.meshKey,
                 "l2capUpgrade" to builder.l2capUpgrade,
                 "diagnostics.debug" to builder.diagnostics.debug,
+                "diagnostics.platformLog" to builder.diagnostics.platformLog,
             )
         val knobs = Knobs(Preset.OfflineChat.values).all.map { it.key }
         val sections =

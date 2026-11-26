@@ -627,3 +627,6 @@ class ShadowMeshServerSocket : ShadowBluetoothServerSocket() {
         }
     }
 }
+
+/** The platform code a busy GATT request reports: the status on API 33 and later, none on the legacy API. */
+internal fun busyCode(): Int? = GattExchange.BUSY.takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU }

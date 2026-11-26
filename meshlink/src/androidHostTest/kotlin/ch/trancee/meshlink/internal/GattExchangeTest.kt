@@ -11,7 +11,7 @@ import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GattExchangeTest {
-    private val exchange = GattExchange()
+    private val exchange = GattExchange {}
     private val owner = Any()
 
     @Test

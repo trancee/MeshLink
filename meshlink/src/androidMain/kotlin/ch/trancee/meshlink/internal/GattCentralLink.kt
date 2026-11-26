@@ -34,7 +34,7 @@ internal class GattCentralLink(
     private val emit: (RadioEvent) -> Unit,
 ) : StreamLink(AndroidPeer(device)),
     CentralLink {
-    private val exchange = GattExchange()
+    private val exchange = GattExchange(emit)
     private val callback = Callback()
     private val channels = CocChannels(device, io)
 
@@ -64,8 +64,8 @@ internal class GattCentralLink(
         opened = failure == null
         return when {
             failure == null -> RadioResult.Ok(this)
-            AndroidGatt.failsTransiently(lost) -> RadioResult.Failed(RadioFailure.TRANSIENT)
-            else -> RadioResult.Failed(failure)
+            AndroidGatt.failsTransiently(lost) -> RadioResult.Failed(RadioFailure.TRANSIENT, lost)
+            else -> RadioResult.Failed(failure, AndroidGatt.platformCode(lost))
         }
     }
 
@@ -196,7 +196,7 @@ internal class GattCentralLink(
                 exchange.answer(GattAnswer(status))
             } else {
                 lost = status
-                close()
+                close(AndroidGatt.platformCode(status))
             }
         }
 

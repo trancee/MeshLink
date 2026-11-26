@@ -23,6 +23,7 @@ import platform.CoreBluetooth.CBCharacteristicPropertyNotify
 import platform.CoreBluetooth.CBCharacteristicPropertyRead
 import platform.CoreBluetooth.CBCharacteristicPropertyWriteWithoutResponse
 import platform.CoreBluetooth.CBCharacteristicWriteWithoutResponse
+import platform.CoreBluetooth.CBErrorDomain
 import platform.CoreBluetooth.CBL2CAPChannel
 import platform.CoreBluetooth.CBL2CAPPSM
 import platform.CoreBluetooth.CBManager
@@ -285,14 +286,14 @@ private class CentralDelegate(
         central: CBCentralManager,
         didFailToConnectPeripheral: CBPeripheral,
         error: NSError?,
-    ) = events.connectFailed(IosPeripheral(didFailToConnectPeripheral))
+    ) = events.connectFailed(IosPeripheral(didFailToConnectPeripheral), error?.cbError())
 
     @ObjCSignatureOverride
     override fun centralManager(
         central: CBCentralManager,
         didDisconnectPeripheral: CBPeripheral,
         error: NSError?,
-    ) = events.disconnected(IosPeripheral(didDisconnectPeripheral))
+    ) = events.disconnected(IosPeripheral(didDisconnectPeripheral), error?.cbError())
 }
 
 private class PeripheralDelegate(
@@ -386,13 +387,13 @@ private class PeripheralManagerDelegate(
     override fun peripheralManagerDidStartAdvertising(
         peripheral: CBPeripheralManager,
         error: NSError?,
-    ) = events.advertisingStarted(error == null)
+    ) = events.advertisingStarted(error?.cbError())
 
     override fun peripheralManager(
         peripheral: CBPeripheralManager,
         didAddService: CBService,
         error: NSError?,
-    ) = events.serviceAdded(error == null)
+    ) = events.serviceAdded(error?.cbError())
 
     override fun peripheralManager(
         peripheral: CBPeripheralManager,
@@ -490,3 +491,6 @@ private fun NSData.toByteArray(): ByteArray =
     ByteArray(length.toInt()).also { copy ->
         if (copy.isNotEmpty()) copy.usePinned { memcpy(it.addressOf(0), bytes, length) }
     }
+
+/** This error as a [CbError]: its code counts only in `CBErrorDomain` (ADR 0020). */
+private fun NSError.cbError(): CbError = CbError(if (domain == CBErrorDomain) code.toInt() else null)

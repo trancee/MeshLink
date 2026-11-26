@@ -46,7 +46,8 @@ internal class LinkLimits(
                 }
 
                 is RadioResult.Failed -> {
-                    diagnostics.report(DiagnosticEvent.ConnectFailed(ref, connected.reason.connectReason(), attempt))
+                    val reason = connected.reason.connectReason()
+                    diagnostics.report(DiagnosticEvent.ConnectFailed(ref, reason, attempt, connected.platformCode))
                     if (connected.reason != RadioFailure.TRANSIENT || attempt > CONNECT_RETRIES) return null
                     delay(RETRY_BACKOFF_MILLIS * attempt)
                     attempt++

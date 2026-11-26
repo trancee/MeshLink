@@ -203,6 +203,20 @@ class MeshLinkConfigTest {
     }
 
     @Test
+    fun thePlatformLogIsOffUnlessTheAppTurnsItOn() {
+        // Arrange
+        val builder = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "m" }
+        val before = builder.build()
+
+        // Act
+        val after = builder.apply { diagnostics.platformLog = true }.build()
+
+        // Assert
+        assertEquals(false to true, before.diagnostics.platformLog to after.diagnostics.platformLog)
+        assertEquals("diagnostics.platformLog = true (override)", after.describe().lines()[6])
+    }
+
+    @Test
     fun aMessageLifetimeOfTwoMinutesToOneHourIsAccepted() {
         // ADR 0014 decision 2: 120 s to 1 h.
         val accepted = listOf(120, 3_600).map { configWithLifetime(it).messageLifetimeSeconds }
@@ -249,6 +263,7 @@ class MeshLinkConfigTest {
             meshKey = none (default)
             l2capUpgrade = true (default)
             diagnostics.debug = false (default)
+            diagnostics.platformLog = false (default)
             density = Automatic (preset)
             power = Balanced (preset)
             routedUnicast = true (preset)

@@ -74,7 +74,8 @@ public class MeshLink private constructor(
     private val meshId = config.meshId.encodeToByteArray()
     private val profile = config.securityProfile.wireProfile
     private val meshKey = config.meshKey
-    private val hub = DiagnosticsHub(scope, config.diagnostics.debug, crypto)
+    private val hub =
+        DiagnosticsHub(scope, config.diagnostics.debug, crypto, port.log.takeIf { config.diagnostics.platformLog })
     private val scanner =
         Scanner(
             port.radio,
