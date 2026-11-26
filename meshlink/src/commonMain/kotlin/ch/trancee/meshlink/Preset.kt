@@ -56,7 +56,7 @@ public sealed class Preset(
     public data object FieldTeams : Preset(chat(lifetimeSeconds = ONE_HOUR))
 
     /**
-     * An app's own preset: [base]'s values with [overrides] applied. [meshLinkConfig]'s
+     * An app's own preset: [base]'s values with `overrides` applied. [meshLinkConfig]'s
      * [MeshLinkConfigBuilder.build] validates the result.
      *
      * ```kotlin
