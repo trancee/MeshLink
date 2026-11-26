@@ -7,6 +7,12 @@ MeshLink is in its design phase. No library code exists yet, so this page lists 
 - [Threat model](explanation/threat-model.md): who MeshLink defends against, and why each security profile promises what it does.
 - [Finding iPhones in the background](explanation/background-iphone-discovery.md): how Android finds a backgrounded iPhone through Apple's overflow area, and what that bit can and cannot tell.
 
+## Fix a problem
+
+- [Troubleshoot peers that aren't found](how-to/troubleshoot-peers-not-found.md)
+- [Troubleshoot messages that aren't delivered](how-to/troubleshoot-messages-not-delivered.md), or arrive late
+- [Troubleshoot high battery use](how-to/troubleshoot-high-battery-use.md)
+
 ## Look up a contract
 
 | Topic | Source |

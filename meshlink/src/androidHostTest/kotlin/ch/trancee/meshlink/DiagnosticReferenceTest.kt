@@ -1,13 +1,7 @@
 package ch.trancee.meshlink
 
 import ch.trancee.meshlink.ReferencePages.compare
-import ch.trancee.meshlink.ReferencePages.documented
-import ch.trancee.meshlink.ReferencePages.markdown
-import ch.trancee.meshlink.ReferencePages.sources
-import ch.trancee.meshlink.ReferencePages.symbols
 import org.junit.Test
-import java.io.File
-import kotlin.test.assertEquals
 
 /**
  * Generates the diagnostic index from the KDoc of `DiagnosticEvent.kt` (ADR 0020, ADR 0006 decision 3):
@@ -15,7 +9,7 @@ import kotlin.test.assertEquals
  * for agents. It fails when a committed file differs; `./gradlew updateReference` rewrites them.
  */
 class DiagnosticReferenceTest {
-    private val catalog = catalog(File(sources, "DiagnosticEvent.kt").readText())
+    private val catalog = DiagnosticCatalog.read()
 
     @Test
     fun theDiagnosticReferenceMatchesTheCatalog() = compare(PAGE, page())
@@ -102,108 +96,17 @@ class DiagnosticReferenceTest {
         return encode(document, "") + "\n"
     }
 
-    private fun entries(entries: List<Entry>): String =
+    private fun entries(entries: List<DiagnosticCatalog.Entry>): String =
         entries.joinToString("\n") { entry ->
             val type = entry.type?.let { " (`$it`)" }.orEmpty()
             "- `${entry.name}`$type: ${entry.doc}"
         }
-
-    private class Entry(
-        val name: String,
-        val doc: String,
-        val type: String? = null,
-    )
-
-    private class Event(
-        val code: String,
-        val name: String,
-        val severity: String,
-        val meaning: String,
-        val guidance: List<Pair<String, String>>,
-        val fields: List<Entry>,
-        val values: List<Pair<String, List<Entry>>>,
-    ) {
-        val anchor = code.lowercase()
-        val symptom = guidance.single { it.first == "Symptom" }.second
-    }
-
-    private class Catalog(
-        val severities: List<Entry>,
-        val events: List<Event>,
-    )
 
     private companion object {
         const val SOURCE = "meshlink/src/commonMain/kotlin/ch/trancee/meshlink/DiagnosticEvent.kt"
         const val PAGE = "docs/reference/diagnostics.md"
         const val UPDATE = "./gradlew updateReference"
         val GENERATED = ReferencePages.generated("DiagnosticReferenceTest")
-        val LABELS = listOf("Cause", "Fix", "Related", "Symptom")
-
-        val EVENT = documented("""public class (\w+) internal constructor\(""")
-        val HEADER = Regex("""\) : DiagnosticEvent\("(ML\d{4})", Severity\.(\w+)\)""")
-        val FIELD = documented("""public val (\w+): ([\w.]+)""")
-        val ENUM = Regex("""public enum class (\w+) \{(.*?)\n\s*}""", RegexOption.DOT_MATCHES_ALL)
-        val CONSTANT = documented("""([A-Z]\w*),""")
-
-        // Each event of the sealed class, in source order, and the severities.
-        fun catalog(source: String): Catalog {
-            val body = source.substringBefore("\n}\n")
-            val matches = EVENT.findAll(body).toList()
-            val events =
-                matches.mapIndexed { i, match ->
-                    val end = matches.getOrNull(i + 1)?.range?.first ?: body.length
-                    event(match.groupValues[2], match.groupValues[1], body.substring(match.range.last, end))
-                }
-            val severities = constants(checkNotNull(ENUM.find(body)).groupValues[2])
-            return Catalog(severities, events)
-        }
-
-        // An event from its name, its KDoc and its declaration up to the next event.
-        fun event(
-            name: String,
-            kdoc: String,
-            declaration: String,
-        ): Event {
-            val (code, severity) = checkNotNull(HEADER.find(declaration)) { name }.destructured
-            val lines = kdoc.lines().map { it.trim().removePrefix("*").trim() }
-            val items = lines.indexOfFirst { it.startsWith("- ") }.takeIf { it >= 0 } ?: lines.size
-            val prose = markdown(lines.take(items).joinToString("\n"))
-            assertEquals("`$code`: ", prose.take(code.length + 4), "$name: KDoc opens with its code")
-            val guidance = guidance(lines.drop(items))
-            assertEquals(LABELS, guidance.map { it.first }, "$name: KDoc lists Cause, Fix, Related, Symptom")
-            val values = ENUM.findAll(declaration).map { it.groupValues[1] to constants(it.groupValues[2]) }.toList()
-            val nested = values.map { it.first }
-            val fields =
-                FIELD.findAll(declaration).map { field ->
-                    val (doc, property, type) = field.destructured
-                    Entry(property, markdown(doc), if (type in nested) "$name.$type" else type)
-                }
-            return Event(
-                code = code,
-                name = name,
-                severity = severity,
-                meaning = prose.drop(code.length + 4).replaceFirstChar { it.uppercase() },
-                guidance = guidance,
-                fields = fields.toList(),
-                values = values,
-            )
-        }
-
-        // The `- Label: text` items of a KDoc, each joined across its wrapped lines.
-        fun guidance(lines: List<String>): List<Pair<String, String>> =
-            lines
-                .filter { it.isNotBlank() }
-                .fold(listOf<String>()) { items, line ->
-                    if (line.startsWith("- ")) {
-                        items + line.drop(2)
-                    } else {
-                        items.dropLast(1) +
-                            "${items.last()} $line"
-                    }
-                }.map { symbols(it.substringBefore(": ")) to symbols(it.substringAfter(": ")) }
-
-        fun constants(body: String): List<Entry> =
-            CONSTANT.findAll(body).map { Entry(it.groupValues[2], markdown(it.groupValues[1])) }.toList()
 
         // JSON with two-space indents, keys in insertion order.
         fun encode(

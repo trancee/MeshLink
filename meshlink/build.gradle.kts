@@ -81,10 +81,11 @@ tasks.register<ch.trancee.meshlink.buildlogic.CheckNativeSymbols>("checkFramewor
 // ADR 0006 decision 3: ConfigReferenceTest generates docs/reference/configuration.md and presets.md, and
 // DiagnosticReferenceTest docs/reference/diagnostics.md and docs/agents/diagnostics.json and
 // DiagnosticsExportReferenceTest docs/reference/diagnostics-export.md (ADR 0020), from the
-// Kotlin source. In testAndroidHostTest they fail when a committed file differs; updateReference rewrites them.
+// Kotlin source; TroubleshootingReferenceTest fills the code tables of docs/how-to/troubleshoot-*.md. In testAndroidHostTest they fail when a committed file differs; updateReference rewrites them.
 val repositoryRoot: String = rootDir.path
 val referencePages = rootProject.layout.projectDirectory.dir("docs/reference")
 val agentPages = rootProject.layout.projectDirectory.dir("docs/agents")
+val howToPages = rootProject.layout.projectDirectory.dir("docs/how-to")
 tasks.withType<Test>().matching { it.name == "testAndroidHostTest" }.configureEach {
     systemProperty("reference.root", repositoryRoot)
     // The pages come from KDoc, which the compiled classes don't carry.
@@ -96,12 +97,15 @@ tasks.withType<Test>().matching { it.name == "testAndroidHostTest" }.configureEa
             referencePages.file("diagnostics.md"),
             referencePages.file("diagnostics-export.md"),
             agentPages.file("diagnostics.json"),
+            howToPages.file("troubleshoot-peers-not-found.md"),
+            howToPages.file("troubleshoot-messages-not-delivered.md"),
+            howToPages.file("troubleshoot-high-battery-use.md"),
         ).withPathSensitivity(PathSensitivity.RELATIVE)
 }
 tasks.register<Test>("updateReference") {
     val hostTests = tasks.named<Test>("testAndroidHostTest").get()
     group = "documentation"
-    description = "Rewrites the generated reference pages and docs/agents/diagnostics.json from the Kotlin source."
+    description = "Rewrites the generated reference pages, troubleshooting tables and docs/agents/diagnostics.json."
     // The collections, not the task's providers, so the stale-page check doesn't run first and fail.
     testClassesDirs = hostTests.testClassesDirs
     classpath = hostTests.classpath
@@ -110,6 +114,7 @@ tasks.register<Test>("updateReference") {
         includeTestsMatching("*ConfigReferenceTest")
         includeTestsMatching("*DiagnosticReferenceTest")
         includeTestsMatching("*DiagnosticsExportReferenceTest")
+        includeTestsMatching("*TroubleshootingReferenceTest")
     }
     systemProperty("reference.root", repositoryRoot)
     systemProperty("reference.update", "true")

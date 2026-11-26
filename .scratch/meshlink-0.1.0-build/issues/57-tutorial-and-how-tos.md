@@ -26,6 +26,7 @@ A new Kotlin or Swift developer follows one tutorial from an empty app to two no
 - [ ] `docs/how-to/run-in-the-background.md` gives the per-preset recommendations of ADR 0011 decision 13. It states at the top that 0.1.0 has not verified background behavior on devices. No page documents a Live Activity setup.
 - [ ] `@sample` functions in `commonTest` cover `meshLinkConfig`, `send`, `broadcast` and `exportDiagnostics()`, and Dokka renders them.
 - [ ] The troubleshooting pages from ticket 54 are linked from the tutorial's last step and from every how-to whose task can fail.
+- [ ] The troubleshooting pages (ticket 54e) link the export-diagnostics how-to from their "Collect the evidence" and "If the problem stays" sections.
 - [ ] A root `README.md` says what MeshLink is, its 0.1.0 status, the Maven and SwiftPM coordinates of ADR 0011's 2026-11-13 amendment, and links to `docs/README.md`, the tutorial and the API reference URL of ADR 0006.
 - [ ] `docs/README.md` is reorganized by reader task with "Learn", "Do a task", "Look up a contract" and "Understand the design". It no longer says that no library code exists.
 - [ ] Kover stays at 100%. `./gradlew check`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh` and every docs check pass.

@@ -1,6 +1,6 @@
 # 0020: Diagnostics catalog
 
-Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 5 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c; 2026-11-27, ticket 54d).
+Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 6 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c; 2026-11-27, ticket 54d; 2026-11-27, ticket 54e).
 
 ## Context
 
@@ -124,7 +124,7 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    The list may change until 0.1.0.
 8. **Troubleshooting.**
    - `docs/how-to/troubleshoot-peers-not-found.md`, `troubleshoot-messages-not-delivered.md` and `troubleshoot-high-battery-use.md` link to these codes.
-   - The pages are written together with the code, and their entries are generated per ADR 0006.
+   - The pages are written together with the code, and their entries are generated per ADR 0006: each page's code tables list the codes whose `Symptom` it covers (amended 2026-11-27).
 
 ## Amendments
 
@@ -185,6 +185,17 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
   - **Redaction (decision 3):** the configuration shows `meshId = <redacted>`, and a mesh key was already `<redacted>`. Only links past their hellos are listed, each by `PeerRef`.
   - **Export (decision 6):** a JSON document with `"format": 1`, the MeshLink, protocol, platform and OS versions, the snapshot, and the last 500 events emitted after the Debug filter and coalescing, each with its wall-clock time `at`. The history spans starts and is cleared only when the node is created; `ML7001` is not in it. A hand-written encoder in common code writes it, with no new dependency (E3). `format` grows only when a field changes meaning or goes. `DiagnosticsExportReferenceTest` generates the reference from the KDoc and the encoder.
 - **Status:** decisions 5 and 6 and the consequences are updated to match.
+
+2026-11-27, troubleshooting pages (ticket 54e; user decisions on the ticket's five questions):
+
+- **Context:** every code's KDoc names one symptom. Besides the three symptoms of decision 8, `ML3006` names a fourth, "messages delivered slowly".
+- **Decision:**
+  - **Closed symptom set:** a symptom is "peers not found", "messages not delivered", "messages delivered slowly", "high battery use" or "none". `TroubleshootingReferenceTest` fails on any other, so no code drops off the pages unnoticed.
+  - **Pages:** the messages page covers both message symptoms, each in its own table; the other two pages cover one symptom each. A code with symptom "none" is on no page.
+  - **Generated tables:** each table sits between a `BEGIN generated` and an `END generated` marker in the hand-written page and lists code, event, severity and cause, linked to the code's anchor in the diagnostic reference. `./gradlew updateReference` rewrites the tables; the test fails on a stale table or a missing or repeated marker.
+  - **Hand-written guidance:** checks in order of likelihood, each linking its codes; Android GATT status 133 (the stack's `GATT_ERROR`), 147 (`GATT_CONNECTION_TIMEOUT`) and scan error 2 (`SCAN_FAILED_APPLICATION_REGISTRATION_FAILED`) are explained in prose (Risks, "Platform status codes vary by OEM"). Not every code needs prose; its table row links its fix.
+  - **No code samples yet:** the pages name the API in prose. Compiled Kotlin and Swift regions (ADR 0006 decision 5) and the export-diagnostics how-to come with ticket 57.
+- **Status:** decision 8 is updated to match.
 
 ## Alternatives
 
