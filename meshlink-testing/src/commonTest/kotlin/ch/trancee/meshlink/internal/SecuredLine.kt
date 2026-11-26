@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshLinkConfigBuilder
@@ -45,7 +46,7 @@ internal class SecuredLine(
     val nodes = mutableListOf<MeshLink>()
     val received = mutableListOf<OpenedFrames>()
     val inboxes = mutableListOf<MutableList<ReceivedMessage>>()
-    val diagnostics = mutableListOf<MutableList<LinkDiagnostic>>()
+    val diagnostics = mutableListOf<MutableList<DiagnosticEvent>>()
 
     /**
      * The status of the last sent message at each change, and whether Alice then held its destination's
@@ -96,8 +97,8 @@ internal class SecuredLine(
                     scope.backgroundScope.launch { node.messages.collect { inbox += it } }
                 }
             diagnostics +=
-                mutableListOf<LinkDiagnostic>().also { events ->
-                    scope.backgroundScope.launch { node.linkDiagnostics.collect { events += it } }
+                mutableListOf<DiagnosticEvent>().also { events ->
+                    scope.backgroundScope.launch { node.diagnostics.collect { events += it } }
                 }
             node.start()
         }

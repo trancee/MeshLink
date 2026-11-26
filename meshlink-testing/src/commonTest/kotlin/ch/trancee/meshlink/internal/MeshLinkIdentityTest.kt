@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.MeshLinkException
@@ -161,6 +162,8 @@ class MeshLinkIdentityTest {
             val (node, platform) = node(store)
             platform.radio.report(setOf(Requirement.BluetoothOff))
             node.start()
+            val stops = mutableListOf<DiagnosticEvent>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { node.diagnostics.toList(stops) }
 
             // Act
             val reset = node.resetIdentity()
@@ -169,6 +172,8 @@ class MeshLinkIdentityTest {
             assertTrue(reset)
             assertEquals(MeshState.Stopped, node.state.value)
             assertEquals(1, store.deletes)
+            val reasons = stops.map { (it as DiagnosticEvent.Stopped).reason }
+            assertEquals(listOf(DiagnosticEvent.Stopped.Reason.IdentityReset), reasons)
         }
 
     @Test

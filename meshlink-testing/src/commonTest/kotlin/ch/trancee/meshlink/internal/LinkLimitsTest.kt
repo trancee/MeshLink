@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.InternalMeshLinkApi
 import ch.trancee.meshlink.MeshLink
 import ch.trancee.meshlink.SendResult
@@ -26,7 +27,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
 class LinkLimitsTest {
     @Test
-    fun transientConnectFailuresAreRetriedAfterAGrowingBackoffAndEachIsReported() =
+    fun transientConnectFailuresAreRetriedAfterAGrowingBackoffAndReportedCoalescedForTheirLink() =
         runTest {
             // Arrange
             val air = air()
@@ -46,12 +47,15 @@ class LinkLimitsTest {
             // Act
             node.start()
             advanceTimeBy(RETRIES_MILLIS)
+            val retried = attempts.map { it - attempts.first() }
+            advanceTimeBy(COALESCING_MILLIS)
 
-            // Assert
-            assertEquals(listOf(0L, 500L, 1_500L, 3_000L), attempts.map { it - attempts.first() })
-            val failed = seen.filterIsInstance<LinkDiagnostic.ConnectFailed>()
-            assertEquals(listOf(1, 2, 3, 4), failed.map { it.attempt })
-            assertTrue(failed.all { it.reason == RadioFailure.TRANSIENT && it.code == "ML3003" })
+            // Assert: the first failure at once, its three retries as one event when the window closes.
+            assertEquals(listOf(0L, 500L, 1_500L, 3_000L), retried)
+            val failed = seen.filterIsInstance<DiagnosticEvent.ConnectFailed>()
+            val first = failed.filter { it.link == failed.first().link }
+            assertEquals(listOf(1 to 1, 4 to 3), first.map { it.attempt to it.count })
+            assertTrue(first.all { it.reason == DiagnosticEvent.ConnectFailed.Reason.Transient && it.code == "ML3003" })
         }
 
     @Test
@@ -78,8 +82,8 @@ class LinkLimitsTest {
 
             // Assert
             assertEquals(1, attempts)
-            val failed = assertIs<LinkDiagnostic.ConnectFailed>(seen.single())
-            assertEquals(RadioFailure.RADIO_ERROR to 1, failed.reason to failed.attempt)
+            val failed = assertIs<DiagnosticEvent.ConnectFailed>(seen.single())
+            assertEquals(DiagnosticEvent.ConnectFailed.Reason.RadioError to 1, failed.reason to failed.attempt)
         }
 
     @Test
@@ -150,15 +154,15 @@ class LinkLimitsTest {
 
                 // Act
                 nodes.forEach { it.start() }
-                advanceTimeBy(MESH_SETTLE_MILLIS)
+                advanceTimeBy(MESH_SETTLE_MILLIS + COALESCING_MILLIS)
 
                 // Assert
                 assertTrue(nodes.all { it.peers.value.size == NODES - 1 }, "seed $seed: full mesh")
                 assertTrue(held(capped.radio) <= CAP, "seed $seed: ${held(capped.radio)}")
                 val refused = capped.radio.ends.filter { closes(it) == listOf(CloseReason.RESOURCE_LIMIT) }
                 refusals += refused.size
-                val reached = seen.filterIsInstance<LinkDiagnostic.LinkCapReached>()
-                assertEquals(refused.size, reached.size, "seed $seed")
+                val reached = seen.filterIsInstance<DiagnosticEvent.LinkCapReached>()
+                assertEquals(refused.size, reached.sumOf { it.count }, "seed $seed")
                 assertTrue(reached.all { it.cap == CAP && it.code == "ML3004" }, "seed $seed")
             }
         }
@@ -185,7 +189,7 @@ class LinkLimitsTest {
             // Assert
             assertEquals(FLOOD - CAP, refused)
             assertEquals(CAP, held(capped.radio))
-            assertEquals(FLOOD - CAP, seen.count { it is LinkDiagnostic.LinkCapReached })
+            assertEquals(FLOOD - CAP, seen.filterIsInstance<DiagnosticEvent.LinkCapReached>().sumOf { it.count })
             assertTrue(
                 capped.radio.ends
                     .last()
@@ -213,7 +217,7 @@ class LinkLimitsTest {
             assertTrue(ends.take(BUDGET).all { it.open })
             assertEquals(record(LinkFrame.Close(RESOURCE_LIMIT)).toList(), ends.last().written.toList())
             assertFalse(ends.last().open)
-            val reached = seen.filterIsInstance<LinkDiagnostic.LinkCapReached>()
+            val reached = seen.filterIsInstance<DiagnosticEvent.LinkCapReached>()
             assertEquals(listOf("ML3004" to BUDGET), reached.map { it.code to it.cap })
         }
 
@@ -480,6 +484,7 @@ class LinkLimitsTest {
         const val MESSAGES = 3
         const val SMALL_MTU = 23
         const val RETRIES_MILLIS = 5_000L
+        const val COALESCING_MILLIS = 10_000L
 
         // One dial at a time: the mesh completes in the second 8 s scan window.
         const val MESH_SETTLE_MILLIS = 10_000L

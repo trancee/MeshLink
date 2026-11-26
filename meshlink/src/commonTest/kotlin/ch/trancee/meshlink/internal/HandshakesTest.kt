@@ -1,8 +1,10 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent.HandshakeLimitDropped
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -20,7 +22,7 @@ class HandshakesTest {
         val crypto = SodiumCryptoProvider
         val credentials =
             LinkCredentials.issue(crypto, Fixed, crypto.ed25519KeyPair(), WireProfile.CLASSICAL, ByteArray(DIGEST))
-        val handshakes = Handshakes(crypto, Fixed, credentials, null, MutableSharedFlow())
+        val handshakes = Handshakes(crypto, Fixed, credentials, null, hub(crypto))
         val admitted = List(HALF_OPEN_GLOBAL) { handshakes.admit(Handle()) }
 
         // Act
@@ -31,7 +33,7 @@ class HandshakesTest {
 
         // Assert
         assertEquals(List(HALF_OPEN_GLOBAL) { null }, admitted)
-        assertEquals(HandshakeLimit.GLOBAL, responder)
+        assertEquals(HandshakeLimitDropped.Limit.Global, responder)
         assertEquals(HandshakeStep.Dropped, initiator)
         assertIs<HandshakeStep.Send>(freed)
     }
@@ -47,7 +49,10 @@ class HandshakesTest {
         val own = issue()
         val certified = mutableListOf<Pair<NodeId, IdentityCertificate>>()
         val handshakes =
-            Handshakes(crypto, Fixed, own, null, MutableSharedFlow()) { id, cert -> certified += id to cert }
+            Handshakes(crypto, Fixed, own, null, hub(crypto)) { id, cert ->
+                certified +=
+                    id to cert
+            }
         val payload = HandshakePayload.of(peer.certificate.encode(), null).encode()
 
         // Act
@@ -73,7 +78,10 @@ class HandshakesTest {
             LinkCredentials.issue(crypto, Fixed, crypto.ed25519KeyPair(), WireProfile.CLASSICAL, ByteArray(DIGEST))
         val certified = mutableListOf<Pair<NodeId, IdentityCertificate>>()
         val handshakes =
-            Handshakes(crypto, Fixed, own, null, MutableSharedFlow()) { id, cert -> certified += id to cert }
+            Handshakes(crypto, Fixed, own, null, hub(crypto)) { id, cert ->
+                certified +=
+                    id to cert
+            }
         val certificate = IdentityCertificate.issue(crypto, Fixed, identity, keys)
         val valid = certificate.encode()
         val expired = IdentityCertificate.issue(crypto, At(START_MILLIS - DAY_MILLIS), identity, keys).encode()
@@ -116,5 +124,10 @@ class HandshakesTest {
         val VERSIONS = listOf(VERSION)
         const val START_MILLIS = 1_767_225_600_000
         const val DAY_MILLIS = 86_400_000L + 31_000L
+    }
+
+    private fun hub(crypto: CryptoProvider): DiagnosticsHub {
+        val scope = CoroutineScope(Job())
+        return DiagnosticsHub(scope, debug = false, crypto = crypto)
     }
 }

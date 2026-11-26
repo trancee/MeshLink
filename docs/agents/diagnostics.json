@@ -1,0 +1,366 @@
+{
+  "generatedBy": "DiagnosticReferenceTest; edit the KDoc in meshlink/src/commonMain/kotlin/ch/trancee/meshlink/DiagnosticEvent.kt, then run ./gradlew updateReference",
+  "reference": "docs/reference/diagnostics.md",
+  "severities": [
+    {
+      "name": "Debug",
+      "meaning": "Detail for investigations; emitted only with `DiagnosticsBuilder.debug` on."
+    },
+    {
+      "name": "Info",
+      "meaning": "A state change."
+    },
+    {
+      "name": "Warning",
+      "meaning": "Degraded, but working."
+    },
+    {
+      "name": "Error",
+      "meaning": "A feature is not working."
+    }
+  ],
+  "events": [
+    {
+      "code": "ML1001",
+      "name": "Started",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml1001",
+      "meaning": "The node started with `profile` and `preset`.",
+      "cause": "the app called `MeshLink.start` on a stopped node.",
+      "fix": "none needed.",
+      "related": "`MeshLinkConfig.securityProfile`, `MeshLinkConfig.preset`.",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "profile",
+          "type": "SecurityProfile",
+          "meaning": "The node's security profile."
+        },
+        {
+          "name": "preset",
+          "type": "Preset",
+          "meaning": "The node's preset."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML1002",
+      "name": "Stopped",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml1002",
+      "meaning": "The node stopped for `reason`.",
+      "cause": "the app called `MeshLink.stop` or `MeshLink.resetIdentity` on a started node.",
+      "fix": "none needed.",
+      "related": "`MeshLink.state`.",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "reason",
+          "type": "Stopped.Reason",
+          "meaning": "Why the node stopped."
+        }
+      ],
+      "values": [
+        {
+          "type": "Stopped.Reason",
+          "values": [
+            {
+              "name": "Requested",
+              "meaning": "The app called `MeshLink.stop`."
+            },
+            {
+              "name": "IdentityReset",
+              "meaning": "The app called `MeshLink.resetIdentity`."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML1003",
+      "name": "UnsecuredProfile",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml1003",
+      "meaning": "The node started in `SecurityProfile.Unsecured`, on every start: anyone in radio range can read, forge and replay its traffic.",
+      "cause": "the configuration chose `SecurityProfile.Unsecured`.",
+      "fix": "choose `SecurityProfile.Classical` or `SecurityProfile.PostQuantum` unless every payload is public anyway.",
+      "related": "`MeshLinkConfig.securityProfile`.",
+      "symptom": "none.",
+      "fields": [],
+      "values": []
+    },
+    {
+      "code": "ML3003",
+      "name": "ConnectFailed",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml3003",
+      "meaning": "A connect as central on `link` failed for `reason`. `attempt` counts from 1; a `Reason.Transient` failure is retried up to 3 times (spec `connect-retries`).",
+      "cause": "the peer moved out of range or stopped advertising, or the platform failed the connect; Android reports GATT status 133 or 147 as `Reason.Transient`, often on a first connect.",
+      "fix": "transient failures retry by themselves. If every connect fails, move the phones closer and turn Bluetooth off and on.",
+      "related": "spec `connect-retries`.",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "link",
+          "type": "LinkRef",
+          "meaning": "The link the connect was for."
+        },
+        {
+          "name": "reason",
+          "type": "ConnectFailed.Reason",
+          "meaning": "Why the connect failed."
+        },
+        {
+          "name": "attempt",
+          "type": "Int",
+          "meaning": "The attempt that failed, from 1."
+        }
+      ],
+      "values": [
+        {
+          "type": "ConnectFailed.Reason",
+          "values": [
+            {
+              "name": "InvalidArgument",
+              "meaning": "The platform rejected an argument; a MeshLink defect."
+            },
+            {
+              "name": "PeerUnreachable",
+              "meaning": "The peer is out of range or no longer advertising."
+            },
+            {
+              "name": "CapabilityMissing",
+              "meaning": "The peer serves no MeshLink capability, so it is not a MeshLink node."
+            },
+            {
+              "name": "LinkClosed",
+              "meaning": "The link closed before the connect finished."
+            },
+            {
+              "name": "Unsupported",
+              "meaning": "The platform has no radio MeshLink can use."
+            },
+            {
+              "name": "RadioError",
+              "meaning": "The platform radio refused or failed the connect, for example out of resources."
+            },
+            {
+              "name": "Transient",
+              "meaning": "A cause that often clears on retry, such as Android GATT status 133 or 147."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML3004",
+      "name": "LinkCapReached",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml3004",
+      "meaning": "The node refused a bearer, as it holds `cap` links: its link budget, or the radio's cap on links as peripheral.",
+      "cause": "many peers in range; expected in a dense mesh.",
+      "fix": "none needed; the node links to other peers as its links close.",
+      "related": "`MeshLinkConfig.density`.",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "cap",
+          "type": "Int",
+          "meaning": "The cap the node holds."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML3005",
+      "name": "BearerFallback",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml3005",
+      "meaning": "An L2CAP CoC channel to `peer` failed to open for `reason`, so the link stays on GATT (spec \"Bearer switch\").",
+      "cause": "the platform or the peer refused the channel.",
+      "fix": "none needed; GATT carries the same traffic more slowly. If it happens with every peer, turn `MeshLinkConfigBuilder.l2capUpgrade` off.",
+      "related": "`MeshLinkConfig.l2capUpgrade`.",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The peer of the link."
+        },
+        {
+          "name": "reason",
+          "type": "BearerFallback.Reason",
+          "meaning": "Why the channel failed to open."
+        }
+      ],
+      "values": [
+        {
+          "type": "BearerFallback.Reason",
+          "values": [
+            {
+              "name": "InvalidArgument",
+              "meaning": "The platform rejected an argument; a MeshLink defect."
+            },
+            {
+              "name": "PeerUnreachable",
+              "meaning": "The peer is out of range."
+            },
+            {
+              "name": "LinkClosed",
+              "meaning": "The link closed before the channel opened."
+            },
+            {
+              "name": "RadioError",
+              "meaning": "The platform radio refused or failed the channel."
+            },
+            {
+              "name": "Transient",
+              "meaning": "A cause that often clears on retry."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML3007",
+      "name": "UnknownLinkFrameDropped",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml3007",
+      "meaning": "An open link dropped a link-local frame of `type` it doesn't handle: an unknown type, or a `REKEY` on an `Unsecured` link. The link stays open.",
+      "cause": "the peer runs a newer MeshLink version, or is faulty.",
+      "fix": "none needed. If it repeats, update both apps to the same MeshLink version.",
+      "related": "spec \"Link frames\".",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "type",
+          "type": "Int",
+          "meaning": "The frame's type byte, `0x00`–`0x3F`."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML4001",
+      "name": "HandshakeFailed",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml4001",
+      "meaning": "The handshake on `link` failed for `reason`, and the link closed.",
+      "cause": "`Reason.Timeout`: the peer moved away or is overloaded. `Reason.Decrypt`: the peer uses another security profile, mesh ID or mesh key. `Reason.Certificate`: the peer's certificate is invalid or expired, often a wrong clock. `Reason.Protocol`: an incompatible or faulty peer.",
+      "fix": "give every phone of the mesh the same security profile, mesh ID and mesh key, and a correct clock.",
+      "related": "`MeshLinkConfig.securityProfile`, `MeshLinkConfig.meshId`, `MeshLinkConfig.meshKey`.",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "link",
+          "type": "LinkRef",
+          "meaning": "The link whose handshake failed."
+        },
+        {
+          "name": "reason",
+          "type": "HandshakeFailed.Reason",
+          "meaning": "What failed."
+        }
+      ],
+      "values": [
+        {
+          "type": "HandshakeFailed.Reason",
+          "values": [
+            {
+              "name": "Timeout",
+              "meaning": "Not complete within `handshake-timeout` after the bearer opened."
+            },
+            {
+              "name": "Decrypt",
+              "meaning": "A handshake message failed to decrypt or carried an unusable key. Another security profile, mesh ID or mesh key all fail this way."
+            },
+            {
+              "name": "Certificate",
+              "meaning": "The peer's certificate was missing, invalid, expired, or bound another key."
+            },
+            {
+              "name": "Protocol",
+              "meaning": "An unexpected, malformed or version-changing handshake frame."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML4002",
+      "name": "HandshakeLimitDropped",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml4002",
+      "meaning": "A handshake broke a denial-of-service bound, `limit`, so the bearer closed without a reply (spec \"Handshake limits\").",
+      "cause": "many phones connecting at once, or a peer opening handshakes faster than allowed.",
+      "fix": "none needed; honest peers succeed on a later attempt.",
+      "related": "spec \"Handshake limits\".",
+      "symptom": "peers not found.",
+      "fields": [
+        {
+          "name": "limit",
+          "type": "HandshakeLimitDropped.Limit",
+          "meaning": "The bound the handshake broke."
+        }
+      ],
+      "values": [
+        {
+          "type": "HandshakeLimitDropped.Limit",
+          "values": [
+            {
+              "name": "PerBearer",
+              "meaning": "A second handshake on one bearer (`handshake-half-open-per-link`)."
+            },
+            {
+              "name": "Global",
+              "meaning": "More than `handshake-half-open-global` handshakes at once."
+            },
+            {
+              "name": "NeighborInterval",
+              "meaning": "A new handshake from one address within `handshake-neighbor-interval`."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ML7001",
+      "name": "DiagnosticsDropped",
+      "severity": "Warning",
+      "reference": "docs/reference/diagnostics.md#ml7001",
+      "meaning": "This collector fell `dropped` events behind, so its oldest events were dropped. Each collector buffers 256 events.",
+      "cause": "the collector does slow work for each event.",
+      "fix": "collect on a fast path and move slow work elsewhere.",
+      "related": "`MeshLink.diagnostics`.",
+      "symptom": "none.",
+      "fields": [
+        {
+          "name": "dropped",
+          "type": "Int",
+          "meaning": "How many events this collector lost."
+        }
+      ],
+      "values": []
+    },
+    {
+      "code": "ML7002",
+      "name": "ReadTrackingEvicted",
+      "severity": "Info",
+      "reference": "docs/reference/diagnostics.md#ml7002",
+      "meaning": "The oldest delivered message awaiting a read receipt was forgotten, as more than 1,000 were tracked; its status stays `DeliveryStatus.Delivered`.",
+      "cause": "the app sends many messages that request read receipts, and their recipients don't read them.",
+      "fix": "request read receipts only for messages whose reading matters.",
+      "related": "`ReadReceiptsBuilder.requestByDefault`.",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "messageId",
+          "type": "ByteArray",
+          "meaning": "A copy of the forgotten message's `message_id`."
+        }
+      ],
+      "values": []
+    }
+  ]
+}

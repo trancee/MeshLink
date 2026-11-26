@@ -1,5 +1,7 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent.HandshakeFailed
+import ch.trancee.meshlink.DiagnosticEvent.HandshakeLimitDropped
 import ch.trancee.meshlink.NodeId
 
 /**
@@ -13,6 +15,7 @@ internal class LinkHandshake(
     private val handle: PeerHandle,
     private val versions: List<Int>,
 ) {
+    private val link = handshakes.link()
     private var noise: NoiseHandshake? = null
     private var version = 0
     private var expected = FIRST
@@ -36,18 +39,18 @@ internal class LinkHandshake(
     fun receive(frame: LinkFrame?): HandshakeStep {
         val noise = noise
         return when {
-            frame !is LinkFrame.Handshake -> fail(HandshakeFailure.PROTOCOL)
-            frame.step == FIRST && noise != null -> drop(HandshakeLimit.PER_BEARER)
-            frame.step != expected -> fail(HandshakeFailure.PROTOCOL)
+            frame !is LinkFrame.Handshake -> fail(HandshakeFailed.Reason.Protocol)
+            frame.step == FIRST && noise != null -> drop(HandshakeLimitDropped.Limit.PerBearer)
+            frame.step != expected -> fail(HandshakeFailed.Reason.Protocol)
             noise == null -> respond(frame)
-            frame.version != version -> fail(HandshakeFailure.PROTOCOL)
+            frame.version != version -> fail(HandshakeFailed.Reason.Protocol)
             else -> advance(noise, frame)
         }
     }
 
     /** The bearer stayed open `handshake-timeout` without completing this handshake. */
     fun timedOut() {
-        handshakes.report(LinkDiagnostic.HandshakeFailed(HandshakeFailure.TIMEOUT))
+        handshakes.report(HandshakeFailed(link, HandshakeFailed.Reason.Timeout))
         end()
     }
 
@@ -62,7 +65,7 @@ internal class LinkHandshake(
         val limit = if (spoken) handshakes.admit(handle) else null
         return when {
             !spoken -> {
-                fail(HandshakeFailure.PROTOCOL)
+                fail(HandshakeFailed.Reason.Protocol)
             }
 
             limit != null -> {
@@ -87,7 +90,7 @@ internal class LinkHandshake(
         val reply = if (replies) noise.writeMessage(handshakes.payload()) else null
         return when {
             read !is NoiseResult.Ok || reply is NoiseResult.Failed -> {
-                fail(HandshakeFailure.DECRYPT)
+                fail(HandshakeFailed.Reason.Decrypt)
             }
 
             reply == null -> {
@@ -114,7 +117,7 @@ internal class LinkHandshake(
         // A complete handshake always splits.
         val transport = (noise.split() as NoiseResult.Ok).value
         val peer = handshakes.verify(payload, transport.remoteStatic)
-        if (peer == null) handshakes.report(LinkDiagnostic.HandshakeFailed(HandshakeFailure.CERTIFICATE))
+        if (peer == null) handshakes.report(HandshakeFailed(link, HandshakeFailed.Reason.Certificate))
         return HandshakeStep.Complete(reply, transport, peer)
     }
 
@@ -123,14 +126,14 @@ internal class LinkHandshake(
         message: ByteArray,
     ): LinkFrame.Handshake = LinkFrame.Handshake(version, step, message)
 
-    private fun fail(reason: HandshakeFailure): HandshakeStep {
-        handshakes.report(LinkDiagnostic.HandshakeFailed(reason))
+    private fun fail(reason: HandshakeFailed.Reason): HandshakeStep {
+        handshakes.report(HandshakeFailed(link, reason))
         end()
         return HandshakeStep.Failed
     }
 
-    private fun drop(limit: HandshakeLimit): HandshakeStep {
-        handshakes.report(LinkDiagnostic.HandshakeLimitDropped(limit))
+    private fun drop(limit: HandshakeLimitDropped.Limit): HandshakeStep {
+        handshakes.report(HandshakeLimitDropped(limit))
         end()
         return HandshakeStep.Dropped
     }

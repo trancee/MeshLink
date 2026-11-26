@@ -1,5 +1,6 @@
 package ch.trancee.meshlink.internal
 
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.MeshLink
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -34,7 +35,7 @@ class DensityTest {
             val air = air()
             val platforms = mutableListOf<VirtualPlatform>()
             val nodes = mutableListOf<MeshLink>()
-            val caps = mutableListOf<List<LinkDiagnostic>>()
+            val caps = mutableListOf<List<DiagnosticEvent>>()
 
             // Act
             val seen =
@@ -55,7 +56,7 @@ class DensityTest {
             }
             val low = STAGES.zip(seen).filter { (stage, _) -> stage.links == LOW_LINKS }
             assertTrue(low.any { (_, it) -> LOW_LINKS in it.settledPeers }, "the low budget is never used")
-            val refusals = caps.flatten().filterIsInstance<LinkDiagnostic.LinkCapReached>()
+            val refusals = caps.flatten().filterIsInstance<DiagnosticEvent.LinkCapReached>()
             val budgets = STAGES.map { it.links }.toSet()
             assertEquals(budgets, refusals.map { it.cap }.toSet(), "the budgets refusals report")
         }

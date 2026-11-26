@@ -49,6 +49,11 @@ public class MeshLinkConfigBuilder internal constructor(
      */
     public var l2capUpgrade: Boolean by upgrade
 
+    private val debug = Knob("diagnostics.debug", false)
+
+    /** The diagnostics settings; see [DiagnosticsBuilder]. */
+    public val diagnostics: DiagnosticsBuilder = DiagnosticsBuilder(debug)
+
     /**
      * Validates the settings and returns the immutable config.
      *
@@ -70,6 +75,7 @@ public class MeshLinkConfigBuilder internal constructor(
                 "meshId = \"$meshId\" (override)",
                 if (meshKey == null) "meshKey = none (default)" else "meshKey = <redacted> (override)",
                 "l2capUpgrade = ${upgrade.value} (${if (upgrade.overridden) "override" else "default"})",
+                "diagnostics.debug = ${debug.value} (${if (debug.overridden) "override" else "default"})",
             )
         val presetLines = knobs.all.map { "${it.key} = ${it.value} (${if (it.overridden) "override" else "preset"})" }
         return (fixed + presetLines).joinToString("\n")
@@ -128,6 +134,9 @@ public class MeshLinkConfig internal constructor(
     /** See [MeshLinkConfigBuilder.l2capUpgrade]. */
     public val l2capUpgrade: Boolean = builder.l2capUpgrade
 
+    /** The effective diagnostics settings; see [DiagnosticsBuilder]. */
+    public val diagnostics: Diagnostics = Diagnostics(builder.diagnostics.debug)
+
     /** A copy of the mesh key, or `null` for an open mesh; see [MeshLinkConfigBuilder.meshKey]. */
     public val meshKey: ByteArray? get() = key?.copyOf()
 
@@ -165,6 +174,23 @@ public class MeshLinkConfig internal constructor(
      */
     public fun describe(): String = description
 }
+
+/** The diagnostics settings of [MeshLinkConfigBuilder.diagnostics] (ADR 0020). */
+public class DiagnosticsBuilder internal constructor(
+    debug: Knob<Boolean>,
+) {
+    /**
+     * Whether [MeshLink.diagnostics] also emits [DiagnosticEvent.Severity.Debug] events, the detail for
+     * an investigation; `false` by default. Debug events can be frequent in a dense mesh.
+     */
+    public var debug: Boolean by debug
+}
+
+/** The effective diagnostics settings of a [MeshLinkConfig]; see [DiagnosticsBuilder]. */
+public class Diagnostics internal constructor(
+    /** See [DiagnosticsBuilder.debug]. */
+    public val debug: Boolean,
+)
 
 /** The effective read receipt settings of a [MeshLinkConfig]; see [ReadReceiptsBuilder]. */
 public class ReadReceipts internal constructor(

@@ -14,6 +14,7 @@ MeshLink is in its design phase. No library code exists yet, so this page lists 
 | Bytes on the wire, derivations, limits and conformance vectors (protocol 1, Draft) | [Protocol spec](spec/README.md) |
 | Every configuration setting, its type, default and allowed values | [Configuration](reference/configuration.md) (generated) |
 | What each preset sets | [Presets](reference/presets.md) (generated) |
+| What each diagnostic code means, its likely cause and fix | [Diagnostics](reference/diagnostics.md) (generated; [JSON for agents](agents/diagnostics.json)) |
 | What each security profile guarantees | [Security profile guarantees](reference/security-profile-guarantees.md) |
 | What relays and neighbors learn from routing messages | [What each observer learns](reference/observer-exposure.md) |
 | Kotlin API of the latest release | `https://trancee.github.io/MeshLink/api/`, from the first release on; locally `./gradlew dokkaGeneratePublicationHtml` writes it to `build/dokka/html/` |

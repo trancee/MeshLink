@@ -25,6 +25,13 @@ The secret of a gated mesh: exactly 32 bytes, or `null` (the default) for an ope
 
 Whether this node moves its links from GATT to an L2CAP connection-oriented channel where both ends can (spec "Bearer switch"); `true` by default. As peripheral it listens and offers its PSM; as central it opens a channel to a peer that offers one. Off, every link it is part of stays on GATT, which is slower but works with every peer.
 
+## `diagnostics.debug`
+
+- Type: `Boolean`
+- Default: `false`
+
+Whether `MeshLink.diagnostics` also emits `DiagnosticEvent.Severity.Debug` events, the detail for an investigation; `false` by default. Debug events can be frequent in a dense mesh.
+
 ## `density`
 
 - Type: `Density`

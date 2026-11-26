@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DeliveryStatus
+import ch.trancee.meshlink.DiagnosticEvent
 import ch.trancee.meshlink.ReadReceiptRequest
 import ch.trancee.meshlink.SecurityProfile
 import ch.trancee.meshlink.SendOptions
@@ -121,7 +122,7 @@ private fun StepsBuilder.readThens(line: SecuredLine) {
     }
 
     then("Alice reported once that she stopped watching her first message for its read receipt") {
-        val evicted = line.diagnostics[ALICE].filterIsInstance<LinkDiagnostic.ReadTrackingEvicted>().single()
+        val evicted = line.diagnostics[ALICE].filterIsInstance<DiagnosticEvent.ReadTrackingEvicted>().single()
         assertEquals(
             line
                 .messages(BOB)
