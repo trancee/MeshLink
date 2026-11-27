@@ -1,6 +1,6 @@
 # MeshLink documentation
 
-MeshLink is in its design phase. No library code exists yet, so this page lists what you can read today. The layout and rules for all docs are in [ADR 0006](adr/0006-documentation-architecture.md).
+MeshLink is being built toward its first release, 0.1.0. This page lists what you can read today. The layout and rules for all docs are in [ADR 0006](adr/0006-documentation-architecture.md).
 
 ## Understand the design
 
@@ -34,32 +34,16 @@ When two documents disagree, this order decides: Constitution, protocol spec and
 
 ## Why decisions were made
 
-The [ADRs](adr/) record each hard decision with its alternatives and risks:
-
-1. [Threat model and profile guarantees](adr/0001-threat-model-and-profile-guarantees.md)
-2. [Noise suites and handshake patterns](adr/0002-noise-suites-and-handshake-patterns.md)
-3. [Installation identity key model](adr/0003-installation-identity-key-model.md)
-4. [libsodium as the crypto provider](adr/0004-crypto-provider-libsodium.md)
-5. [Toolchain and dependency baseline](adr/0005-toolchain-and-dependency-baseline.md)
-6. [Documentation architecture](adr/0006-documentation-architecture.md)
-7. [Public API shape and error model](adr/0007-public-api-shape.md)
-8. [Routing, topology and density adaptation](adr/0008-routing-topology-and-density-adaptation.md)
-9. [BLE bearers, PHY policy and link rules](adr/0009-ble-bearers-and-phy-policy.md)
-10. [Discovery, advertising and identifier rotation](adr/0010-discovery-and-advertising.md)
-11. [Modules, feature toggles and presets](adr/0011-modules-toggles-and-presets.md)
-12. [Wire format principles and codec](adr/0012-wire-format-and-codec.md)
-13. [Message lifecycle and receipts](adr/0013-message-lifecycle-and-receipts.md)
-14. [Store-and-forward](adr/0014-store-and-forward.md)
-15. [Message size and compression](adr/0015-message-size-and-compression.md)
-16. [Routing metadata exposure](adr/0016-routing-metadata-exposure.md)
-17. [Testing architecture](adr/0017-testing-architecture.md)
-18. [Certificate acquisition](adr/0018-certificate-acquisition.md)
-19. [Release, versioning and API compatibility](adr/0019-release-versioning-and-api-compatibility.md)
-20. [Diagnostics catalog](adr/0020-diagnostics-catalog.md)
-21. [Change workflow and merge gates](adr/0021-change-workflow-and-merge-gates.md)
+The [ADR index](adr/README.md) lists every architecture decision record with its status and version. Each ADR records a hard decision with its alternatives and risks.
 
 The dated [research notes](research/) are historical background. They may describe rejected designs; never treat them as a source of truth.
 
 ## For AI agents
 
-Start at [`AGENTS.md`](../AGENTS.md). Before radio, device-lab or proof work, read the [lessons](agents/lessons.md). The agent layer under [`docs/agents/`](agents/) grows with the code: a generated docs index, contract reference and diagnostic index (ADR 0006).
+Start at [`AGENTS.md`](../AGENTS.md). Before radio, device-lab or proof work, read the [lessons](agents/lessons.md). The generated agent layer under [`docs/agents/`](agents/) (ADR 0006):
+
+- [Documentation index](agents/index.md): every document with its type, authority and status.
+- [Contract reference](agents/contract.md): one line per public declaration, from the klib ABI dumps.
+- [Diagnostic index](agents/diagnostics.json): every diagnostic code with its severity, cause and fix, as JSON.
+
+`./gradlew updateReference` rewrites them; `./gradlew check` fails when one is stale.

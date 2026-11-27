@@ -12,7 +12,8 @@ import org.jetbrains.dokka.gradle.DokkaExtension
 /**
  * Configures the root build: the merged Kover report over every module with 100% line and branch
  * rules, the Dokka aggregate over the published modules, Spotless with ktlint, `checkChangelog`,
- * `checkThinAdapters` and `checkSuppressions`.
+ * `checkThinAdapters`, `checkSuppressions`, `checkDependencyRegister`, and `checkAgentDocs` with its
+ * `updateReference` writer.
  */
 class RootPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -71,7 +72,29 @@ class RootPlugin : Plugin<Project> {
                 list.set(project.layout.projectDirectory.file("config/legacy-platform-apis.txt"))
                 Suppressions.configure(this, project)
             }
-        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn("spotlessCheck", thinAdapters, suppressions) }
+        val register =
+            project.tasks.register("checkDependencyRegister", CheckDependencyRegister::class.java) {
+                group = LifecycleBasePlugin.VERIFICATION_GROUP
+                description = "Fails when docs/reference/dependencies.md disagrees with the version catalog or the workflows."
+                DependencyRegister.configure(this, project)
+            }
+        val agentDocs =
+            project.tasks.register("checkAgentDocs", AgentDocsTask::class.java) {
+                group = LifecycleBasePlugin.VERIFICATION_GROUP
+                description = "Fails when docs/agents/index.md, docs/agents/contract.md or docs/adr/README.md is stale."
+                update.set(false)
+                AgentDocs.configure(this, project)
+            }
+        project.tasks.register("updateReference", AgentDocsTask::class.java) {
+            group = LifecycleBasePlugin.VERIFICATION_GROUP
+            description = "Rewrites docs/agents/index.md, docs/agents/contract.md and docs/adr/README.md."
+            update.set(true)
+            mustRunAfter(":meshlink:updateReference")
+            AgentDocs.configure(this, project)
+        }
+        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) {
+            dependsOn("spotlessCheck", thinAdapters, suppressions, register, agentDocs)
+        }
     }
 
     internal companion object {

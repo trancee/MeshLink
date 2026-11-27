@@ -1,0 +1,31 @@
+# Dependency freshness report (ticket 56; ADR 0017 decision 12, ADR 0006 decision 8).
+# Scheduled and never a required check: lists every catalog entry, action and tool with a newer
+# stable release, and Zensical's first stable release, in the job summary; fails when the list is
+# not empty so GitHub notifies the owner. It changes no file and opens no pull request.
+name: Dependency freshness
+
+on:
+  schedule:
+    - cron: "17 4 * * 1" # weekly, Monday 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Dependency freshness (scheduled, not required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: List newer stable releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/check_freshness.py
