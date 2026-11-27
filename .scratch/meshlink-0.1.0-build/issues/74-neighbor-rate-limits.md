@@ -1,6 +1,6 @@
 # Decide how relays rate-limit each neighbor
 
-Status: ready-for-agent
+Status: done
 Type: HITL
 Blocked by: none
 

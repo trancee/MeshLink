@@ -1,6 +1,6 @@
 # Find why the side that closes a duplicate link sets its pacing
 
-Status: needs-triage
+Status: done
 Type: AFK
 Blocked by: none
 
@@ -24,6 +24,16 @@ Ticket 54b worked around the difference: the test allows 20 s after sending and 
 
 - Hypothesis: the variant decides whether Alice sends as the central (GATT writes) or as the peripheral (notifications). Do the two directions pace differently in `Links` flow control or in `VirtualAir`?
 - If they do, is the difference intended (spec "Flow control"), or should both directions carry frames at the same pace?
+
+## Finding (2026-11-27)
+
+The pace depends on which end is central on the kept link; who closed the duplicate is only a timing side effect. Intended; documented, no code change.
+
+- A throwaway probe started 16 fresh `VirtualAir` pairs with random NodeIds, sent 100,000 B from Alice and logged each link's keep decision and each message record's writer. 8 pairs were fast (`Sent` at 0 ms, received at 30 ms) and 8 slow (`Sent` at 2,663 ms, received at 2,689 ms). Both ends always kept the same link, the one whose central has the lower NodeId.
+- In every fast pair Alice was central on the kept link and wrote the message's 99 records uncredited; in every slow pair she was its peripheral and wrote them as credited notifications.
+- That asymmetry is the spec: "The central's writes … are not credited", and the peripheral sends one notification per credit (spec "Flow control", D-47). The default `VirtualAir` has no airtime, so a central's writes cost nothing, while a peripheral waits a latency round trip for each grant of 4 credits: about 410 chunks, about 100 grants of about 26 ms.
+- With `airtimeBytesPerSecond` set, both directions take their airtime. Whether D-47's window suits real phones is a device question, outside this ticket.
+- Documented in the `VirtualAir` KDoc, the `DiagnosticsWiringTest` comment and `docs/agents/lessons.md` ("VirtualAir link tests").
 
 ## Spec and ADR references
 

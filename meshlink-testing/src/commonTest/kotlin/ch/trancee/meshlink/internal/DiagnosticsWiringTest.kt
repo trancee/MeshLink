@@ -77,7 +77,8 @@ class DiagnosticsWiringTest {
         const val SENDS = 3
         const val PAYLOAD_BYTES = 100_000
 
-        // The three payloads cross the link within 8 s, whichever end won the duplicate-link race.
+        // The three payloads cross the link within 8 s, as the kept link's central or as its credited peripheral:
+        // the random NodeIds decide which (`VirtualAir`).
         const val INBOX_FULL_MILLIS = 20_000L
 
         // Past the message's 30-minute lifetime: the lookup's deadline.

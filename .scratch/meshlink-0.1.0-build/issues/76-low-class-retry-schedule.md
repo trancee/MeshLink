@@ -1,6 +1,6 @@
 # Retry low-class messages from 5 s to 60 s
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 73
 

@@ -1,6 +1,6 @@
 # Snapshot and export diagnostics
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 54c
 
