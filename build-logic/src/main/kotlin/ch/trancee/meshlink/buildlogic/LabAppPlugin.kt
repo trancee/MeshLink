@@ -32,10 +32,11 @@ class LabAppPlugin : Plugin<Project> {
                 .toInt()
 
         project.extensions.configure(ApplicationExtension::class.java) {
-            compileSdk = version("android-compileSdk")
+            val sdk = CompileSdk.parse(versions.findVersion("android-compileSdk").get().requiredVersion)
+            compileSdk { version = release(sdk.apiLevel) { minorApiLevel = sdk.minorApiLevel } }
             defaultConfig {
                 minSdk = version("android-minSdk")
-                targetSdk = version("android-compileSdk")
+                targetSdk = sdk.apiLevel
             }
             buildFeatures.compose = true
             // Android lint checks this app only; the library modules aren't lint-gated (ADR 0005).

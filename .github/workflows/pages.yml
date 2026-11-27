@@ -60,6 +60,8 @@ jobs:
           line="org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64"
           grep -qxF "$line" ~/.gradle/gradle.properties 2>/dev/null || echo "$line" >> ~/.gradle/gradle.properties
           echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+      - name: Install the compileSdk platform
+        uses: ./.github/actions/android-platform
       # failOnWarning is set on every Dokka publication, so a warning fails this step.
       - run: ./gradlew dokkaGeneratePublicationHtml
       - name: Assemble the site

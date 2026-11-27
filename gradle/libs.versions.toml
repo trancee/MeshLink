@@ -2,7 +2,7 @@
 kotlin = "2.4.21"
 agp = "9.3.3"
 jdk-toolchain = "21"
-android-compileSdk = "37"
+android-compileSdk = "37.2"
 android-minSdk = "26"
 # NDK for libsodium and the JNI shim (ADR 0005); CI installs exactly this version with sdkmanager.
 android-ndk = "30.0.16248370"
@@ -11,12 +11,12 @@ kotlinx-coroutines = "1.11.0"
 cucumber-kmp = "0.2.1"
 kover = "0.9.11"
 detekt = "2.0.0-alpha.6"
-spotless = "8.11.0"
+spotless = "8.12.0"
 ktlint = "1.8.0"
 dokka = "2.3.0"
 skie = "0.10.16"
 maven-publish = "0.37.0"
-robolectric = "4.18"
+robolectric = "4.18.1"
 # The android-all jars Robolectric 4.18 runs for SDK 26 and 37 (its DefaultSdkProvider table); host tests load them offline.
 robolectric-sdk26 = "8.0.0_r4-robolectric-r1-i7"
 robolectric-sdk37 = "17-robolectric-16653203-i7"
@@ -24,7 +24,7 @@ androidx-test-core = "1.7.0"
 # The scheduled fuzz task only (ADR 0017 decision 9); never on a test or published classpath.
 jazzer = "0.30.0"
 # Lab apps only (labapp/, ADR 0005 2026-11-15 lab apps amendment); never in a published artifact.
-compose-bom = "2026.09.00"
+compose-bom = "2026.11.01"
 androidx-activity-compose = "1.13.0"
 
 # Security floors (ADR 0005 2026-11-24 amendment): the lowest version build tooling may resolve for a module it pulls

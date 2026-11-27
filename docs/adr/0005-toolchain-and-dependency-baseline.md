@@ -1,6 +1,6 @@
 # 0005: Toolchain and dependency baseline
 
-Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 13 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps; 2026-11-16, Rust reference; 2026-11-21, self-hosted runner; 2026-11-22, Fedora runners; 2026-11-24, security floors).
+Status: accepted (2026-11-01; ticket "What is the toolchain and dependency baseline?"). Version: 14 (amended 2026-11-08, ADRs 0017 and 0019; 2026-11-13, toolchain refresh; 2026-11-14, quality gates; 2026-11-14, Robolectric proof; 2026-11-14, libsodium build; 2026-11-14, lifecycle opt-ins; 2026-11-15, lab apps; 2026-11-16, Rust reference; 2026-11-21, self-hosted runner; 2026-11-22, Fedora runners; 2026-11-24, security floors; 2026-11-27, dependency refresh).
 
 ## Context
 
@@ -50,17 +50,17 @@ Facts verified 2026-11-01:
 | Gradle | 9.7.1 | Newest patch in the minor that KGP lists |
 | AGP + `com.android.kotlin.multiplatform.library` | 9.3.3 | Newest patch in the minor that KGP lists |
 | Gradle daemon JDK / compile toolchain / test runtime | 25 / 21 / 21 | |
-| compileSdk / minSdk | 37 / 26 | |
+| compileSdk / minSdk | 37.2 / 26 | Minor SDK since the 2026-11-27 amendment |
 | Xcode / iOS deployment target | 27.2 local, 26.4.1 CI / 15.0 | See the 2026-11-13 amendment |
 | Android NDK | 30.0.16248370 | Used for the libsodium build and the JNI shim |
 | kotlinx-coroutines | 1.11.0 | |
 | SKIE | 0.10.16 | |
 | Kover | 0.9.11 | |
-| Spotless + ktlint | 8.11.0 + 1.8.0 | |
+| Spotless + ktlint | 8.12.0 + 1.8.0 | |
 | detekt | 2.0.0-alpha.6 | E2 hold |
 | Dokka | 2.3.0 | |
 | vanniktech maven-publish | 0.37.0 | |
-| Robolectric / JUnit 4 / androidx.test core | 4.18 / 4.13.2 / 1.7.0 | Test only; 4.18 proven on SDK 26 and 37 (2026-11-14 amendment) |
+| Robolectric / JUnit 4 / androidx.test core | 4.18.1 / 4.13.2 / 1.7.0 | Test only; 4.18 proven on SDK 26 and 37 (2026-11-14 amendment); 4.18.1 loads the same android-all jars |
 | libsodium | 1.0.22 | ADR 0004 |
 | Rust (test-only reference) | 1.100.0 | |
 
@@ -266,3 +266,11 @@ None: greenfield. Scaffolding the build applies this baseline. Bumping the Const
 - **Upkeep:** a new alert in build tooling adds or raises a floor and its register row. A floor whose module no configuration resolves below it any more is removed.
 - **Not floored:** `kotlin-dsl` 6.7.3, embedded in Gradle 9.7.1, brings KGP 2.4.0 to `build-logic`'s own buildscript (GHSA-r937-wjx7-w2jp, unsafe deserialization of build-cache metadata, fixed in 2.4.20). Raising it makes Gradle warn on every build that `kotlin-dsl` relies on its embedded Kotlin, so the alert is dismissed as tolerable risk: the build has no remote build cache, and writing to the local one already needs code execution. It closes when Gradle 9.9, which embeds Kotlin 2.4.21, enters KGP's range.
 - **Rejected:** a `dependency-submission` workflow that hides tool configurations from Dependabot (it removes visibility, not the vulnerable code); dismissing every alert (nothing fixed, and new versions reopen them); a strict version (it would downgrade a plugin's newer request).
+
+2026-11-27, dependency refresh (0.1.0 backlog ticket "Update the eight dependencies the first freshness report found"):
+
+- **Updated:** Spotless 8.12.0, Robolectric 4.18.1, the Compose BOM 2026.11.01 (`ui` 1.13.0, `material3` 1.5.0), `markdownlint-cli2-action` 25.1.0 (bundling `markdownlint-cli2` 0.24.2) and `typos` 1.52.2. Robolectric 4.18.1's `DefaultSdkProvider` asks for the same android-all jars as 4.18, so the SDK 26 and 37 pins stay.
+- **compileSdk 37.2:** Compose `ui` 1.13.0 declares `minCompileSdk=37` with `minCompileMinorSdk=1` and `minAndroidGradlePluginVersion=9.1.0`, so `:labapp-android:checkDebugAarMetadata` fails against android-37.0. Every module now compiles against 37.2, the newest stable minor, through AGP's `compileSdk { version = release(37) { minorApiLevel = 2 } }`. The catalog's `android-compileSdk` is `37.2`; `targetSdk` stays 37 and `minSdk` 26, so neither runtime behavior nor supported devices change. The self-hosted runners need platform 37.2 (`platforms;android-37.2`).
+- **Rejected:** compileSdk 37.2 for the lab app alone (the lab app and the library would compile against different SDKs); holding the Compose BOM at 2026.09.00 (no BOM between it and 2026.11.01 exists, and the hold would have no end).
+- **Held:** Gradle 9.9.3 and AGP 9.5.3 stay outside KGP 2.4.21's documented range (Gradle 9.7.0, AGP 9.3.1), so Gradle 9.7.1 and AGP 9.3.3 stay. The Jackson floor stays 2.22.4: no GitHub advisory affects it, and floors move only for an alert (2026-11-24 amendment).
+- **Freshness report:** `tools/check_freshness.py` lists the held versions in their own table without failing, skips the security floors, reads both Maven Central and Google Maven (Maven Central's stale AGP copy stops at 2.3.0, which hid every AGP release) and counts minor SDK platforms such as 37.2.

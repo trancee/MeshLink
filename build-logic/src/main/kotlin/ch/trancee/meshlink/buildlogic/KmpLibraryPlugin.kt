@@ -47,7 +47,8 @@ class KmpLibraryPlugin : Plugin<Project> {
             compilerOptions { allWarningsAsErrors.set(true) }
             extensions.configure(KotlinMultiplatformAndroidLibraryExtension::class.java) {
                 namespace = namespaceFor(project.path)
-                compileSdk = version("android-compileSdk")
+                val sdk = CompileSdk.parse(versions.findVersion("android-compileSdk").get().requiredVersion)
+                compileSdk { version = release(sdk.apiLevel) { minorApiLevel = sdk.minorApiLevel } }
                 minSdk = version("android-minSdk")
                 withHostTest {}
             }
