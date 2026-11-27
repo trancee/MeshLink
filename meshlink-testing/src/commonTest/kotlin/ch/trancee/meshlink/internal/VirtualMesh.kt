@@ -33,13 +33,15 @@ internal class VirtualMesh(
     seed: Long,
     positions: List<Pair<Double, Double>>,
     recording: Boolean = true,
+    custom: MeshLinkConfig? = null,
 ) {
     val air: VirtualAir =
         VirtualAir(scope.backgroundScope, TestClock(scope.testScheduler), SeededRandom(seed), recording = recording)
     private val crypto = SeededCrypto(seed)
     private val hazard = Random(seed)
 
-    val config: MeshLinkConfig = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = MESH }.build()
+    val config: MeshLinkConfig =
+        custom ?: meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = MESH }.build()
 
     val platforms: List<VirtualPlatform> =
         positions.map { (x, y) ->

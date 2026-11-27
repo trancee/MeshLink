@@ -240,6 +240,7 @@ internal class Router(
         val relayed = if (frame.header.hopLimit > 1) relayed(peer, frame, bytes) else null
         val targets = relayed?.let { targets(peer, frame, bytes.size, now) }
         if (relayed == null || targets == null) return
+        if (targets.size > 1 && !RateProto.unicast(this, peer)) return
         seen.put(sighting, now + SEEN_WINDOW_MILLIS)
         val kind = if (frame.type == MessageFrame.TYPE) Parcel.Kind.MESSAGE else Parcel.Kind.OTHER
         targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }, kind = kind) {}) }

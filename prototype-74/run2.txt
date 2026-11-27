@@ -1,0 +1,100 @@
+PROTO low 2 calm none | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 3s
+PROTO low 2 calm link | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 1s
+PROTO low 2 calm origin | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 1s
+PROTO low 2 calm originlink | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 1s
+PROTO low 2 burst none | 26 | 179/179 71 252 | 1.000 71 147 | 0.000 | {} | 3s
+PROTO low 2 burst link | 26 | 179/179 70 5119 | 0.976 70 571 | 0.000 | {bc-honest=86} | 1s
+PROTO low 2 burst origin | 26 | 179/179 71 252 | 1.000 71 147 | 0.000 | {} | 1s
+PROTO low 2 burst originlink | 26 | 179/179 71 252 | 1.000 71 147 | 0.000 | {} | 1s
+PROTO low 2 flood-bc none | 26 | 179/179 353 12245 | 1.000 428 5130 | 0.324 | {} | 9s
+PROTO low 2 flood-bc link | 26 | 179/179 90 2087 | 0.850 56 174 | 0.189 | {bc-attack=6062, bc-honest=29} | 4s
+PROTO low 2 flood-bc origin | 26 | 179/179 76 15049 | 1.000 62 117 | 0.102 | {bc-attack=6109} | 2s
+PROTO low 2 flood-bc originlink | 26 | 179/179 74 15100 | 1.000 64 127 | 0.105 | {bc-attack=6418} | 2s
+PROTO low 2 flood-rot none | 26 | 179/179 353 12245 | 1.000 428 5130 | 0.324 | {} | 9s
+PROTO low 2 flood-rot link | 26 | 179/179 90 2087 | 0.850 56 174 | 0.189 | {bc-attack=6062, bc-honest=29} | 4s
+PROTO low 2 flood-rot origin | 26 | 179/179 353 12245 | 1.000 428 5130 | 0.324 | {} | 7s
+PROTO low 2 flood-rot originlink | 26 | 179/179 115 5139 | 0.955 122 861 | 0.274 | {bc-attack=5087, bc-honest=19} | 6s
+PROTO low 2 flood-uni none | 26 | 107/179 7393 134429 | 0.695 8592 146123 | 0.000 | {} | 37s
+PROTO low 2 flood-uni link | 26 | 177/179 725 36869 | 1.000 183 929 | 0.000 | {uni=143123} | 33s
+PROTO low 2 flood-uni origin | 26 | 177/179 725 36869 | 1.000 183 929 | 0.000 | {uni=143123} | 33s
+PROTO low 2 flood-uni originlink | 26 | 177/179 725 36869 | 1.000 183 929 | 0.000 | {uni=143123} | 32s
+PROTO low 3 calm none | 16 | 179/179 64 175 | 1.000 101 134 | 0.000 | {} | 2s
+PROTO low 3 calm link | 16 | 179/179 64 175 | 1.000 101 134 | 0.000 | {} | 1s
+PROTO low 3 calm origin | 16 | 179/179 64 175 | 1.000 101 134 | 0.000 | {} | 1s
+PROTO low 3 calm originlink | 16 | 179/179 64 175 | 1.000 101 134 | 0.000 | {} | 0s
+PROTO low 3 burst none | 16 | 179/179 57 134 | 1.000 43 85 | 0.000 | {} | 2s
+PROTO low 3 burst link | 16 | 179/179 57 134 | 1.000 43 85 | 0.000 | {bc-honest=1} | 1s
+PROTO low 3 burst origin | 16 | 179/179 57 134 | 1.000 43 85 | 0.000 | {} | 1s
+PROTO low 3 burst originlink | 16 | 179/179 57 134 | 1.000 43 85 | 0.000 | {} | 1s
+PROTO low 3 flood-bc none | 16 | 179/179 384 15102 | 1.000 215 1551 | 0.324 | {} | 6s
+PROTO low 3 flood-bc link | 16 | 179/179 64 225 | 1.000 98 133 | 0.213 | {bc-attack=4838, bc-honest=2} | 3s
+PROTO low 3 flood-bc origin | 16 | 179/179 62 5082 | 1.000 89 127 | 0.160 | {bc-attack=6904} | 1s
+PROTO low 3 flood-bc originlink | 16 | 179/179 63 7359 | 1.000 91 134 | 0.159 | {bc-attack=6776} | 1s
+PROTO low 3 flood-rot none | 16 | 179/179 384 15102 | 1.000 215 1551 | 0.324 | {} | 6s
+PROTO low 3 flood-rot link | 16 | 179/179 64 225 | 1.000 98 133 | 0.213 | {bc-attack=4838, bc-honest=2} | 3s
+PROTO low 3 flood-rot origin | 16 | 179/179 384 15102 | 1.000 215 1551 | 0.324 | {} | 4s
+PROTO low 3 flood-rot originlink | 16 | 179/179 104 5110 | 1.000 106 296 | 0.316 | {bc-attack=3856, bc-honest=4} | 4s
+PROTO low 3 flood-uni none | 16 | 135/179 8263 117257 | 0.908 373 81143 | 0.000 | {} | 24s
+PROTO low 3 flood-uni link | 16 | 179/179 320 18947 | 1.000 170 484 | 0.000 | {uni=120735} | 23s
+PROTO low 3 flood-uni origin | 16 | 179/179 320 18947 | 1.000 170 484 | 0.000 | {uni=120735} | 23s
+PROTO low 3 flood-uni originlink | 16 | 179/179 320 18947 | 1.000 170 484 | 0.000 | {uni=120735} | 22s
+PROTO medium 1 calm none | 30 | 179/179 80 1315 | 1.000 64 143 | 0.000 | {} | 4s
+PROTO medium 1 calm link | 30 | 179/179 80 1315 | 1.000 64 143 | 0.000 | {} | 2s
+PROTO medium 1 calm origin | 30 | 179/179 80 1315 | 1.000 64 143 | 0.000 | {} | 2s
+PROTO medium 1 calm originlink | 30 | 179/179 80 1315 | 1.000 64 143 | 0.000 | {} | 2s
+PROTO medium 1 burst none | 30 | 179/179 84 1322 | 1.000 184 1100 | 0.000 | {} | 4s
+PROTO medium 1 burst link | 30 | 179/179 80 1298 | 1.000 566 1124 | 0.000 | {bc-honest=64} | 3s
+PROTO medium 1 burst origin | 30 | 179/179 84 1322 | 1.000 184 1100 | 0.000 | {} | 2s
+PROTO medium 1 burst originlink | 30 | 179/179 84 1322 | 1.000 184 1100 | 0.000 | {} | 2s
+PROTO medium 1 flood-bc none | 30 | 179/179 117 10133 | 1.000 643 12035 | 0.308 | {} | 11s
+PROTO medium 1 flood-bc link | 30 | 179/179 97 1278 | 1.000 556 1323 | 0.190 | {bc-attack=4811, bc-honest=21} | 6s
+PROTO medium 1 flood-bc origin | 30 | 179/179 87 1293 | 1.000 165 662 | 0.081 | {bc-attack=5119} | 3s
+PROTO medium 1 flood-bc originlink | 30 | 179/179 88 1279 | 1.000 136 785 | 0.080 | {bc-attack=5258} | 3s
+PROTO medium 1 flood-rot none | 30 | 179/179 117 10133 | 1.000 643 12035 | 0.308 | {} | 11s
+PROTO medium 1 flood-rot link | 30 | 179/179 97 1278 | 1.000 556 1323 | 0.190 | {bc-attack=4811, bc-honest=21} | 6s
+PROTO medium 1 flood-rot origin | 30 | 179/179 117 10133 | 1.000 643 12035 | 0.308 | {} | 9s
+PROTO medium 1 flood-rot originlink | 30 | 179/179 89 1328 | 1.000 172 1785 | 0.198 | {bc-attack=2262, bc-honest=5} | 6s
+PROTO medium 1 flood-uni none | 30 | 179/179 663 74153 | 1.000 705 1912 | 0.000 | {} | 180s
+PROTO medium 1 flood-uni link | 30 | 179/179 100 1296 | 1.000 91 423 | 0.000 | {rreq=94787, uni=29296} | 72s
+PROTO medium 1 flood-uni origin | 30 | 179/179 100 1296 | 1.000 91 423 | 0.000 | {rreq=94787, uni=29296} | 70s
+PROTO medium 1 flood-uni originlink | 30 | 179/179 100 1296 | 1.000 91 423 | 0.000 | {rreq=94787, uni=29296} | 70s
+PROTO medium 2 calm none | 30 | 179/179 79 1297 | 1.000 62 106 | 0.000 | {} | 3s
+PROTO medium 2 calm link | 30 | 179/179 79 1297 | 1.000 62 106 | 0.000 | {} | 2s
+PROTO medium 2 calm origin | 30 | 179/179 79 1297 | 1.000 62 106 | 0.000 | {} | 2s
+PROTO medium 2 calm originlink | 30 | 179/179 79 1297 | 1.000 62 106 | 0.000 | {} | 2s
+PROTO medium 2 burst none | 30 | 179/179 83 1316 | 1.000 197 819 | 0.000 | {} | 4s
+PROTO medium 2 burst link | 30 | 179/179 85 1286 | 1.000 184 785 | 0.000 | {bc-honest=96} | 3s
+PROTO medium 2 burst origin | 30 | 179/179 83 1316 | 1.000 197 819 | 0.000 | {} | 2s
+PROTO medium 2 burst originlink | 30 | 179/179 83 1316 | 1.000 197 819 | 0.000 | {} | 2s
+PROTO medium 2 flood-bc none | 30 | 179/179 200 29931 | 0.996 1077 14817 | 0.312 | {} | 11s
+PROTO medium 2 flood-bc link | 30 | 179/179 92 1293 | 1.000 249 886 | 0.193 | {bc-attack=4893, bc-honest=17} | 6s
+PROTO medium 2 flood-bc origin | 30 | 179/179 88 1353 | 1.000 147 792 | 0.081 | {bc-attack=5048} | 3s
+PROTO medium 2 flood-bc originlink | 30 | 179/179 82 1320 | 1.000 118 786 | 0.073 | {bc-attack=4433} | 3s
+PROTO medium 2 flood-rot none | 30 | 179/179 200 29931 | 0.996 1077 14817 | 0.312 | {} | 10s
+PROTO medium 2 flood-rot link | 30 | 179/179 92 1293 | 1.000 249 886 | 0.193 | {bc-attack=4893, bc-honest=17} | 6s
+PROTO medium 2 flood-rot origin | 30 | 179/179 200 29931 | 0.996 1077 14817 | 0.312 | {} | 8s
+PROTO medium 2 flood-rot originlink | 30 | 179/179 100 2105 | 1.000 524 2279 | 0.219 | {bc-attack=2975, bc-honest=5} | 6s
+PROTO medium 2 flood-uni none | 30 | 177/179 447 42127 | 1.000 169 3895 | 0.000 | {} | 145s
+PROTO medium 2 flood-uni link | 30 | 179/179 108 1381 | 1.000 80 174 | 0.000 | {rreq=70237, uni=18635} | 79s
+PROTO medium 2 flood-uni origin | 30 | 179/179 108 1381 | 1.000 80 174 | 0.000 | {rreq=70237, uni=18635} | 78s
+PROTO medium 2 flood-uni originlink | 30 | 179/179 108 1381 | 1.000 80 174 | 0.000 | {rreq=70237, uni=18635} | 78s
+PROTO medium 3 calm none | 30 | 179/179 85 1317 | 1.000 73 133 | 0.000 | {} | 4s
+PROTO medium 3 calm link | 30 | 179/179 85 1317 | 1.000 73 133 | 0.000 | {} | 3s
+PROTO medium 3 calm origin | 30 | 179/179 85 1317 | 1.000 73 133 | 0.000 | {} | 2s
+PROTO medium 3 calm originlink | 30 | 179/179 85 1317 | 1.000 73 133 | 0.000 | {} | 2s
+PROTO medium 3 burst none | 30 | 179/179 81 1314 | 1.000 123 660 | 0.000 | {} | 4s
+PROTO medium 3 burst link | 30 | 179/179 81 1335 | 1.000 157 691 | 0.000 | {bc-honest=126} | 3s
+PROTO medium 3 burst origin | 30 | 179/179 81 1314 | 1.000 123 660 | 0.000 | {} | 2s
+PROTO medium 3 burst originlink | 30 | 179/179 81 1314 | 1.000 123 660 | 0.000 | {} | 2s
+PROTO medium 3 flood-bc none | 30 | 179/179 223 27327 | 1.000 822 14284 | 0.321 | {} | 12s
+PROTO medium 3 flood-bc link | 30 | 179/179 94 1372 | 1.000 584 2041 | 0.138 | {bc-attack=3377, bc-honest=9} | 5s
+PROTO medium 3 flood-bc origin | 30 | 179/179 88 1347 | 1.000 168 689 | 0.082 | {bc-attack=5135} | 3s
+PROTO medium 3 flood-bc originlink | 30 | 179/179 93 1364 | 1.000 572 667 | 0.075 | {bc-attack=4749} | 3s
+PROTO medium 3 flood-rot none | 30 | 179/179 223 27327 | 1.000 822 14284 | 0.321 | {} | 11s
+PROTO medium 3 flood-rot link | 30 | 179/179 94 1372 | 1.000 584 2041 | 0.138 | {bc-attack=3377, bc-honest=9} | 5s
+PROTO medium 3 flood-rot origin | 30 | 179/179 223 27327 | 1.000 822 14284 | 0.321 | {} | 9s
+PROTO medium 3 flood-rot originlink | 30 | 179/179 128 4772 | 1.000 188 6515 | 0.283 | {bc-attack=4321, bc-honest=20} | 8s
+PROTO medium 3 flood-uni none | 30 | 175/179 575 74618 | 0.991 453 8696 | 0.000 | {} | 164s
+PROTO medium 3 flood-uni link | 30 | 179/179 92 1391 | 1.000 127 301 | 0.000 | {rreq=90313, uni=18846} | 104s
+PROTO medium 3 flood-uni origin | 30 | 179/179 92 1391 | 1.000 127 301 | 0.000 | {rreq=90313, uni=18846} | 123s
+PROTO medium 3 flood-uni originlink | 30 | 179/179 92 1391 | 1.000 127 301 | 0.000 | {rreq=90313, uni=18846} | 117s

@@ -1,0 +1,6 @@
+PROTO low 1 flood-uni link | 24 | 179/179 96 5084 | 1.000 92 177 | 0.000 | {rreq=75133, uni=27868} | 98s
+PROTO low 2 flood-uni link | 26 | 179/179 126 15089 | 1.000 94 223 | 0.000 | {uni=127369} | 30s
+PROTO low 3 flood-uni link | 16 | 179/179 74 5090 | 1.000 98 161 | 0.000 | {uni=107566} | 25s
+PROTO medium 1 flood-uni link | 30 | 179/179 86 1355 | 1.000 69 157 | 0.000 | {rreq=79037, uni=32144} | 84s
+PROTO medium 2 flood-uni link | 30 | 179/179 96 1346 | 1.000 76 157 | 0.000 | {rreq=74462, uni=26540} | 51s
+PROTO medium 3 flood-uni link | 30 | 179/179 90 2073 | 0.996 83 196 | 0.000 | {rreq=58994, uni=25540} | 64s

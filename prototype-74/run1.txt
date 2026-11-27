@@ -1,0 +1,40 @@
+PROTO cell seed scenario limiter | members | uni ok/sent p50 p95 | honest-bc cover p50 p95 | attack-bc cover | drops | wall
+PROTO low 1 calm none | 24 | 179/179 83 1334 | 1.000 80 149 | 0.000 | {} | 5s
+PROTO low 1 calm link | 24 | 179/179 83 1334 | 1.000 80 149 | 0.000 | {} | 2s
+PROTO low 1 calm origin | 24 | 179/179 83 1334 | 1.000 80 149 | 0.000 | {} | 1s
+PROTO low 1 calm originlink | 24 | 179/179 83 1334 | 1.000 80 149 | 0.000 | {} | 1s
+PROTO low 1 burst none | 24 | 177/177 80 5125 | 1.000 84 636 | 0.000 | {} | 2s
+PROTO low 1 burst link | 24 | 179/179 82 5128 | 1.000 85 647 | 0.000 | {bc-honest=42} | 2s
+PROTO low 1 burst origin | 24 | 177/177 80 5125 | 1.000 84 636 | 0.000 | {} | 2s
+PROTO low 1 burst originlink | 24 | 177/177 80 5125 | 1.000 84 636 | 0.000 | {} | 2s
+PROTO low 1 flood-bc none | 24 | 179/179 302 30533 | 1.000 221 19698 | 0.302 | {} | 7s
+PROTO low 1 flood-bc link | 24 | 179/179 91 1664 | 0.995 97 669 | 0.128 | {bc-attack=3375, bc-honest=6} | 4s
+PROTO low 1 flood-bc origin | 24 | 179/179 78 1447 | 1.000 89 209 | 0.079 | {bc-attack=3941} | 3s
+PROTO low 1 flood-bc originlink | 24 | 179/179 83 5103 | 1.000 90 167 | 0.078 | {bc-attack=4004} | 3s
+PROTO low 1 flood-rot none | 24 | 179/179 302 30533 | 1.000 221 19698 | 0.302 | {} | 7s
+PROTO low 1 flood-rot link | 24 | 179/179 91 1664 | 0.995 97 669 | 0.128 | {bc-attack=3375, bc-honest=6} | 4s
+PROTO low 1 flood-rot origin | 24 | 179/179 302 30533 | 1.000 221 19698 | 0.302 | {} | 7s
+PROTO low 1 flood-rot originlink | 24 | 179/179 167 16185 | 0.995 130 6910 | 0.268 | {bc-attack=3904, bc-honest=8} | 6s
+PROTO low 1 flood-uni none | 24 | 155/179 6422 134666 | 0.755 344 54746 | 0.000 | {} | 165s
+PROTO low 1 flood-uni link | 24 | 179/179 98 5211 | 1.000 115 251 | 0.000 | {rreq=57985, uni=20497} | 68s
+PROTO low 1 flood-uni origin | 24 | 179/179 98 5211 | 1.000 115 251 | 0.000 | {rreq=57985, uni=20497} | 67s
+PROTO low 1 flood-uni originlink | 24 | 179/179 98 5211 | 1.000 115 251 | 0.000 | {rreq=57985, uni=20497} | 70s
+PROTO low 2 calm none | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 1s
+PROTO low 2 calm link | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 1s
+PROTO low 2 calm origin | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 1s
+PROTO low 2 calm originlink | 26 | 179/179 64 1331 | 1.000 65 121 | 0.000 | {} | 1s
+PROTO low 2 burst none | 26 | 179/179 71 252 | 1.000 71 147 | 0.000 | {} | 1s
+PROTO low 2 burst link | 26 | 179/179 70 5119 | 0.976 70 571 | 0.000 | {bc-honest=86} | 1s
+PROTO low 2 burst origin | 26 | 179/179 71 252 | 1.000 71 147 | 0.000 | {} | 1s
+PROTO low 2 burst originlink | 26 | 179/179 71 252 | 1.000 71 147 | 0.000 | {} | 1s
+PROTO low 2 flood-bc none | 26 | 179/179 353 12245 | 1.000 428 5130 | 0.324 | {} | 7s
+PROTO low 2 flood-bc link | 26 | 179/179 90 2087 | 0.850 56 174 | 0.189 | {bc-attack=6062, bc-honest=29} | 4s
+PROTO low 2 flood-bc origin | 26 | 179/179 76 15049 | 1.000 62 117 | 0.102 | {bc-attack=6109} | 2s
+PROTO low 2 flood-bc originlink | 26 | 179/179 74 15100 | 1.000 64 127 | 0.105 | {bc-attack=6418} | 2s
+PROTO low 2 flood-rot none | 26 | 179/179 353 12245 | 1.000 428 5130 | 0.324 | {} | 7s
+PROTO low 2 flood-rot link | 26 | 179/179 90 2087 | 0.850 56 174 | 0.189 | {bc-attack=6062, bc-honest=29} | 4s
+PROTO low 2 flood-rot origin | 26 | 179/179 353 12245 | 1.000 428 5130 | 0.324 | {} | 7s
+PROTO low 2 flood-rot originlink | 26 | 179/179 115 5139 | 0.955 122 861 | 0.274 | {bc-attack=5087, bc-honest=19} | 6s
+PROTO low 2 flood-uni none | 26 | 107/179 7393 134429 | 0.695 8592 146123 | 0.000 | {} | 36s
+PROTO low 2 flood-uni link | 26 | 177/179 725 36869 | 1.000 183 929 | 0.000 | {uni=143123} | 33s
+PROTO low 2 flood-uni origin | 26 | 177/179 725 36869 | 1.000 183 929 | 0.000 | {uni=143123} | 33s

@@ -62,7 +62,7 @@ internal class RouteDiscovery(
                 reply(peer, request, own, known.sequence, known.hops)
             }
 
-            header.hopLimit > 1 -> {
+            header.hopLimit > 1 && RateProto.request(this, peer, "rreq") -> {
                 val next = FloodHeader(header.hopLimit - 1, header.messageId, header.expiry)
                 val bytes =
                     with(request) { RouteRequest(next, targetTag, originTag, originSequence, targetSequence, hops) }

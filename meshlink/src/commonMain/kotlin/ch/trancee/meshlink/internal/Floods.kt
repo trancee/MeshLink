@@ -176,6 +176,7 @@ internal class Floods(
         val header = frame.header
         val hopLimit = header.hopLimit - 1
         if (hopLimit < 1) return
+        if (frame.type == BroadcastFrame.TYPE && !RateProto.broadcast(this, peer, frame.body)) return
         val bytes = FloodFrame(frame.type, FloodHeader(hopLimit, header.messageId, header.expiry), frame.body).encode()
         val kind = if (frame.type == BroadcastFrame.TYPE) Parcel.Kind.BROADCAST else Parcel.Kind.OTHER
         val parcel = Parcel(header.messageId, relayed = true, { bytes }, kind = kind) {}
