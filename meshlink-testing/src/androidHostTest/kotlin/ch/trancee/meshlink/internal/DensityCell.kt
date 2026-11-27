@@ -149,14 +149,17 @@ private class CellRun(
         val contacts = List(n) { contactsOf(it) }
 
         written.fill(0)
+        val counts = checkNotNull(protoMaps.get()).apply { clear() }
         counting = true
         traffic(contacts)
         counting = false
+        val counted = counts.toSortedMap().entries.joinToString("\n") { "${it.key}=${it.value}" }
         val busiest = written.max().toDouble() / (TRAFFIC_MILLIS / MILLIS)
 
         drain()
         val (unicast, broadcast) = tally()
         mesh.close()
+        protoCounts = counted
         return SeedRun(seed, started.elapsedNow().inWholeMilliseconds, unicast, broadcast, rejected, idleShare, busiest)
     }
 
@@ -384,3 +387,10 @@ private fun exponential(
 ): Long = (-ln(1 - random.nextDouble()) * mean).toLong()
 
 private const val SEED_TIMEOUT_MINUTES = 80
+
+/** PROTOTYPE (ticket 73): each seed thread's frame counts during traffic, and its last result. */
+internal val protoMaps: ThreadLocal<MutableMap<String, Long>> = ThreadLocal.withInitial { mutableMapOf<String, Long>() }
+private val protoResults: ThreadLocal<String> = ThreadLocal.withInitial { "" }
+internal var protoCounts: String
+    get() = checkNotNull(protoResults.get())
+    set(value) = protoResults.set(value)

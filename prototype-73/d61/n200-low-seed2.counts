@@ -1,0 +1,11 @@
+rule=d61
+origin.MESSAGE.again.flood=3499
+origin.MESSAGE.again.route=384
+origin.MESSAGE.first.flood=2621
+origin.MESSAGE.first.route=14
+origin.OTHER.first.flood=174
+origin.OTHER.first.route=1447
+relay.MESSAGE.again=407229
+relay.MESSAGE.first=250563
+relay.RECEIPT.first=395638
+relay.RREPLY.first=6369

@@ -343,7 +343,10 @@ internal class Post(
         if (!reachable) return entry.held()
         // A copy still being written makes another one pointless (D-57); one still waiting is replaced.
         val sealed = draft?.takeUnless { lanes.writing(it.messageId) } ?: return
-        origins.place(entry, sealed, Reach.of(density(), entry.large), search) { transmit(entry, search = true) }
+        val base = Reach.of(density(), entry.large)
+        val again = ProtoRetry.route && base == Reach.FLOOD && entry.sentMillis != 0L
+        val reach = if (again) Reach.ROUTE_OR_WIDE else base
+        origins.place(entry, sealed, reach, search) { transmit(entry, search = true) }
     }
 }
 
@@ -409,7 +412,7 @@ private class Origins(
         reach: Reach,
     ) {
         if (reach != Reach.ROUTE) entry.sentMillis = clock.monotonicMillis()
-        if (reach == Reach.FLOOD) return
+        if (reach == Reach.FLOOD || reach == Reach.ROUTE_OR_WIDE) return
         outbox.after(entry, FLOODED_RESEND_MILLIS) {
             val route = routes.active(destination, clock.monotonicMillis(), discovered = reach == Reach.ROUTE)
             if (route == null) entry.held()

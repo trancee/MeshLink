@@ -1,0 +1,11 @@
+rule=routeslow
+origin.MESSAGE.again.flood=2428
+origin.MESSAGE.again.route=454
+origin.MESSAGE.first.flood=2743
+origin.MESSAGE.first.route=15
+origin.OTHER.first.flood=216
+origin.OTHER.first.route=1576
+relay.MESSAGE.again=325626
+relay.MESSAGE.first=287447
+relay.RECEIPT.first=515416
+relay.RREPLY.first=6669

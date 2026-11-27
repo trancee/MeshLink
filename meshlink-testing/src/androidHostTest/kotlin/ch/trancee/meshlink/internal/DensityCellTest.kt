@@ -17,6 +17,8 @@ class DensityCellTest {
     @Test
     fun everyCellMeetsTheRoutingBands() {
         val out = File(System.getProperty("density.out") ?: "build/density").apply { mkdirs() }
+        ProtoRetry.rule = System.getProperty("proto.rule") ?: "d61"
+        ProtoRetry.sink = { key, n -> checkNotNull(protoMaps.get()).merge(key, n.toLong(), Long::plus) }
         val pool = System.getProperty("density.pool")
         val runs = if (pool == null) runCells(out) else pooled(File(pool))
         check(runs.isNotEmpty()) { "no seed runs to pool under $pool" }
@@ -38,7 +40,10 @@ class DensityCellTest {
         return cells.map { cell ->
             cell to
                 inParallel(seeds) { seed ->
-                    runCell(cell, seed).also { File(out, "${cell.label}-seed$seed.run").writeText(it.encode(cell)) }
+                    runCell(cell, seed).also {
+                        File(out, "${cell.label}-seed$seed.run").writeText(it.encode(cell))
+                        File(out, "${cell.label}-seed$seed.counts").writeText("rule=${ProtoRetry.rule}\n$protoCounts\n")
+                    }
                 }
         }
     }

@@ -71,6 +71,7 @@ internal class Outbox(
         val sending = entries.filter { !it.quiet }
         sending.filter { it.directOnly && it.to == peer }.forEach { transmit(it, false) }
         if (density() == DensityClass.High) return
+        if (ProtoRetry.noLink && density() == DensityClass.Low) return
         val now = clock.monotonicMillis()
         linkRetries.keys.retainAll(sending.map { it.to }.toSet())
         sending.filter { !it.directOnly }.groupBy { it.to }.forEach { (to, waiting) ->
@@ -159,6 +160,7 @@ internal class Outbox(
         var doublings = 0
         var retry = false
         while (true) {
+            if (ProtoRetry.cap && density() == DensityClass.Low && entry.retries >= CAP) return
             transmit(entry, retry)
             retry = true
             delay(retryMillis(density(), doublings))
@@ -266,12 +268,15 @@ internal class Outbox(
         /** Enough doublings to reach either maximum. */
         const val DOUBLINGS_MAX: Int = 5
 
+        private const val CAP = 3
+
         /** The wait after a send that followed [doublings] doublings, in [density]'s class (spec "Origin behavior"). */
         fun retryMillis(
             density: DensityClass,
             doublings: Int,
         ): Long {
-            val (min, max) = if (density == DensityClass.High) HIGH else LOW
+            val high = density == DensityClass.High || (ProtoRetry.slow && density == DensityClass.Low)
+            val (min, max) = if (high) HIGH else LOW
             return minOf(min shl doublings, max)
         }
     }

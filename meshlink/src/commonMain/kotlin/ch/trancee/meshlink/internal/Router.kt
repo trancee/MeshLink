@@ -157,6 +157,8 @@ internal class Router(
         val render = { UnicastHeader.attempted(made.render(), attempt) }
         val sent = Parcel(made.messageId, made.relayed, render, made.wanted, made.kind, made.settle)
         val targets = if (route != null) listOf(route.peer) else lanes.peers
+        val how = if (route != null) "route" else "flood"
+        ProtoRetry.count("origin.${made.kind}.${if (attempt == 0) "first" else "again"}.$how", targets.size)
         targets.forEach { lanes.put(it, sent) }
         return route?.hops
     }
@@ -241,6 +243,16 @@ internal class Router(
         val targets = relayed?.let { targets(peer, frame, bytes.size, now) }
         if (relayed == null || targets == null) return
         seen.put(sighting, now + SEEN_WINDOW_MILLIS)
+        val name =
+            when (frame.type) {
+                MessageFrame.TYPE -> "MESSAGE"
+                DeliveryReceipt.TYPE -> "RECEIPT"
+                ReadReceipt.TYPE -> "READ"
+                RouteReply.TYPE -> "RREPLY"
+                else -> "OTHER"
+            }
+        val again = if (frame.header.attempt == 0) "first" else "again"
+        ProtoRetry.count("relay.$name.$again", targets.size)
         val kind = if (frame.type == MessageFrame.TYPE) Parcel.Kind.MESSAGE else Parcel.Kind.OTHER
         targets.forEach { lanes.put(it, Parcel(frame.header.messageId, relayed = true, { relayed }, kind = kind) {}) }
         if (frame.type !in UNICAST_TYPES) diagnose(DiagnosticEvent.UnknownRoutedFrameRelayed(frame.type))

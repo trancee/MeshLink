@@ -1,0 +1,11 @@
+rule=cap3
+origin.MESSAGE.again.flood=3288
+origin.MESSAGE.again.route=438
+origin.MESSAGE.first.flood=2579
+origin.MESSAGE.first.route=20
+origin.OTHER.first.flood=222
+origin.OTHER.first.route=1473
+relay.MESSAGE.again=373675
+relay.MESSAGE.first=250334
+relay.RECEIPT.first=380818
+relay.RREPLY.first=7833

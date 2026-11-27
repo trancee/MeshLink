@@ -65,5 +65,6 @@ tasks.register<Test>("densityTest") {
         )
     }
     providers.gradleProperty("density.measureOnly").orNull?.let { systemProperty("density.measureOnly", it) }
+    providers.gradleProperty("proto.rule").orNull?.let { systemProperty("proto.rule", it) }
     testLogging { showStandardStreams = true }
 }
