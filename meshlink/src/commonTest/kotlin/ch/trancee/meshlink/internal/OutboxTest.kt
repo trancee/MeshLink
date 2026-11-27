@@ -61,9 +61,10 @@ class OutboxTest {
     }
 
     @Test
-    fun lowAndMediumClassesRetryAfterIntervalsDoublingFromTwoToThirtySecondsThenAtThirty() =
+    fun theMediumClassRetriesAfterIntervalsDoublingFromTwoToThirtySecondsThenAtThirty() =
         runTest {
             // Arrange
+            density = DensityClass.Medium
             val outbox = outbox()
 
             // Act
@@ -71,8 +72,6 @@ class OutboxTest {
 
             // Assert
             assertEquals(listOf(0L, 2_000, 6_000, 14_000, 30_000, 60_000, 90_000), times(90_000))
-            density = DensityClass.Medium
-            assertEquals(120_000L, times(120_000).last())
         }
 
     @Test
@@ -88,7 +87,7 @@ class OutboxTest {
 
             // Act
             outbox.add(entry())
-            advanceTimeBy(6_000)
+            advanceTimeBy(15_000)
             runCurrent()
             outbox.linked(PEER)
 
@@ -97,10 +96,9 @@ class OutboxTest {
         }
 
     @Test
-    fun theHighClassRetriesAfterIntervalsDoublingFromFiveToSixtySecondsThenAtSixty() =
+    fun lowAndHighClassesRetryAfterIntervalsDoublingFromFiveToSixtySecondsThenAtSixty() =
         runTest {
             // Arrange
-            density = DensityClass.High
             val outbox = outbox()
 
             // Act
@@ -108,6 +106,8 @@ class OutboxTest {
 
             // Assert
             assertEquals(listOf(0L, 5_000, 15_000, 35_000, 75_000, 135_000, 195_000), times(195_000))
+            density = DensityClass.High
+            assertEquals(255_000L, times(255_000).last())
         }
 
     @Test
@@ -116,12 +116,12 @@ class OutboxTest {
             // Arrange
             val outbox = outbox()
             capacity.reserve(Capacity.LIMIT.toInt())
-            val entry = entry(size = Capacity.LIMIT.toInt(), lifetimeMillis = 10_000)
+            val entry = entry(size = Capacity.LIMIT.toInt(), lifetimeMillis = 20_000)
             outbox.add(entry)
             entry.sent()
 
             // Act
-            advanceTimeBy(9_999)
+            advanceTimeBy(19_999)
             val before = capacity.reserve(0)
             advanceTimeBy(1)
             runCurrent()
@@ -130,7 +130,7 @@ class OutboxTest {
             assertFalse(before)
             assertEquals(DeliveryStatus.Expired, entry.status.value)
             assertTrue(capacity.reserve(0))
-            assertEquals(listOf(0L, 2_000, 6_000), times(60_000))
+            assertEquals(listOf(0L, 5_000, 15_000), times(60_000))
         }
 
     @Test
@@ -305,7 +305,7 @@ class OutboxTest {
             assertEquals(listOf(DeliveryStatus.Queued), statuses)
             assertTrue(capacity.reserve(0))
             attempts.clear()
-            times(2_000)
+            times(5_000)
             assertEquals(3, attempts.size)
         }
 
@@ -378,7 +378,7 @@ class OutboxTest {
             assertEquals(DeliveryStatus.Queued, unrequested.status.value)
             assertTrue(capacity.reserve(0))
             attempts.clear()
-            times(2_000)
+            times(5_000)
             assertEquals(1, attempts.size)
         }
 

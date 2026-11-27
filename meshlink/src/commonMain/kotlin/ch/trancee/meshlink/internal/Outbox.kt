@@ -259,9 +259,9 @@ internal class Outbox(
 
         private const val MILLIS_PER_SECOND = 1_000L
 
-        // retry-min-low to retry-max-low (low and medium) and retry-min-high to retry-max-high.
-        private val LOW = 2_000L to 30_000L
-        private val HIGH = 5_000L to 60_000L
+        // retry-min-medium to retry-max-medium; the low and high classes share 5 s to 60 s (D-62).
+        private val MEDIUM = 2_000L to 30_000L
+        private val LOW_AND_HIGH = 5_000L to 60_000L
 
         /** Enough doublings to reach either maximum. */
         const val DOUBLINGS_MAX: Int = 5
@@ -271,7 +271,7 @@ internal class Outbox(
             density: DensityClass,
             doublings: Int,
         ): Long {
-            val (min, max) = if (density == DensityClass.High) HIGH else LOW
+            val (min, max) = if (density == DensityClass.Medium) MEDIUM else LOW_AND_HIGH
             return minOf(min shl doublings, max)
         }
     }

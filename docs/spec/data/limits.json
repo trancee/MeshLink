@@ -452,17 +452,31 @@
     },
     {
       "name": "retry-min-low",
-      "value": 2,
+      "value": 5,
       "unit": "s",
-      "decision": "-",
-      "source": "v1-parameters"
+      "decision": "D-62",
+      "source": "ADR 0008 amendment of 2026-11-26, low-class retry schedule"
     },
     {
       "name": "retry-max-low",
+      "value": 60,
+      "unit": "s",
+      "decision": "D-62",
+      "source": "ADR 0008 amendment of 2026-11-26, low-class retry schedule"
+    },
+    {
+      "name": "retry-min-medium",
+      "value": 2,
+      "unit": "s",
+      "decision": "D-62",
+      "source": "ADR 0008 amendment of 2026-11-26, low-class retry schedule; v1-parameters"
+    },
+    {
+      "name": "retry-max-medium",
       "value": 30,
       "unit": "s",
-      "decision": "-",
-      "source": "v1-parameters"
+      "decision": "D-62",
+      "source": "ADR 0008 amendment of 2026-11-26, low-class retry schedule; v1-parameters"
     },
     {
       "name": "retry-min-high",

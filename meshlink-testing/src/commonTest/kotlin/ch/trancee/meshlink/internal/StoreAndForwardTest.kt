@@ -217,7 +217,7 @@ class StoreAndForwardTest {
         const val AWAY = 1_000.0
         const val SETTLE_MILLIS = 60_000L
 
-        // Past A's backoff retries at 2, 6, 14 and 30 s.
+        // Past A's backoff retries: at 5 and 15 s in the low class, at 2, 6, 14 and 30 s in the medium class.
         const val RETRIES_MILLIS = 31_000L
 
         // Past the next epoch: the tags E claims are no longer its current ones.
