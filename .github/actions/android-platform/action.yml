@@ -8,6 +8,11 @@ runs:
     - shell: bash
       run: |
         sdk=$(sed -n 's/^android-compileSdk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
-        test -f "$ANDROID_HOME/platforms/android-$sdk/android.jar" ||
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$sdk" > /dev/null
-        test -f "$ANDROID_HOME/platforms/android-$sdk/android.jar" || { echo "::error::Android platform $sdk is missing"; exit 1; }
+        platform="$ANDROID_HOME/platforms/android-$sdk/android.jar"
+        # The self-hosted Linux runners share one SDK, and two concurrent sdkmanager installs fail. The lock serializes them.
+        if [ "$RUNNER_OS" = Linux ]; then
+          exec 9> "$ANDROID_HOME/.compile-sdk-install.lock"
+          flock 9
+        fi
+        test -f "$platform" || "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$sdk"
+        test -f "$platform" || { echo "::error::Android platform $sdk is missing"; exit 1; }

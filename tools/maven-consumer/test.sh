@@ -57,6 +57,12 @@ kotlin="$(catalog_version kotlin)"
 agp="$(catalog_version agp)"
 compile_sdk="$(catalog_version android-compileSdk)"
 min_sdk="$(catalog_version android-minSdk)"
+# A catalog compileSdk such as 37.2 is an API level plus a minor API level, which AGP takes through release().
+compile_api="${compile_sdk%%.*}"
+compile_release="release($compile_api)"
+if [[ "$compile_sdk" == *.* ]]; then
+    compile_release="release($compile_api) { minorApiLevel = ${compile_sdk#*.} }"
+fi
 
 mkdir -p "$consumer"
 cat > "$consumer/settings.gradle.kts" <<EOF
@@ -91,7 +97,7 @@ plugins {
 kotlin {
     extensions.configure<KotlinMultiplatformAndroidLibraryExtension> {
         namespace = "ch.trancee.meshlink.consumer"
-        compileSdk = $compile_sdk
+        compileSdk { version = $compile_release }
         minSdk = $min_sdk
     }
     iosArm64()
