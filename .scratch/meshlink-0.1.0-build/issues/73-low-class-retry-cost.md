@@ -43,7 +43,7 @@ Prototype (throwaway, never merged): branch `prototype/low-retry-cost`, commit `
 
 - [x] A seeded `VirtualAir` comparison at n200-low, seeds 1–5, of at least two retry rules against D-61: busiest-node bytes, delivery and relay writes by frame type.
 - [x] The owner decides; the decision is recorded as a D-nn entry with an ADR 0008 amendment.
-- [ ] If adopted, an AFK ticket implements it and one `density.yml` run of all 8 cells with 5 seeds passes every band.
+- [x] If adopted, an AFK ticket implements it and one `density.yml` run of all 8 cells with 5 seeds passes every band.
 
 ## Proof commands
 

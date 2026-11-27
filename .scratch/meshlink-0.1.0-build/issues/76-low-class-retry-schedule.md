@@ -15,9 +15,9 @@ Ticket 73 decided (D-62) that a low-class origin retries an unanswered message w
 
 ## Acceptance criteria
 
-- [ ] `routing.md` and `limits.json` carry the per-class retry parameters, with D-62 and the ADR 0008 amendment.
-- [ ] `Outbox` retries the low class 5 s to 60 s and the medium class 2 s to 30 s, proven by `OutboxTest`.
-- [ ] One `density.yml` run of all 8 cells with 5 seeds passes every band.
+- [x] `routing.md` and `limits.json` carry the per-class retry parameters, with D-62 and the ADR 0008 amendment.
+- [x] `Outbox` retries the low class 5 s to 60 s and the medium class 2 s to 30 s, proven by `OutboxTest`.
+- [x] One `density.yml` run of all 8 cells with 5 seeds passes every band.
 
 ## Proof commands
 
