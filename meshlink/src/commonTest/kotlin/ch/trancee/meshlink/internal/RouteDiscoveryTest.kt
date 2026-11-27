@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
+import ch.trancee.meshlink.DiagnosticEvent.RelayRateLimited.Frame
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,15 +23,17 @@ class RouteDiscoveryTest {
     private val c = nodeId(3)
     private val lanes = Lanes().apply { listOf(a, b, c).forEach { open(it) } }
 
-    private fun TestScope.router(endpoint: Endpoint = FakeEndpoint(OWN)) =
-        Router(
-            SchedulerClock(testScheduler),
-            lanes,
-            Routes(),
-            ::sevens,
-            endpoint,
-            Handoff(Floods(lanes, broadcastCodec(), lowTree(lanes), keptTombstones()) {}),
-        )
+    private fun TestScope.router(
+        endpoint: Endpoint = FakeEndpoint(OWN),
+        limits: Admission = Admission.ALL,
+    ) = Router(
+        SchedulerClock(testScheduler),
+        lanes,
+        Routes(),
+        ::sevens,
+        endpoint,
+        Handoff(Floods(lanes, broadcastCodec(), lowTree(lanes), keptTombstones()) {}, limits = limits),
+    )
 
     private fun sevens(size: Int) = ByteArray(size) { 7 }
 
@@ -111,6 +114,37 @@ class RouteDiscoveryTest {
             assertContentEquals(ORIGIN, endpoint.found.single())
             assertEquals(3, router.send(2, ORIGIN))
             assertEquals(listOf(a), routedTo())
+        }
+
+    @Test
+    fun aRequestOverItsLinksBudgetTeachesTheWayBackButIsNotFloodedOnAndItsTargetStillAnswers() =
+        runTest {
+            // Arrange
+            val asked = mutableListOf<Pair<NodeId, Frame>>()
+            val endpoint = FakeEndpoint(OWN)
+            val refusing =
+                object : Admission {
+                    override fun admits(
+                        peer: NodeId,
+                        frame: Frame,
+                        origin: NodeId?,
+                    ): Boolean = false.also { asked += peer to frame }
+
+                    override fun unlinked(peer: NodeId) = Unit
+                }
+            val router = router(endpoint, refusing)
+
+            // Act
+            router.received(a, request(id = 1))
+            router.received(b, request(target = OWN, id = 2))
+
+            // Assert
+            val waiting = waiting()
+            assertEquals(emptyList(), waiting.getValue(c))
+            assertEquals(emptyList(), waiting.getValue(a))
+            assertContentEquals(OWN, decodedReply(waiting.getValue(b).single()).targetTag)
+            assertContentEquals(ORIGIN, endpoint.found.single())
+            assertEquals(listOf(a to Frame.RouteRequest), asked)
         }
 
     @Test

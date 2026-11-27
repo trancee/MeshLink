@@ -50,7 +50,8 @@
               "hops",
               "messages",
               "attempts",
-              "nonces"
+              "nonces",
+              "frames"
             ]
           },
           "decision": {

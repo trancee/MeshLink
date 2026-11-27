@@ -1,6 +1,7 @@
 package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DiagnosticEvent
+import ch.trancee.meshlink.DiagnosticEvent.RelayRateLimited.Frame
 import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
 
@@ -42,11 +43,16 @@ internal class Floods(
     private val seen = MessageIds()
     private val waiting = mutableListOf<Parcel>()
 
-    /** A flood frame other than a route request arrived from linked [peer] at Unix second [nowSeconds]. */
+    /**
+     * A flood frame other than a route request arrived from linked [peer] at Unix second [nowSeconds];
+     * a `BROADCAST`, with the sender its container names, or a `LOOKUP_REQUEST` is relayed only if
+     * [admits] it (spec "Relay rate limits").
+     */
     fun received(
         peer: NodeId,
         bytes: ByteArray,
         nowSeconds: Long,
+        admits: (frame: Frame, origin: NodeId?) -> Boolean = { _, _ -> true },
     ) {
         val frame = (FloodFrame.decode(bytes) as? Decoded.Valid ?: return).value
         val header = frame.header
@@ -59,8 +65,10 @@ internal class Floods(
                 duplicate(peer, frame.type)
             }
 
-            carried(frame.type, bytes) -> {
-                remember(header.messageId, expiry).also { relay(peer, frame, nowSeconds) }
+            else -> {
+                val carried = carried(frame.type, bytes) ?: return
+                remember(header.messageId, expiry)
+                relay(peer, frame, nowSeconds) { limited -> admits(limited, carried.origin) }
             }
         }
     }
@@ -155,27 +163,35 @@ internal class Floods(
         if (type == BroadcastFrame.TYPE) tree.duplicate(peer)
     }
 
-    // Whether a frame of [type] is carried: a BROADCAST the codec opens, delivered here, or a small frame of
+    // A flood frame carried on, with the sender a BROADCAST's container names.
+    private class Carried(
+        val origin: NodeId?,
+    )
+
+    // A frame of [type] is carried if it is a BROADCAST the codec opens, delivered here, or a small frame of
     // another type.
     private fun carried(
         type: Int,
         bytes: ByteArray,
-    ): Boolean =
+    ): Carried? =
         if (type == BroadcastFrame.TYPE) {
-            codec.open(bytes)?.also(deliver) != null
+            codec.open(bytes)?.also(deliver)?.let { Carried(it.sender) }
         } else {
-            bytes.size <= Reassembly.FRAME_SMALL_MAX
+            Carried(null).takeIf { bytes.size <= Reassembly.FRAME_SMALL_MAX }
         }
 
-    // A BROADCAST relayed is also held (spec "Holding").
+    // A BROADCAST relayed is also held (spec "Holding"); a BROADCAST or LOOKUP_REQUEST [admits] refuses is not.
     private fun relay(
         peer: NodeId,
         frame: FloodFrame,
         nowSeconds: Long,
+        admits: (Frame) -> Boolean,
     ) {
         val header = frame.header
         val hopLimit = header.hopLimit - 1
         if (hopLimit < 1) return
+        val limited = LIMITED[frame.type]
+        if (limited != null && !admits(limited)) return
         val bytes = FloodFrame(frame.type, FloodHeader(hopLimit, header.messageId, header.expiry), frame.body).encode()
         val kind = if (frame.type == BroadcastFrame.TYPE) Parcel.Kind.BROADCAST else Parcel.Kind.OTHER
         val parcel = Parcel(header.messageId, relayed = true, { bytes }, kind = kind) {}
@@ -193,3 +209,6 @@ internal class Floods(
         const val MILLIS_PER_SECOND = 1_000L
     }
 }
+
+// The flood types the relay rate limits cover, by type byte.
+private val LIMITED = mapOf(BroadcastFrame.TYPE to Frame.Broadcast, LookupRequest.TYPE to Frame.LookupRequest)

@@ -191,8 +191,12 @@ internal class Post(
         ) {
             inbox.offer(it)
         }
+    private val limits =
+        NeighborLimits(clock, density, secured) { peer, frame ->
+            diagnostics.report(DiagnosticEvent.RelayRateLimited(diagnostics.peer(peer), frame))
+        }
     private val router: Router =
-        Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups, diagnostics::report))
+        Router(clock, lanes, routes, crypto::randomBytes, end, Handoff(floods, lookups, diagnostics::report, limits))
     private val origins = Origins(clock, lanes, routes, router, outbox, end)
 
     /** This node's broadcasts. */

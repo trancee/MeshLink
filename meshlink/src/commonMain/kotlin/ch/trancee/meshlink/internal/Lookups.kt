@@ -219,6 +219,7 @@ internal class LookupAnswers(
         peer: NodeId,
         request: LookupRequest,
         nowSeconds: Long,
+        admits: () -> Boolean = { true },
     ): Boolean {
         val header = request.header
         if (!timely(header.expiry.toLong(), nowSeconds) || floods.has(header.messageId, clock.wallClockMillis())) {
@@ -231,7 +232,7 @@ internal class LookupAnswers(
                 reply(peer, request, answer)
             }
 
-            header.hopLimit > 1 -> {
+            header.hopLimit > 1 && admits() -> {
                 val next = FloodHeader(header.hopLimit - 1, header.messageId, header.expiry)
                 val bytes = LookupRequest(next, request.salt, request.lookupTag, request.ephemeralKey).encode()
                 (lanes.peers - peer).forEach { lanes.put(it, Parcel(header.messageId, relayed = true, { bytes }) {}) }

@@ -804,6 +804,52 @@
       "values": []
     },
     {
+      "code": "ML5005",
+      "name": "RelayRateLimited",
+      "severity": "Debug",
+      "reference": "docs/reference/diagnostics.md#ml5005",
+      "meaning": "The node did not relay a flood `frame` from `peer`, because the peer sent more of that frame type than its budget allows (spec \"Relay rate limits\"). A frame addressed to this node is still delivered.",
+      "cause": "the peer, or a node behind it, floods the mesh; or many honest nodes behind one link send at once.",
+      "fix": "none needed if it is brief. If it repeats for one peer, look for a node that floods.",
+      "related": "spec \"Relay rate limits\".",
+      "symptom": "messages not delivered.",
+      "fields": [
+        {
+          "name": "peer",
+          "type": "PeerRef",
+          "meaning": "The linked peer the frame came from."
+        },
+        {
+          "name": "frame",
+          "type": "RelayRateLimited.Frame",
+          "meaning": "The kind of flood frame dropped."
+        }
+      ],
+      "values": [
+        {
+          "type": "RelayRateLimited.Frame",
+          "values": [
+            {
+              "name": "Broadcast",
+              "meaning": "A `BROADCAST`."
+            },
+            {
+              "name": "Unicast",
+              "meaning": "A unicast frame flooded because the relay knows no route."
+            },
+            {
+              "name": "RouteRequest",
+              "meaning": "A `ROUTE_REQUEST`."
+            },
+            {
+              "name": "LookupRequest",
+              "meaning": "A `LOOKUP_REQUEST`."
+            }
+          ]
+        }
+      ]
+    },
+    {
       "code": "ML6001",
       "name": "HeldMessageEvicted",
       "severity": "Info",

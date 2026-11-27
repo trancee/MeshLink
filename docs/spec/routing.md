@@ -243,7 +243,7 @@ Total: 48 B.
 - Each relay of a reply increments `hop_count` and records a forward route to `target_tag` through the link the reply came from. A node prefers the route with the newest sequence number, then the fewest hops. Any discovered route replaces a route without a sequence; a route without a sequence never replaces a live one with a sequence through another link.
 - In `unsecured` a node searches from and answers for its unsecured tag. In a secured profile a node originates a request from the conversation tag of the first message it sends (`origin_tag`), searches for the destination's public tag, and answers for its own public tags, including those of an earlier certificate during `static-key-grace`.
 - v1 has no route error message. Broken routes expire, and the origin's resend uses a new search.
-- v1 has no route-request rate limit (ADR 0008 amendment, "Route-request rate limit").
+- A relay floods a request on only within its link's budget ([Relay rate limits](#relay-rate-limits)); it still records the reverse route and still answers.
 
 Vectors: `routed-frames.json`.
 
@@ -255,9 +255,44 @@ A node that receives a flood frame:
 
 1. Drops it if it has already seen `message_id` and that entry has not expired. A node remembers each flood `message_id` until the frame's `expiry` plus `clock-skew`.
 2. Processes it if it is addressed to the node (a route request for its tag, a lookup for its NodeId or a cached certificate, any broadcast).
-3. Unless it answered a route request or lookup, forwards it on every other link if the hop limit allows. Broadcasts in the medium and high classes use [Plumtree](#plumtree) instead of plain flooding.
+3. Unless it answered a route request or lookup, forwards it on every other link if the hop limit allows and the frame is within its link's budget ([Relay rate limits](#relay-rate-limits)). Broadcasts in the medium and high classes use [Plumtree](#plumtree) instead of plain flooding.
 
 A flood frame of a type the node doesn't know is never processed: the node forwards it by its flood header alone, with one hop less, if it is a small frame ([Size classes](#size-classes)), and drops a large one without remembering its `message_id`.
+
+## Relay rate limits
+
+(ADR 0008 amendment of 2026-11-27; [D-63].)
+
+A relay limits what each linked peer can make it flood. It keeps a token bucket per link for each kind of frame below. A bucket starts full at its burst, gains one token every gap up to the burst, and goes when the last link to the peer closes.
+
+| Frame from the link | Bucket | Gap | Burst |
+|---|---|---|---|
+| `BROADCAST` | per link | `rate-broadcast-gap` | `rate-broadcast-burst` |
+| `BROADCAST`, secured profile | also per link and origin NodeId | `rate-origin-gap` | `rate-origin-burst` |
+| Unicast frame flooded without a route, low class | per link | `rate-unicast-low-gap` | `rate-unicast-low-burst` |
+| Unicast frame flooded without a route, medium and high class | per link | `rate-unicast-gap` | `rate-unicast-burst` |
+| `ROUTE_REQUEST` and `LOOKUP_REQUEST` | per link, one bucket each | `rate-request-gap` | `rate-request-burst` |
+
+- A frame the relay would forward takes one token from every bucket that applies. If any of them is empty it takes none and is not forwarded, held or announced. The node still processes it as step 2 of [Flood forwarding](#flood-forwarding) says, and still remembers its `message_id`.
+- A secured relay counts a broadcast against the origin whose signature it verified. A link keeps buckets for at most `rate-origins-per-link` origins and drops the least recently used first. An `unsecured` relay has only the link's bucket: its origin field is not authenticated.
+- A unicast frame going on an active route, any frame for this node, and a flood type the node doesn't know are not limited.
+- The bucket of a flooded unicast frame follows the node's current density class.
+
+<!-- data: limits.json -->
+
+| Name | Value | Unit | Decision |
+|---|---|---|---|
+| rate-broadcast-gap | 250 | ms | D-63 |
+| rate-broadcast-burst | 20 | frames | D-63 |
+| rate-origin-gap | 1,000 | ms | D-63 |
+| rate-origin-burst | 5 | frames | D-63 |
+| rate-unicast-low-gap | 200 | ms | D-63 |
+| rate-unicast-low-burst | 20 | frames | D-63 |
+| rate-unicast-gap | 100 | ms | D-63 |
+| rate-unicast-burst | 40 | frames | D-63 |
+| rate-request-gap | 200 | ms | D-63 |
+| rate-request-burst | 20 | frames | D-63 |
+| rate-origins-per-link | 32 | entries | D-63 |
 
 ## BROADCAST
 

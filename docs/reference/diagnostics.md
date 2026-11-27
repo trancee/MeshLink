@@ -45,6 +45,7 @@ Repeats of a code for the same peer or link within 10 s arrive as one event whos
 | [ML5002](#ml5002) | `RouteLost` | `Debug` | messages not delivered. |
 | [ML5003](#ml5003) | `UnknownRoutedFrameRelayed` | `Debug` | none. |
 | [ML5004](#ml5004) | `ExpiryFarFromLocalTime` | `Warning` | messages not delivered. |
+| [ML5005](#ml5005) | `RelayRateLimited` | `Debug` | messages not delivered. |
 | [ML6001](#ml6001) | `HeldMessageEvicted` | `Info` | messages not delivered. |
 | [ML6002](#ml6002) | `CertificateLookup` | `Debug` | none. |
 | [ML6003](#ml6003) | `CertificateLookupUnanswered` | `Warning` | messages not delivered. |
@@ -482,6 +483,27 @@ Fields:
 Fields:
 
 - `skewSeconds` (`Long`): The least the clocks differ by, in seconds.
+
+## ML5005
+
+`DiagnosticEvent.RelayRateLimited`, severity `Debug`: The node did not relay a flood `frame` from `peer`, because the peer sent more of that frame type than its budget allows (spec "Relay rate limits"). A frame addressed to this node is still delivered.
+
+- Cause: the peer, or a node behind it, floods the mesh; or many honest nodes behind one link send at once.
+- Fix: none needed if it is brief. If it repeats for one peer, look for a node that floods.
+- Related: spec "Relay rate limits".
+- Symptom: messages not delivered.
+
+Fields:
+
+- `peer` (`PeerRef`): The linked peer the frame came from.
+- `frame` (`RelayRateLimited.Frame`): The kind of flood frame dropped.
+
+`RelayRateLimited.Frame` values:
+
+- `Broadcast`: A `BROADCAST`.
+- `Unicast`: A unicast frame flooded because the relay knows no route.
+- `RouteRequest`: A `ROUTE_REQUEST`.
+- `LookupRequest`: A `LOOKUP_REQUEST`.
 
 ## ML6001
 

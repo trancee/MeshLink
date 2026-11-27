@@ -720,6 +720,42 @@ public sealed class DiagnosticEvent(
     }
 
     /**
+     * `ML5005`: the node did not relay a flood [frame] from [peer], because the peer sent more of that
+     * frame type than its budget allows (spec "Relay rate limits"). A frame addressed to this node is
+     * still delivered.
+     *
+     * - Cause: the peer, or a node behind it, floods the mesh; or many honest nodes behind one link
+     *   send at once.
+     * - Fix: none needed if it is brief. If it repeats for one peer, look for a node that floods.
+     * - Related: spec "Relay rate limits".
+     * - Symptom: messages not delivered.
+     */
+    public class RelayRateLimited internal constructor(
+        /** The linked peer the frame came from. */
+        public val peer: PeerRef,
+        /** The kind of flood frame dropped. */
+        public val frame: Frame,
+    ) : DiagnosticEvent("ML5005", Severity.Debug) {
+        override val reference: Any get() = peer
+        override val fields: List<Pair<String, Any>> get() = listOf("peer" to peer, "frame" to frame)
+
+        /** A kind of flood frame a relay limits. */
+        public enum class Frame {
+            /** A `BROADCAST`. */
+            Broadcast,
+
+            /** A unicast frame flooded because the relay knows no route. */
+            Unicast,
+
+            /** A `ROUTE_REQUEST`. */
+            RouteRequest,
+
+            /** A `LOOKUP_REQUEST`. */
+            LookupRequest,
+        }
+    }
+
+    /**
      * `ML6001`: the node gave up a frame it held for others to make room for a new one (spec
      * "Holding"), for [reason].
      *

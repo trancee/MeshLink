@@ -39,6 +39,7 @@ If you see [`ML7002`](../reference/diagnostics.md#ml7002) (read tracking evicted
 | [ML3009](../reference/diagnostics.md#ml3009) | `BusyReply` | `Debug` | `Reason.Slots`: the link reassembles its maximum number of frames, or its one large frame. `Reason.Budget`: the refusing node reassembles as many large frames as it can hold. |
 | [ML5002](../reference/diagnostics.md#ml5002) | `RouteLost` | `Debug` | The peer moved away or stopped, or no message used its route. |
 | [ML5004](../reference/diagnostics.md#ml5004) | `ExpiryFarFromLocalTime` | `Warning` | A phone whose clock is set by hand, or wrong. |
+| [ML5005](../reference/diagnostics.md#ml5005) | `RelayRateLimited` | `Debug` | The peer, or a node behind it, floods the mesh; or many honest nodes behind one link send at once. |
 | [ML6001](../reference/diagnostics.md#ml6001) | `HeldMessageEvicted` | `Info` | `Reason.LinkShare`: one link sent more than its share of the frames held. `Reason.ClosestToExpiry`: the hold is full and no link is over its share. |
 | [ML6003](../reference/diagnostics.md#ml6003) | `CertificateLookupUnanswered` | `Warning` | The peer is out of reach of the mesh, or stopped. |
 | [ML6004](../reference/diagnostics.md#ml6004) | `InvalidCertificateReply` | `Debug` | A faulty or hostile node answered, or the peer's certificate has expired. |
