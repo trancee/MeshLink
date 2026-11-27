@@ -23,6 +23,9 @@ import kotlin.math.min
  * [latencyMillis], so one seed always yields one event order. With [airtimeBytesPerSecond] set, a
  * link's chunks also take their airtime one after another, in whole milliseconds, so the streams
  * of links that write at once arrive interleaved; without it, a burst of chunks arrives together.
+ * Without airtime a link's two directions also pace differently: the central's writes take no time,
+ * while the peripheral's notifications wait for the central's credits (spec "Flow control"), one
+ * latency round trip per grant, about 2.6 s per 100 kB.
  *
  * A radio takes a fresh address each time it starts advertising, as a phone rotates its resolvable
  * private address, so a peer can't be reached at an address it no longer advertises; a link keeps

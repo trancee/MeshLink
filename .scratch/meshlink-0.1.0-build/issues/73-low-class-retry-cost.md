@@ -1,6 +1,6 @@
 # Bound the cost of low-class message retries
 
-Status: ready-for-agent
+Status: done
 Type: HITL
 Blocked by: 42b
 

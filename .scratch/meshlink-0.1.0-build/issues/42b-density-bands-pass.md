@@ -1,6 +1,6 @@
 # Pass every scheduled density band
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 42, 47
 

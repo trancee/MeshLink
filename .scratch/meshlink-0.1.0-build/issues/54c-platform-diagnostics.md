@@ -1,6 +1,6 @@
 # Emit platform diagnostics and write them to the platform log
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 54b
 
