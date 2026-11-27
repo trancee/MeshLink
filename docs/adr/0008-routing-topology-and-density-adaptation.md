@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 17 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built; 2026-11-20, reverse-route loops; 2026-11-25, unicast retry attempt). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 18 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built; 2026-11-20, reverse-route loops; 2026-11-25, unicast retry attempt; 2026-11-26, low-class retry schedule). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -227,3 +227,7 @@ Results for the v1 configuration:
 - **Flushing on a found route (decision 3):** `route-flush-gap` stays 1,200 ms. It no longer follows the seen window, since a flush carries a new attempt; it lets the earlier flooded copy settle.
 - **Low-class delivery receipts (decision 3):** a low-class destination sends a delivery receipt on its active route, else floods it with `hop_limit` 255, and never sends a `ROUTE_REQUEST` for it (owner decision).
 - **Known miss:** in a local run of seeds 1–5, every cell meets every band except n200-low, whose busiest node writes 5,187 B/s while delivering every message. Its remaining load is low-class message retries, timed and on new links, each flooding the whole mesh; ticket 73 tracks it.
+
+2026-11-26, low-class retry schedule (ticket 73; host simulation in `VirtualAir`):
+
+- **Retry schedule (decision 3, D-62):** a low-class origin retries from 5 s doubling to 60 s, as the high class does, instead of 2 s to 30 s; the medium class keeps 2 s to 30 s. New-link retries are unchanged. Over n200-low seeds 1–5, the worst seed's busiest node wrote 4,596 B/s against the 4,700 B/s band, down from 4,755 B/s, and delivery was unchanged. Routing low-class resends on an active route, dropping new-link retries, capping timed retries at 3, and routing combined with the slower schedule each left the worst seed above the band (owner decision). Delivery receipts are about 46 % of relay writes in that cell; ticket 77 tracks them.

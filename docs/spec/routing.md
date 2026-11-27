@@ -130,7 +130,7 @@ How the origin sends depends on its local density class. These are local choices
 - **Medium and high class:** with an active route, send on it. Without one, send with `hop_limit` `u6-flood-radius` and at once send a `ROUTE_REQUEST` with `hop_limit` `route-request-radius`.
 - After its first send on a route, if no delivery receipt arrives within `resend-base` + `resend-per-hop` × the route's hop count, send the message once more by a new search. A route learned from a frame's source tag has no hop count and counts as 0.
 - When a route to a destination is found, a medium or high class origin sends each message waiting for that destination on it, once that message's last send is at least `route-flush-gap` old, so the earlier flooded copy has settled. A low class origin floods and does not use found routes.
-- Then retry with doubling intervals: from `retry-min-low` to `retry-max-low` in the low and medium classes, from `retry-min-high` to `retry-max-high` in the high class. Retries at the maximum interval go on until the message expires. Low and medium also retry on each new link, at most once per destination within `link-retry-gap`.
+- Then retry with doubling intervals: from `retry-min-low` to `retry-max-low` in the low class, from `retry-min-medium` to `retry-max-medium` in the medium class, and from `retry-min-high` to `retry-max-high` in the high class [D-62]. Retries at the maximum interval go on until the message expires. Low and medium also retry on each new link, at most once per destination within `link-retry-gap`.
 - A retry keeps `message_id`, `expiry`, the commitment and the container, but uses the destination's and the origin's tags for the current epoch. Relays cannot re-tag (ADR 0014 decision 7).
 - A direct-only send (ADR 0013 decision 8) uses `hop_limit` 1, so no relay forwards or holds it [D-27].
 - Running out of retries does not fail a message: it expires at `expiry` plus `clock-skew` (ADR 0013 amendment to ADR 0008).
@@ -153,8 +153,10 @@ A large message never floods, in any class:
 | resend-base | 1,000 | ms | - |
 | resend-per-hop | 200 | ms | - |
 | route-flush-gap | 1,200 | ms | - |
-| retry-min-low | 2 | s | - |
-| retry-max-low | 30 | s | - |
+| retry-min-low | 5 | s | D-62 |
+| retry-max-low | 60 | s | D-62 |
+| retry-min-medium | 2 | s | D-62 |
+| retry-max-medium | 30 | s | D-62 |
 | retry-min-high | 5 | s | - |
 | retry-max-high | 60 | s | - |
 | link-retry-gap | 5,000 | ms | - |

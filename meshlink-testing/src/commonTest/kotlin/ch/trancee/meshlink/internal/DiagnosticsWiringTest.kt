@@ -84,7 +84,7 @@ class DiagnosticsWiringTest {
         const val UNANSWERED_MILLIS = 1_900_000L
 
         // The requests the lookup sent before its deadline, on this seed.
-        const val UNANSWERED_ATTEMPTS = 8
+        const val UNANSWERED_ATTEMPTS = 6
         val LOOKUP_CODES = setOf("ML6002", "ML6003")
     }
 }

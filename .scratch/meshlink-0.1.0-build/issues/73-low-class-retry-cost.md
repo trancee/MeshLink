@@ -1,6 +1,6 @@
 # Bound the cost of low-class message retries
 
-Status: needs-triage
+Status: ready-for-agent
 Type: HITL
 Blocked by: 42b
 
@@ -14,6 +14,25 @@ Questions for the owner:
 - Should the low class cap retries per message, or lengthen its retry schedule by mesh size or measured airtime (ticket 71)?
 - Is a retry on a new link still needed in the low class once a wide flood has reached every connected node?
 
+## Triage decisions (owner, 2026-11-26)
+
+Prototype (throwaway, never merged): branch `prototype/low-retry-cost`, commit `c6b1f6e`, results in `prototype-73/README.md`. n200-low, seeds 1–5, worst seed's busiest node (band 4,700 B/s); relay writes summed over the seeds:
+
+| Rule | Busiest B/s | Delivered | Message retry relays | Receipt relays | All relays |
+|---|---|---|---|---|---|
+| D-61 (main) | 4,755 | 2,032/2,034 | 1.90 M | 2.85 M | 6.17 M |
+| route: resend on an active route, else flood | 4,971 | 2,033/2,034 | 1.94 M | 2.95 M | 6.32 M |
+| slow: 5 s to 60 s | 4,596 | 2,032/2,034 | 1.73 M | 2.66 M | 5.83 M |
+| nolink: no new-link retries | 4,896 | 2,060/2,062 | 1.24 M | 3.35 M | 6.04 M |
+| cap3: at most 3 timed retries | 4,735 | 2,008/2,008 | 1.89 M | 2.58 M | 5.86 M |
+| routeslow: route and slow | 5,005 | 2,010/2,012 | 1.80 M | 2.86 M | 6.05 M |
+
+1. Adopt `slow`: the low class retries 5 s doubling to 60 s; the medium class keeps 2 s to 30 s (D-62, ADR 0008 amendment of 2026-11-26).
+2. Reject `route`, `nolink`, `cap3` and `routeslow`; their numbers are recorded in D-62.
+3. Delivery receipts are about 46 % of relay writes: ticket 77 (needs-triage).
+4. The implementation (ticket 76) passes one `density.yml` run of all 8 cells with 5 seeds.
+5. The prototype is kept on its branch and linked here.
+
 ## Spec and ADR references
 
 - [routing.md, Origin behavior](../../../docs/spec/routing.md#origin-behavior); [D-61](../../../docs/spec/decisions.md#d-61-unicast-retry-attempt).
@@ -22,9 +41,9 @@ Questions for the owner:
 
 ## Acceptance criteria
 
-- [ ] A seeded `VirtualAir` comparison at n200-low, seeds 1–5, of at least two retry rules against D-61: busiest-node bytes, delivery and relay writes by frame type.
-- [ ] The owner decides; the decision is recorded as a D-nn entry with an ADR 0008 amendment.
-- [ ] If adopted, an AFK ticket implements it and one `density.yml` run of all 8 cells with 5 seeds passes every band.
+- [x] A seeded `VirtualAir` comparison at n200-low, seeds 1–5, of at least two retry rules against D-61: busiest-node bytes, delivery and relay writes by frame type.
+- [x] The owner decides; the decision is recorded as a D-nn entry with an ADR 0008 amendment.
+- [x] If adopted, an AFK ticket implements it and one `density.yml` run of all 8 cells with 5 seeds passes every band.
 
 ## Proof commands
 

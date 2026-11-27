@@ -409,7 +409,7 @@ class FragmentLinkTest {
         const val UNKNOWN_REASON = 0x7F
 
         // retry-min-low: an origin's first retry interval in the low class.
-        const val RETRY_MIN_MILLIS = 2_000L
+        const val RETRY_MIN_MILLIS = 5_000L
 
         // 127 whole fragments and one byte: a large stream, which leaked held streams would leave no room for.
         const val LARGE_STREAM_BYTES = 129_541

@@ -449,6 +449,25 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Consequences:** a holder's flush of a frame within 30 s of the origin's send of the same attempt is dropped by relays that forwarded it. 30 s × 4,096 remembered pairs bounds the window at about 136 sends per second per relay before eviction shortens it.
 - **Alternatives:** A, a longer window keyed by ID (blocks retries and delays found-route flushes); B, relays clamp flooded unicast to the flood radius (breaks the low class's network-wide flood); F, a 5 s window for flooded copies only (failed n200-low at 12,818 B/s, 406/407); clamp receipts at relays (cut receipt writes but lost one message and raised message retries to 682,000 relay writes).
 
+### D-62 Low-class retry schedule
+
+- **Question:** after D-61, n200-low was the only cell above the 4,700 B/s busiest-node band while delivering its messages (ticket 73). Its load is low-class traffic that floods the whole mesh: message retries, timed and on new links, and delivery receipts. Which retry rule brings it under the band without losing delivery?
+- **Decision:** a low-class origin retries with doubling intervals from `retry-min-low` 5 s to `retry-max-low` 60 s, the high-class schedule. The medium class keeps 2 s to 30 s, now named `retry-min-medium` and `retry-max-medium`. Route lookups follow the same per-class schedule (D-37). New-link retries and `link-retry-gap` are unchanged. Owner decision 2026-11-26 (ticket 73).
+- **Evidence:** seeded `VirtualAir` n200-low, seeds 1–5, worst seed's busiest node in B/s (band 4,700); relay writes summed over the five seeds. The busiest node varies by about 600 B/s between seeds of one rule.
+
+  | Rule | Busiest B/s | Delivered | Message retry relays | Receipt relays | All relays |
+  |---|---|---|---|---|---|
+  | D-61 (before) | 4,755 | 2,032/2,034 | 1.90 M | 2.85 M | 6.17 M |
+  | Slow: 5 s to 60 s (adopted) | 4,596 | 2,032/2,034 | 1.73 M | 2.66 M | 5.83 M |
+  | Route: resend on an active route, else flood | 4,971 | 2,033/2,034 | 1.94 M | 2.95 M | 6.32 M |
+  | No new-link retries | 4,896 | 2,060/2,062 | 1.24 M | 3.35 M | 6.04 M |
+  | At most 3 timed retries | 4,735 | 2,008/2,008 | 1.89 M | 2.58 M | 5.86 M |
+  | Route and slow | 5,005 | 2,010/2,012 | 1.80 M | 2.86 M | 6.05 M |
+
+  Delivery receipts are about 46 % of relay writes; ticket 77 tracks their cost.
+- **Consequences:** a low-class message whose first copy is lost waits 5 s, not 2 s, for its next send, unless a new link retries it sooner.
+- **Alternatives:** the route, no-new-link, three-retry and route-and-slow rules above; each left the worst seed above the band.
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.
