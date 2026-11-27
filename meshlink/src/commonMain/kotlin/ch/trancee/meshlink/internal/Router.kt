@@ -2,6 +2,7 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.DiagnosticEvent
+import ch.trancee.meshlink.DiagnosticEvent.RelayRateLimited.Frame
 import ch.trancee.meshlink.NodeId
 
 /** What [Router] needs from the node's end-to-end layer; called on the node's dispatcher. */
@@ -64,6 +65,7 @@ internal class Handoff(
     val floods: Floods,
     val lookups: Lookups? = null,
     val diagnose: (DiagnosticEvent) -> Unit = {},
+    val limits: Admission = Admission.ALL,
 )
 
 /**
@@ -92,6 +94,7 @@ internal class Router(
     private val floods = handoff.floods
     private val lookups = handoff.lookups
     private val diagnose = handoff.diagnose
+    private val limits = handoff.limits
     private val seen = MessageIds()
     private val attempts = Attempts()
     private val delivered = MessageIds()
@@ -164,6 +167,7 @@ internal class Router(
     /** The link to [peer] closed: routes through it go. */
     fun unlinked(peer: NodeId) {
         routes.unlinked(peer)
+        limits.unlinked(peer)
     }
 
     // A frame that decodes, is timely and is carried by this mesh's profile; otherwise null.
@@ -206,18 +210,22 @@ internal class Router(
         val type = bytes[0].toInt() and BYTE
         when {
             type == RouteRequest.TYPE -> {
-                (RouteRequest.decode(bytes) as? Decoded.Valid)?.let { discovery.requested(peer, it.value, nowSeconds) }
+                (RouteRequest.decode(bytes) as? Decoded.Valid)?.let { request ->
+                    val admits = { limits.admits(peer, Frame.RouteRequest, null) }
+                    discovery.requested(peer, request.value, nowSeconds, admits)
+                }
             }
 
             type == LookupRequest.TYPE && lookups != null -> {
                 val request = (LookupRequest.decode(bytes) as? Decoded.Valid)?.value
-                if (request != null && lookups.answers.requested(peer, request, nowSeconds)) {
+                val admits = { limits.admits(peer, Frame.LookupRequest, null) }
+                if (request != null && lookups.answers.requested(peer, request, nowSeconds, admits)) {
                     routes.learn(request.salt, peer, clock.monotonicMillis())
                 }
             }
 
             else -> {
-                floods.received(peer, bytes, nowSeconds)
+                floods.received(peer, bytes, nowSeconds) { frame, origin -> limits.admits(peer, frame, origin) }
             }
         }
     }
@@ -269,7 +277,7 @@ internal class Router(
             }
 
             size <= Reassembly.FRAME_SMALL_MAX -> {
-                lanes.peers - peer
+                (lanes.peers - peer).takeIf { limits.admits(peer, Frame.Unicast, null) }
             }
 
             else -> {

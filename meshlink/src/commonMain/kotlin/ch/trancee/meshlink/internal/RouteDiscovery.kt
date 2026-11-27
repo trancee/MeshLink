@@ -41,6 +41,7 @@ internal class RouteDiscovery(
         peer: NodeId,
         request: RouteRequest,
         nowSeconds: Long,
+        admits: () -> Boolean,
     ) {
         val header = request.header
         val hops = request.hopCount + 1
@@ -62,7 +63,7 @@ internal class RouteDiscovery(
                 reply(peer, request, own, known.sequence, known.hops)
             }
 
-            header.hopLimit > 1 -> {
+            header.hopLimit > 1 && admits() -> {
                 val next = FloodHeader(header.hopLimit - 1, header.messageId, header.expiry)
                 val bytes =
                     with(request) { RouteRequest(next, targetTag, originTag, originSequence, targetSequence, hops) }

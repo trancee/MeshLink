@@ -279,6 +279,29 @@ class LookupsTest {
         }
 
     @Test
+    fun aRequestOverItsLinksBudgetIsRememberedButNotFloodedOnAndAnAnsweredOneDoesNotAsk() =
+        runTest {
+            // Arrange
+            val requester = node(1)
+            val relay = node(2)
+            requester.lookups.find(NodeId(derivations.nodeId(identityKey(9).publicKey)), deadline())
+            requester.lookups.find(NodeId(relay.nodeId), deadline())
+            runCurrent()
+            val (unknown, known) = requester.lanes.requests(a)
+            var asked = 0
+
+            // Act
+            val first = relay.lookups.answers.requested(a, unknown, nowSeconds()) { false.also { asked++ } }
+            val again = relay.lookups.answers.requested(b, unknown, nowSeconds())
+            relay.lookups.answers.requested(a, known, nowSeconds()) { false.also { asked++ } }
+
+            // Assert
+            assertEquals(listOf(true, false, 1), listOf(first, again, asked))
+            assertEquals(listOf(b, c).map { emptyList<ByteArray>() }, listOf(b, c).map { relay.lanes.frames(it) })
+            assertEquals(1, relay.lanes.frames(a).size, "the known node's reply")
+        }
+
+    @Test
     fun aRequestOnItsLastHopOrUntimelyIsNotFloodedOn() =
         runTest {
             // Arrange

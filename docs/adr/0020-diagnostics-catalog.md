@@ -1,6 +1,6 @@
 # 0020: Diagnostics catalog
 
-Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 7 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c; 2026-11-27, ticket 54d; 2026-11-27, ticket 54e; 2026-11-26, ticket 54f).
+Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). Version: 8 (amended 2026-11-26, ticket 54a; 2026-11-26, ticket 54b; 2026-11-26, ticket 54c; 2026-11-27, ticket 54d; 2026-11-27, ticket 54e; 2026-11-26, ticket 54f; 2026-11-27, ticket 78).
 
 ## Context
 
@@ -109,6 +109,7 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
    | ML5002 | `RouteLost(peer)` | D |
    | ML5003 | `UnknownRoutedFrameRelayed(type)` | D |
    | ML5004 ★ | `ExpiryFarFromLocalTime(skewSeconds)` | W |
+   | ML5005 | `RelayRateLimited(peer, frame)`. Frames: `Broadcast`, `Unicast`, `RouteRequest`, `LookupRequest` (amended 2026-11-27) | D |
    | ML6001 | `HeldMessageEvicted(reason)` | I |
    | ML6002 | `CertificateLookup(peer, attempts)` (amended 2026-11-26) | D |
    | ML6003 | `CertificateLookupUnanswered(peer, attempts)` | W |
@@ -207,6 +208,11 @@ Status: accepted (2026-11-08; ticket "What is the diagnostics code catalog?"). V
   - **`ML8003` is Android only:** deep Doze, not light Doze, and only its start.
   - **Proof:** Robolectric and the `iosTest` fakes; device runs belong to the device-lab tickets.
 - **Status:** decision 7 is updated to match.
+
+2026-11-27, relay rate limits (ticket 78):
+
+- **Decision:** a new Debug code, `ML5005` `RelayRateLimited(peer, frame)`, for each flood frame a relay doesn't forward because the peer's link is over its budget (spec "Relay rate limits", D-63). It is coalesced per `PeerRef`, and its symptom is "messages not delivered".
+- **Status:** the catalog table is updated to match.
 
 ## Alternatives
 

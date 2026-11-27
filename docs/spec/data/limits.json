@@ -500,6 +500,83 @@
       "source": "ADR 0008 amendment of 2026-11-19, routed unicast"
     },
     {
+      "name": "rate-broadcast-gap",
+      "value": 250,
+      "unit": "ms",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-broadcast-burst",
+      "value": 20,
+      "unit": "frames",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-origin-gap",
+      "value": 1000,
+      "unit": "ms",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-origin-burst",
+      "value": 5,
+      "unit": "frames",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-unicast-low-gap",
+      "value": 200,
+      "unit": "ms",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-unicast-low-burst",
+      "value": 20,
+      "unit": "frames",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-unicast-gap",
+      "value": 100,
+      "unit": "ms",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-unicast-burst",
+      "value": 40,
+      "unit": "frames",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-request-gap",
+      "value": 200,
+      "unit": "ms",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-request-burst",
+      "value": 20,
+      "unit": "frames",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
+      "name": "rate-origins-per-link",
+      "value": 32,
+      "unit": "entries",
+      "decision": "D-63",
+      "source": "ADR 0008 amendment of 2026-11-27, relay rate limits; v1-parameters"
+    },
+    {
       "name": "resend-base",
       "value": 1000,
       "unit": "ms",

@@ -1,6 +1,6 @@
 # 0008: Routing, topology and density adaptation
 
-Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 18 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built; 2026-11-20, reverse-route loops; 2026-11-25, unicast retry attempt; 2026-11-26, low-class retry schedule). All values are provisional until device measurements confirm them (see Risks).
+Status: accepted (2026-11-02; ticket "Which routing and topology strategy should MeshLink use?"). Version: 19 (amended 2026-11-02, ADRs 0010 and 0013; 2026-11-03, ADRs 0014 and 0015; 2026-11-08, energy measurements, fake identities, ADR 0016 and the stage F simulation; 2026-11-09, iOS Power Profiler; 2026-11-19, bridge rule and diversity replacement built; 2026-11-19, RSSI floor and former lists built; 2026-11-19, density classes built; 2026-11-19, routed unicast built; 2026-11-20, route discovery built; 2026-11-20, reverse-route loops; 2026-11-25, unicast retry attempt; 2026-11-26, low-class retry schedule; 2026-11-27, relay rate limits). All values are provisional until device measurements confirm them (see Risks).
 
 ## Context
 
@@ -231,3 +231,7 @@ Results for the v1 configuration:
 2026-11-26, low-class retry schedule (ticket 73; host simulation in `VirtualAir`):
 
 - **Retry schedule (decision 3, D-62):** a low-class origin retries from 5 s doubling to 60 s, as the high class does, instead of 2 s to 30 s; the medium class keeps 2 s to 30 s. New-link retries are unchanged. Over n200-low seeds 1–5, the worst seed's busiest node wrote 4,596 B/s against the 4,700 B/s band, down from 4,755 B/s, and delivery was unchanged. Routing low-class resends on an active route, dropping new-link retries, capping timed retries at 3, and routing combined with the slower schedule each left the worst seed above the band (owner decision). Delivery receipts are about 46 % of relay writes in that cell; ticket 77 tracks them.
+
+2026-11-27, relay rate limits (tickets 74 and 78; host simulation in `VirtualAir`):
+
+- **Relay rate limits (decision 3, D-63):** this supersedes "Route-request rate limit" of 2026-11-08. A relay forwards a flood frame only within its link's token buckets: broadcasts 4/s with a burst of 20 per link, and in a secured profile also 1/s with a burst of 5 per verified origin; unicast flooded without a route 5/s, 20 in the low class and 10/s, 40 otherwise; route and lookup requests 5/s, 20 each. A frame over budget is still processed locally. With one member sending 20 broadcasts a second among 30 nodes, the limits kept honest broadcast coverage at 1.000 (0.955 against a new key per broadcast) and cut the low-density unicast p95 from 30.5 s to 15.1 s; a unicast flood that delivered 0.598 of messages without limits delivered all of them (owner decision).

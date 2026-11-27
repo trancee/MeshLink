@@ -327,6 +327,21 @@ public final class ch/trancee/meshlink/DiagnosticEvent$ReadTrackingEvicted : ch/
 public final class ch/trancee/meshlink/DiagnosticEvent$ReassemblyBudgetExhausted : ch/trancee/meshlink/DiagnosticEvent {
 }
 
+public final class ch/trancee/meshlink/DiagnosticEvent$RelayRateLimited : ch/trancee/meshlink/DiagnosticEvent {
+	public final fun getFrame ()Lch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame;
+	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;
+}
+
+public final class ch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame : java/lang/Enum {
+	public static final field Broadcast Lch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame;
+	public static final field LookupRequest Lch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame;
+	public static final field RouteRequest Lch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame;
+	public static final field Unicast Lch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame;
+	public static fun values ()[Lch/trancee/meshlink/DiagnosticEvent$RelayRateLimited$Frame;
+}
+
 public final class ch/trancee/meshlink/DiagnosticEvent$RouteFound : ch/trancee/meshlink/DiagnosticEvent {
 	public final fun getHops ()I
 	public final fun getPeer ()Lch/trancee/meshlink/PeerRef;

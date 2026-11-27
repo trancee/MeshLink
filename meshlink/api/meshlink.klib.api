@@ -1029,6 +1029,26 @@ sealed class ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/Diagno
 
     final class ReassemblyBudgetExhausted : ch.trancee.meshlink/DiagnosticEvent // ch.trancee.meshlink/DiagnosticEvent.ReassemblyBudgetExhausted|null[0]
 
+    final class RelayRateLimited : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited|null[0]
+        final val frame // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.frame|{}frame[0]
+            final fun <get-frame>(): ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.frame.<get-frame>|<get-frame>(){}[0]
+        final val peer // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.peer|{}peer[0]
+            final fun <get-peer>(): ch.trancee.meshlink/PeerRef // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.peer.<get-peer>|<get-peer>(){}[0]
+
+        final enum class Frame : kotlin/Enum<ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame> { // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame|null[0]
+            enum entry Broadcast // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.Broadcast|null[0]
+            enum entry LookupRequest // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.LookupRequest|null[0]
+            enum entry RouteRequest // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.RouteRequest|null[0]
+            enum entry Unicast // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.Unicast|null[0]
+
+            final val entries // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.entries|#static{}entries[0]
+                final fun <get-entries>(): kotlin.enums/EnumEntries<ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame> // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.entries.<get-entries>|<get-entries>#static(){}[0]
+
+            final fun valueOf(kotlin/String): ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.valueOf|valueOf#static(kotlin.String){}[0]
+            final fun values(): kotlin/Array<ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame> // ch.trancee.meshlink/DiagnosticEvent.RelayRateLimited.Frame.values|values#static(){}[0]
+        }
+    }
+
     final class RouteFound : ch.trancee.meshlink/DiagnosticEvent { // ch.trancee.meshlink/DiagnosticEvent.RouteFound|null[0]
         final val hops // ch.trancee.meshlink/DiagnosticEvent.RouteFound.hops|{}hops[0]
             final fun <get-hops>(): kotlin/Int // ch.trancee.meshlink/DiagnosticEvent.RouteFound.hops.<get-hops>|<get-hops>(){}[0]

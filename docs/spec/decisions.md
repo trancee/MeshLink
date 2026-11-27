@@ -468,6 +468,30 @@ Each decision gives the question, the decision, the evidence or rationale, and t
 - **Consequences:** a low-class message whose first copy is lost waits 5 s, not 2 s, for its next send, unless a new link retries it sooner.
 - **Alternatives:** the route, no-new-link, three-retry and route-and-slow rules above; each left the worst seed above the band.
 
+### D-63 Relay rate limits
+
+- **Question:** the threat model promised per-neighbor rate limits that the relay path lacked (ticket 74). One neighbor can make a relay flood its broadcasts, route and lookup requests, and unicast frames it has no route for, as fast as the link carries them. What may each neighbor make a relay flood?
+- **Decision:** a relay keeps a token bucket per link for each kind of flood frame and forwards a frame only with a token from every bucket that applies. Values, as gap per token and burst: `BROADCAST` 250 ms, 20; in a secured profile also 1,000 ms, 5 per verified origin, at most 32 origins per link, least recently used dropped first; unicast flooded without a route 200 ms, 20 in the low class and 100 ms, 40 in the medium and high classes; `ROUTE_REQUEST` and `LOOKUP_REQUEST` 200 ms, 20 each. A frame over budget is still processed and its `message_id` remembered, but it is not forwarded, held or announced. Unicast on an active route and unknown flood types are not limited. Each drop reports the Debug diagnostic `ML5005` `RelayRateLimited`. The values are fixed: there is no public setting. Owner decision 2026-11-27 (tickets 74 and 78).
+- **Evidence:** seeded `VirtualAir`, 30 nodes at 10 kB/s, `EmergencyBroadcast`, one member sending at 20/s, worst of seeds 1–3 (prototype branch `prototype/neighbor-rate-limits`, commit `628fd7a`):
+
+  | Cell | Attack | Limits | Unicast p95 | Honest broadcast coverage |
+  |---|---|---|---|---|
+  | low | broadcasts | none | 30.5 s | 1.000 |
+  | low | broadcasts | per link 2/s, burst 10 | 2.1 s | 0.850 |
+  | low | broadcasts | per origin 1/s, 5 within per link 4/s, 20 (adopted) | 15.1 s | 1.000 |
+  | low | broadcasts, new key each | per origin only | 30.5 s | 1.000 |
+  | low | broadcasts, new key each | adopted | 16.2 s | 0.955 |
+  | low | flooded unicast | none | 134.7 s, 0.598 delivered | 0.695 |
+  | low | flooded unicast | 10/s, 40 | 36.9 s | 1.000 |
+  | low | flooded unicast | 5/s, 20 (adopted) | 15.1 s | 1.000 |
+  | medium | broadcasts | adopted | 1.4 s | 1.000 |
+  | medium | flooded unicast | none | 74.6 s, 0.978 delivered | 0.991 |
+  | medium | flooded unicast | 10/s, 40 (adopted) | 1.4 s | 1.000 |
+
+  Request limits and the 32-origin bound were not measured; the high class reuses the medium values, checked with one `density.yml` run of 8 cells and 5 seeds.
+- **Consequences:** an honest node that sends more than 20 broadcasts at once, or more than 4 a second for long, loses the rest beyond its neighbors. In `unsecured` one flooding member shares a link's broadcast budget with every honest origin behind it. An attacker with many signed identities is still capped by the link total.
+- **Alternatives:** per link 2/s, 10 (cut honest coverage); per origin only (no defense against new keys); per origin in `unsecured` (an origin field anyone can forge drains an honest origin's budget); dropping by priority instead of limiting (ticket 53: no measured benefit).
+
 ## Conflicts resolved
 
 Each entry names the ADR text and the problem found while writing the specification, and how the owner resolved it on 2026-11-08.

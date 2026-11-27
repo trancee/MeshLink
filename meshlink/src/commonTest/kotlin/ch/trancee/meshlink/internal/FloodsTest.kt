@@ -2,6 +2,8 @@ package ch.trancee.meshlink.internal
 
 import ch.trancee.meshlink.DensityClass
 import ch.trancee.meshlink.DiagnosticEvent
+import ch.trancee.meshlink.DiagnosticEvent.RelayRateLimited.Frame
+import ch.trancee.meshlink.NodeId
 import ch.trancee.meshlink.ReceivedMessage
 import ch.trancee.meshlink.crypto.sodium.SodiumCryptoProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -215,6 +217,54 @@ class FloodsTest {
             // Assert
             assertEquals(listOf(0, 2, 2), waiting().values.map { it.size }, "the request and the broadcast are relayed")
             assertEquals(emptyList(), diagnosed)
+        }
+
+    @Test
+    fun aBroadcastOverBudgetIsDeliveredAndRememberedButNeitherRelayedNorHeld() =
+        runTest {
+            // Arrange
+            val floods = floods()
+            val frame = broadcast(hopLimit = 5)
+
+            // Act
+            floods.received(a, frame, NOW) { _, _ -> false }
+            floods.received(c, frame, NOW)
+
+            // Assert
+            assertEquals(1, delivered.size)
+            assertEquals(listOf(0, 0), listOf(b, c).map { lanes.drain(it).size })
+            assertEquals(emptyList(), floods.holding.broadcasts(wallMillis()))
+        }
+
+    @Test
+    fun theRelayAsksTheLimitsForBroadcastsWithTheirOriginAndForLookupRequestsOnly() =
+        runTest {
+            // Arrange
+            val unsecured = floods()
+            val secured = floods(secured = true)
+            val asked = mutableListOf<Pair<Frame, ByteArray?>>()
+            val admits = { frame: Frame, origin: NodeId? ->
+                asked += frame to origin?.toByteArray()
+                frame != Frame.LookupRequest
+            }
+            val lookupHeader = FloodHeader(5, messageId(2), (NOW + LIFETIME).toUInt())
+            val lookup = LookupRequest(lookupHeader, tag(0x5a), tag(3), ByteArray(32))
+
+            // Act
+            unsecured.received(a, broadcast(id = 5), NOW, admits)
+            unsecured.received(a, lookup.encode(), NOW, admits)
+            unsecured.received(a, header(type = UNKNOWN_TYPE, id = 3) + byteArrayOf(9), NOW, admits)
+            unsecured.received(a, broadcast(id = 4, hopLimit = 1), NOW, admits)
+            secured.received(b, signed(), NOW, admits)
+
+            // Assert
+            val origin = Derivations(SodiumCryptoProvider).nodeId(identityKey(2).publicKey)
+            val expected = listOf(Frame.Broadcast to SENDER, Frame.LookupRequest to null, Frame.Broadcast to origin)
+            assertEquals(expected.map { it.first }, asked.map { it.first })
+            expected.zip(asked).forEach { (want, got) -> assertContentEquals(want.second, got.second) }
+            val types = listOf(b, c).flatMap { lanes.drain(it) }.map { it.render()[0].toInt() and 0xff }
+            assertEquals(0, types.count { it == LookupRequest.TYPE }, "the lookup request over budget is not relayed")
+            assertEquals(3, types.count { it == BroadcastFrame.TYPE })
         }
 
     @Test

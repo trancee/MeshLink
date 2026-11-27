@@ -135,6 +135,7 @@ class DiagnosticRedactionTest {
             DiagnosticEvent.RouteLost(peer),
             DiagnosticEvent.UnknownRoutedFrameRelayed(type = 0xbf),
             DiagnosticEvent.ExpiryFarFromLocalTime(skewSeconds = -31),
+            DiagnosticEvent.RelayRateLimited(peer, DiagnosticEvent.RelayRateLimited.Frame.Unicast),
             DiagnosticEvent.HeldMessageEvicted(DiagnosticEvent.HeldMessageEvicted.Reason.LinkShare),
             DiagnosticEvent.CertificateLookup(peer, attempts = 2),
             DiagnosticEvent.CertificateLookupUnanswered(peer, attempts = 5),
