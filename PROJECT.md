@@ -52,6 +52,8 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
   | Native size | `checkSodiumJniSize` in `:meshlink-crypto-sodium` | An Android JNI shim is over 1,000,000 bytes |
   | Thin adapters | `checkThinAdapters` (root) | [`config/thin-adapters.txt`](config/thin-adapters.txt) doesn't name exactly the Kotlin/Native main source files (`*/src/{ios,apple,native}*Main/**/*.kt`) |
   | Suppressions | `checkSuppressions` (root) | A main source file (`*/src/*Main/**/*.kt`) holds a `@Suppress` or `@file:Suppress` other than `@Suppress("DEPRECATION")` in a file [`config/legacy-platform-apis.txt`](config/legacy-platform-apis.txt) lists, or a listed file holds none (Constitution Q2 exception) |
+  | Agent docs | `checkAgentDocs` (root) | [`docs/agents/index.md`](docs/agents/index.md), [`docs/agents/contract.md`](docs/agents/contract.md) or [`docs/adr/README.md`](docs/adr/README.md) differs from what `AgentDocs` generates from `docs/**/*.md`, the root governance files and the klib dumps, or a `docs/` directory has no document type (ADR 0006 decisions 4 and 9); update with `./gradlew updateReference` |
+  | Dependency register | `checkDependencyRegister` (root) | [`docs/reference/dependencies.md`](docs/reference/dependencies.md) misses a catalog entry, lists one twice or at another version, names an entry the catalog lacks, or disagrees with a workflow's `uses:` repository, version comment, single commit SHA or `lycheeVersion`, or keeps an action row no workflow uses (ADR 0006 decision 11) |
   | Test timeout | every test task | A test task runs over 10 minutes ([ADR 0017](docs/adr/0017-testing-architecture.md) decision 13); no task retries a failed test |
 
 - **Kover profile** (`KOTLIN.md`):
@@ -70,7 +72,7 @@ Verified project profile (required by [`AGENTS.md`](AGENTS.md) and [`KOTLIN.md`]
 
   | Path | Holds |
   |---|---|
-  | `build-logic/` | Included build: the `meshlink.kmp-library`, `meshlink.published-library`, `meshlink.build-info`, `meshlink.robolectric`, `meshlink.root`, `meshlink.dependency-direction`, `meshlink.changelog`, `meshlink.libsodium`, `meshlink.sodium-host-jni`, `meshlink.lab-app` and `meshlink.spec-vectors` convention plugins, the native gate tasks, and their tests |
+  | `build-logic/` | Included build: the `meshlink.kmp-library`, `meshlink.published-library`, `meshlink.build-info`, `meshlink.robolectric`, `meshlink.root`, `meshlink.dependency-direction`, `meshlink.changelog`, `meshlink.libsodium`, `meshlink.sodium-host-jni`, `meshlink.lab-app` and `meshlink.spec-vectors` convention plugins, the native gate tasks, the docs tasks (`checkAgentDocs`, root `updateReference`, `checkDependencyRegister`), and their tests |
   | `meshlink-core/`, `meshlink-crypto-sodium/`, `meshlink/`, `meshlink-testing/` | The four library modules; `meshlink/api/` and `meshlink-testing/api/` hold the committed ABI dumps |
   | `labapp/` | The unpublished lab apps: `shared/` (`:labapp-shared`, the scenarios and the `LabKit` framework), `android/` (`:labapp-android`, Compose) and `ios/` (XcodeGen SwiftUI shell); [ADR 0017](docs/adr/0017-testing-architecture.md), 2026-11-15 lab tools amendment |
   | `config/detekt/` | detekt config on top of the defaults |
@@ -106,14 +108,15 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Maven consumer of the published artifacts (macOS only: the iOS klibs; needs the pinned NDK and `buildLibsodiumAndroid`; never writes `~/.m2`) | `tools/maven-consumer/test.sh` |
 | SwiftPM consumer of the XCFramework on an iOS Simulator (macOS only; set `DEVELOPER_DIR` to the Xcode of ADR 0005; `MESHLINK_SIMULATOR_DESTINATION` overrides the destination) | `tools/swiftpm-consumer/test.sh` |
 | Update the ABI dumps after an intended API change | `./gradlew updateKotlinAbi`, then add a `CHANGELOG.md` entry |
-| Regenerate the reference pages, `docs/agents/diagnostics.json` and the troubleshooting code tables after a config, preset or diagnostic KDoc change | `./gradlew updateReference` |
+| Regenerate the reference pages, `docs/agents/diagnostics.json`, the troubleshooting code tables, the agent docs index, contract reference and ADR index after a config, preset, diagnostic KDoc, ABI or docs change | `./gradlew updateReference` |
+| Dependency freshness report (not in `check`; needs the network; set `GITHUB_TOKEN` to avoid GitHub's rate limit; exits 1 when anything has a newer stable release) | `python3 tools/check_freshness.py` |
 | API reference (HTML in `build/dokka/html/`) | `./gradlew dokkaGenerate` |
 | Markdown lint | `npx -y markdownlint-cli2@0.24.0` |
 | Spelling (US English) | `typos` |
 | Links, repository only | `lychee --offline .` |
 | Links, including external | `lychee .` (set `GITHUB_TOKEN` to avoid GitHub rate limits) |
 | Workflow lint | `actionlint` |
-| CI gate unit tests | `python3 -m unittest discover -s tools/ci/tests` |
+| CI gate and freshness-report unit tests | `python3 -m unittest discover -s tools/ci/tests` |
 | Tier 2 vectors: the Rust reference's tests, including the committed-file staleness check (needs rustup; installs Rust 1.100.0 from `tools/reference/rust-toolchain.toml`) | `cargo test --manifest-path tools/reference/Cargo.toml` |
 | Regenerate the tier 2 vector files and schemas | `cargo run --manifest-path tools/reference/Cargo.toml` |
 | libsodium for Android (3 ABIs; needs the catalog's NDK under `$ANDROID_HOME` or `$ANDROID_SDK_ROOT`, and `minisign`) | `./gradlew buildLibsodiumAndroid` |
@@ -153,6 +156,7 @@ The `buildSodiumJni<Target>` tasks link `meshlink-crypto-sodium/native/meshlink_
 | Reference vectors (`reference-vectors.yml`, scheduled, not required) | `ubuntu-24.04` | `rustup toolchain install`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked`, `cargo run --locked`, diff `docs/spec/vectors/` | No; weekly and on manual dispatch |
 | Fuzz (`fuzz.yml`, scheduled, not required) | `ubuntu-24.04` | `./gradlew :meshlink-core:fuzz` with 300 s per target; 15 s on a pull request that changes the fuzz targets, corpus, `meshlink-core/build.gradle.kts`, `tools/fuzz/` or the workflow; uploads `meshlink-core/build/fuzz/crashes/` on failure | No; weekly, on manual dispatch and on those pull requests |
 | Density (`density.yml`, scheduled, not required) | `ubuntu-24.04` | A warm job fills the Gradle and libsodium caches; then `./gradlew :meshlink-testing:densityTest -Pdensity.measureOnly=true -Pdensity.cells=<cell> -Pdensity.seeds=<seed>`, one job per cell and seed (40 jobs, 60 min timeout), each uploading `density-<cell>-seed<N>`; then a pool job runs `-Pdensity.pool=density-runs`, checks the bands, fails if any seed job failed, writes the step summary and uploads `density-report` | No; weekly and on manual dispatch |
+| Dependency freshness (`freshness.yml`, scheduled, not required) | `ubuntu-24.04` | `python3 tools/check_freshness.py` with the job's `GITHUB_TOKEN`; writes the list to the step summary and fails when it is not empty; changes no file | No; weekly and on manual dispatch |
 | Docs site (`pages.yml`, not required) | Build: as the Linux Gradle job; deploy: `ubuntu-24.04` | On a pull request that changes the workflow, `pages/`, a `Module.md`, the Dokka convention plugins or `meshlink/build.gradle.kts`: `./gradlew dokkaGeneratePublicationHtml`, assemble `_site/` (Dokka under `api/`, `pages/index.html` at the root) and run lychee offline on it. Called by the release (`workflow_call`) or dispatched from a `v*` tag with that tag as input: the same build, then `actions/deploy-pages` to the `github-pages` environment in the `pages` concurrency group, never cancelled | No |
 
 On GitHub's runners, the Apple phases restore `~/.konan/dependencies` by runner OS, architecture, Xcode, Kotlin version and phase, falling back to another phase with the same toolchain; only `main` saves it. Libsodium cache restore falls back across version-catalog changes only when the pin, build script and toolchain match; the Linux toolchain key includes the compiler version and OS release, and the per-target stamp still checks the tarball, script and target toolchain before reuse. The SwiftPM script prints separate framework-build and simulator-test times.

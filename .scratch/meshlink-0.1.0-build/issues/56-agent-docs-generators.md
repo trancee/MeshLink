@@ -1,6 +1,6 @@
 # Generate the agent docs and check the dependency register
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 54
 
@@ -19,14 +19,14 @@ An agent opens `docs/agents/index.md` and finds every document with its type, wh
 
 ## Acceptance criteria
 
-- [ ] A `build-logic/` task generates `docs/agents/index.md`: every tracked Markdown document under `docs/` and the root governance files, with its Diátaxis type or role, its authority from ADR 0006 decision 2, and its status (an ADR's status line, "generated", or "current"). Nothing in it is hand-maintained.
-- [ ] The same task family generates `docs/agents/contract.md` from the committed KGP ABI dumps, one line per public declaration, and `docs/adr/README.md` from the ADR headers. The ADR index matches what `tools/check_adrs.py` reads.
-- [ ] `checkAgentDocs` is wired into `check` and fails with the differing file named when a generated page is stale. `./gradlew updateReference` (from ticket 53) also rewrites these pages.
-- [ ] `checkDependencyRegister` is wired into `check`. It fails when `gradle/libs.versions.toml` and the register's catalog sections differ row for row, and when a workflow `uses:` action or pinned CI tool differs from the "CI tools" section in name, version or version comment.
-- [ ] Each check has tests in `build-logic/` that prove a stale page, a missing row, an extra row and a version mismatch each fail (T1, ADR 0006 risks). The tests need no network.
-- [ ] A scheduled workflow, `.github/workflows/freshness.yml`, runs weekly and on `workflow_dispatch`. It is never a required check. It runs `tools/check_freshness.py` (standard library only, no new dependency) and lists every catalog entry, CI action and tool with a newer stable release, plus the first stable Zensical release. It writes the list to the job summary and fails when the list is not empty, so GitHub notifies the owner. It changes no file and opens no pull request.
-- [ ] Every action in the new workflow is pinned to the latest stable release by commit SHA with a version comment, verified on the day it is written, and has a register row. `actionlint` passes.
-- [ ] `docs/README.md` links the generated index, contract reference and diagnostic index from "For AI agents".
+- [x] A `build-logic/` task generates `docs/agents/index.md`: every tracked Markdown document under `docs/` and the root governance files, with its Diátaxis type or role, its authority from ADR 0006 decision 2, and its status (an ADR's status line, "generated", or "current"). Nothing in it is hand-maintained.
+- [x] The same task family generates `docs/agents/contract.md` from the committed KGP ABI dumps, one line per public declaration, and `docs/adr/README.md` from the ADR headers. The ADR index matches what `tools/check_adrs.py` reads.
+- [x] `checkAgentDocs` is wired into `check` and fails with the differing file named when a generated page is stale. `./gradlew updateReference` (from ticket 53) also rewrites these pages.
+- [x] `checkDependencyRegister` is wired into `check`. It fails when `gradle/libs.versions.toml` and the register's catalog sections differ row for row, and when a workflow `uses:` action or pinned CI tool differs from the "CI tools" section in name, version or version comment.
+- [x] Each check has tests in `build-logic/` that prove a stale page, a missing row, an extra row and a version mismatch each fail (T1, ADR 0006 risks). The tests need no network.
+- [x] A scheduled workflow, `.github/workflows/freshness.yml`, runs weekly and on `workflow_dispatch`. It is never a required check. It runs `tools/check_freshness.py` (standard library only, no new dependency) and lists every catalog entry, CI action and tool with a newer stable release, plus the first stable Zensical release. It writes the list to the job summary and fails when the list is not empty, so GitHub notifies the owner. It changes no file and opens no pull request.
+- [x] Every action in the new workflow is pinned to the latest stable release by commit SHA with a version comment, verified on the day it is written, and has a register row. `actionlint` passes.
+- [x] `docs/README.md` links the generated index, contract reference and diagnostic index from "For AI agents".
 
 ## Proof commands
 
