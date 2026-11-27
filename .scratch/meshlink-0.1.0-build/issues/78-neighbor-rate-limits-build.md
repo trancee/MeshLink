@@ -42,7 +42,7 @@ Rules:
 - [x] Unit tests prove each bucket: refill, burst, origin-bucket eviction, local delivery of an over-budget frame, and the class switch.
 - [x] A `VirtualAir` test shows a neighbor flooding broadcasts at 20/s being cut to the per-link rate, with `ML5005` emitted.
 - [x] `ML5005` is in the diagnostics reference, the generated troubleshooting tables and the diagnostics wiring tests.
-- [ ] One `density.yml` run of all 8 cells with 5 seeds passes every band, which proves the high-class values.
+- [x] One `density.yml` run of all 8 cells with 5 seeds passes every band, which proves the high-class values.
 - [x] All gates pass, with Kover at 100%.
 
 ## Proof commands
