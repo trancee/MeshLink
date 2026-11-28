@@ -30,7 +30,7 @@ class ConcurrentReplayTest {
     private fun trace(seed: Long): List<String> {
         val scope = TestScope()
         val random = Random(seed)
-        val mesh = VirtualMesh(scope, seed, List(NODES) { random.nextDouble(SIDE) to random.nextDouble(SIDE) })
+        val mesh = SeededMesh(scope, seed, List(NODES) { random.nextDouble(SIDE) to random.nextDouble(SIDE) })
         scope.launch { mesh.start() }
         mesh.dropLinksAtRandom(MEAN_LINK_MILLIS)
         scope.testScheduler.advanceTimeBy(RUN_MILLIS)

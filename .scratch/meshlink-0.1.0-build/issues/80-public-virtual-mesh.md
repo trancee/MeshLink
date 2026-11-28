@@ -14,6 +14,15 @@ Today every declaration in `meshlink-testing` sits in `ch.trancee.meshlink.inter
 
 Add a small public facade, `ch.trancee.meshlink.testing.VirtualMesh`. `VirtualAir` stays internal. Rejected: making `VirtualAir` and `VirtualPlatform` public (it puts `Clock`, `RandomSource` and radio tuning under the SemVer promise of ADR 0019), and deferring Kotlin app testing (it breaks ADR 0006 decision 5).
 
+## Owner decisions (2026-11-28, grilling Q1–Q5, all recommendations)
+
+- Q1 A: nodes start out of reach of each other; `VirtualAir` gains an internal per-pair override (`setReachable`); `disconnect` drops open links at once as a transient loss.
+- Q2 A: `connect(a, b, rssi: Int = -60)`.
+- Q3 A: `advance(duration)` runs `advanceTimeBy(duration)` then `runCurrent()`.
+- Q4 A: no public seed; a fixed internal seed.
+- Q5 A: `node(config): MeshLink`, no name.
+- The internal `commonTest` harness `VirtualMesh` is renamed `SeededMesh`.
+
 ## Spec and ADR references
 
 - [ADR 0007](../../../docs/adr/0007-public-api-shape.md#decision) decision 15 and its amendments (Swift `FakeMesh`).
@@ -22,9 +31,9 @@ Add a small public facade, `ch.trancee.meshlink.testing.VirtualMesh`. `VirtualAi
 
 ## Acceptance criteria
 
-- [ ] `VirtualMesh(scope: TestScope)` in `ch.trancee.meshlink.testing` with `node(config): MeshLink`, `connect(a, b)`, `disconnect(a, b)` and `advance(duration)`, each with KDoc. Names follow the Swift `FakeMesh` unless the owner decides otherwise during grilling.
-- [ ] Tests in `meshlink-testing`'s `commonTest` show two nodes discovering each other and delivering a message, and `disconnect` stopping delivery.
-- [ ] ADR 0007 and ADR 0017 amendments; the klib ABI dump and `docs/agents/contract.md` updated; Kover stays at 100%.
+- [x] `VirtualMesh(scope: TestScope)` in `ch.trancee.meshlink.testing` with `node(config): MeshLink`, `connect(a, b)`, `disconnect(a, b)` and `advance(duration)`, each with KDoc. Names follow the Swift `FakeMesh` unless the owner decides otherwise during grilling.
+- [x] Tests in `meshlink-testing`'s `commonTest` show two nodes discovering each other and delivering a message, and `disconnect` stopping delivery.
+- [x] ADR 0007 and ADR 0017 amendments; the klib ABI dump and `docs/agents/contract.md` updated; Kover stays at 100%.
 - [ ] Ticket 57's testing how-to (its third pull request) uses it.
 
 ## Proof commands

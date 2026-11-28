@@ -1,0 +1,9 @@
+public final class ch/trancee/meshlink/testing/VirtualMesh {
+	public fun <init> (Lkotlinx/coroutines/test/TestScope;)V
+	public final fun advance-LRDsOJo (J)V
+	public final fun connect (Lch/trancee/meshlink/MeshLink;Lch/trancee/meshlink/MeshLink;I)V
+	public static synthetic fun connect$default (Lch/trancee/meshlink/testing/VirtualMesh;Lch/trancee/meshlink/MeshLink;Lch/trancee/meshlink/MeshLink;IILjava/lang/Object;)V
+	public final fun disconnect (Lch/trancee/meshlink/MeshLink;Lch/trancee/meshlink/MeshLink;)V
+	public final fun node (Lch/trancee/meshlink/MeshLinkConfig;)Lch/trancee/meshlink/MeshLink;
+}
+

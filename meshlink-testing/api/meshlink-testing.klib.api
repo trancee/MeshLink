@@ -6,3 +6,11 @@
 // - Show declarations: true
 
 // Library unique name: <ch.trancee.meshlink:meshlink-testing>
+final class ch.trancee.meshlink.testing/VirtualMesh { // ch.trancee.meshlink.testing/VirtualMesh|null[0]
+    constructor <init>(kotlinx.coroutines.test/TestScope) // ch.trancee.meshlink.testing/VirtualMesh.<init>|<init>(kotlinx.coroutines.test.TestScope){}[0]
+
+    final fun advance(kotlin.time/Duration) // ch.trancee.meshlink.testing/VirtualMesh.advance|advance(kotlin.time.Duration){}[0]
+    final fun connect(ch.trancee.meshlink/MeshLink, ch.trancee.meshlink/MeshLink, kotlin/Int = ...) // ch.trancee.meshlink.testing/VirtualMesh.connect|connect(ch.trancee.meshlink.MeshLink;ch.trancee.meshlink.MeshLink;kotlin.Int){}[0]
+    final fun disconnect(ch.trancee.meshlink/MeshLink, ch.trancee.meshlink/MeshLink) // ch.trancee.meshlink.testing/VirtualMesh.disconnect|disconnect(ch.trancee.meshlink.MeshLink;ch.trancee.meshlink.MeshLink){}[0]
+    final fun node(ch.trancee.meshlink/MeshLinkConfig): ch.trancee.meshlink/MeshLink // ch.trancee.meshlink.testing/VirtualMesh.node|node(ch.trancee.meshlink.MeshLinkConfig){}[0]
+}

@@ -43,7 +43,7 @@ internal fun StepsBuilder.meshDeliverySteps() {
 @OptIn(ExperimentalCoroutinesApi::class)
 private class MeshDeliveryScenario {
     private lateinit var scope: TestScope
-    private lateinit var mesh: VirtualMesh
+    private lateinit var mesh: SeededMesh
     private lateinit var random: Random
     private lateinit var positions: List<Pair<Double, Double>>
     private var meshInitialized = false
@@ -69,7 +69,7 @@ private class MeshDeliveryScenario {
             scope = TestScope(dispatcher)
             random = Random(seed)
             positions = layout(layout, count, random)
-            mesh = VirtualMesh(scope, seed.toLong(), positions)
+            mesh = SeededMesh(scope, seed.toLong(), positions)
             meshInitialized = true
             scope.launch { mesh.start() }
             scope.testScheduler.advanceTimeBy(MESH_SETTLE_MILLIS)
@@ -178,7 +178,7 @@ private class MeshDeliveryScenario {
 
 /** The arrivals at its destination of a message with [message]'s exact payload. */
 private fun arrivals(
-    mesh: VirtualMesh,
+    mesh: SeededMesh,
     message: Sent,
 ): List<Arrival> = mesh.inboxes[message.to].filter { it.message.payload.contentEquals(message.payload) }
 

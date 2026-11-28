@@ -127,7 +127,7 @@ private class CellRun(
     private val side = sqrt(n * PI * VirtualAir.DEFAULT_RANGE * VirtualAir.DEFAULT_RANGE / cell.meanPeers)
     private val x = DoubleArray(n) { random.nextDouble(side) }
     private val y = DoubleArray(n) { random.nextDouble(side) }
-    private val mesh = VirtualMesh(scope, seed, List(n) { x[it] to y[it] }, recording = false)
+    private val mesh = SeededMesh(scope, seed, List(n) { x[it] to y[it] }, recording = false)
     private val present = BooleanArray(n) { true }
     private val written = LongArray(n)
     private var counting = false

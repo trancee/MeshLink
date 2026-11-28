@@ -28,7 +28,7 @@ internal class Arrival(
  * for byte. A mesh of 100+ nodes runs without [recording] link writes.
  */
 @OptIn(ExperimentalCoroutinesApi::class, InternalMeshLinkApi::class)
-internal class VirtualMesh(
+internal class SeededMesh(
     private val scope: TestScope,
     seed: Long,
     positions: List<Pair<Double, Double>>,
@@ -78,7 +78,7 @@ internal class VirtualMesh(
         fun root(index: Int): Int = if (component[index] == index) index else root(component[index])
         for (a in platforms.indices) {
             for (b in a + 1 until platforms.size) {
-                if (air.inRange(platforms[a].radio, platforms[b].radio)) component[root(a)] = root(b)
+                if (air.reach.test(platforms[a].radio, platforms[b].radio)) component[root(a)] = root(b)
             }
         }
         return IntArray(platforms.size) { root(it) }

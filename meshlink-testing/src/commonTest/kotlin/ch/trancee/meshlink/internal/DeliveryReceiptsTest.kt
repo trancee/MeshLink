@@ -28,7 +28,7 @@ class DeliveryReceiptsTest {
     fun fortyMessagesFiveHopsAwayAreDeliveredByBatchedReceiptsAndNeverResent() =
         runTest(timeout = 5.minutes) {
             // Arrange: six nodes in a line, each in range of its neighbors only.
-            val mesh = VirtualMesh(this, SEED, List(LINE) { it * SPACING to 0.0 })
+            val mesh = SeededMesh(this, SEED, List(LINE) { it * SPACING to 0.0 })
             mesh.start()
             advanceTimeBy(SETTLE_MILLIS)
             val f = checkNotNull(mesh.idOf(LINE - 1))

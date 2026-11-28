@@ -30,7 +30,8 @@ import kotlin.math.min
  * A radio takes a fresh address each time it starts advertising, as a phone rotates its resolvable
  * private address, so a peer can't be reached at an address it no longer advertises; a link keeps
  * the address it was opened to. A radio may report a peripheral link cap, which the core enforces;
- * a test drops a link as a transient loss with [VirtualLinkEnd.drop] or by moving its radios apart.
+ * a test drops a link as a transient loss with [VirtualLinkEnd.drop], by moving its radios apart or by
+ * making them unreachable with [setReachable].
  * It models no other loss.
  * A scanning radio sees every advertisement in range at once and again each time it starts
  * scanning, and logs its scan starts and stops in [VirtualRadio.scanLog].
@@ -56,7 +57,7 @@ internal class VirtualAir(
     internal val clock: Clock,
     private val random: RandomSource,
     private val latencyMillis: IntRange = DEFAULT_LATENCY_MILLIS,
-    private val range: Double = DEFAULT_RANGE,
+    range: Double = DEFAULT_RANGE,
     /** Whether link and channel ends keep a copy of every write; a mesh of 100+ nodes runs without. */
     internal val recording: Boolean = true,
 ) {
@@ -68,6 +69,9 @@ internal class VirtualAir(
     /** Called with the writing radio and the bytes of every link and channel write. */
     var onWrite: (VirtualRadio, ByteArray) -> Unit = { _, _ -> }
     private val rssis = mutableMapOf<Set<VirtualRadio>, Int>()
+
+    /** Which radios hear each other. */
+    internal val reach = AirReach(range)
 
     init {
         scope.coroutineContext.job.invokeOnCompletion {
@@ -135,17 +139,21 @@ internal class VirtualAir(
     ) {
         radio.x = x
         radio.y = y
-        radio.ends.filter { it.open && !inRange(radio, it.remote) }.forEach { it.drop() }
+        radio.ends.filter { it.open && !reach.test(radio, it.remote) }.forEach { it.drop() }
     }
 
-    /** Whether [a] and [b] are at most [range] apart. */
-    internal fun inRange(
+    /**
+     * Puts [a] and [b] out of reach of each other, whatever their places, if not [reachable], or back
+     * to their geometric range if [reachable]. Each link between them drops at once, as a transient
+     * loss, when they go out of reach.
+     */
+    fun setReachable(
         a: VirtualRadio,
         b: VirtualRadio,
-    ): Boolean {
-        val dx = a.x - b.x
-        val dy = a.y - b.y
-        return dx * dx + dy * dy <= range * range
+        reachable: Boolean,
+    ) {
+        reach.set(a, b, reachable)
+        move(a, a.x, a.y)
     }
 
     internal fun announce(
@@ -153,7 +161,7 @@ internal class VirtualAir(
         payload: ByteArray,
     ) {
         radios.forEach { scanner ->
-            if (scanner !== advertiser && scanner.scanning && inRange(scanner, advertiser)) {
+            if (scanner !== advertiser && scanner.scanning && reach.test(scanner, advertiser)) {
                 sight(scanner, advertiser, payload)
             }
         }
@@ -162,7 +170,7 @@ internal class VirtualAir(
     internal fun listen(scanner: VirtualRadio) {
         radios.forEach { other ->
             val payload = other.advertisement
-            if (other !== scanner && payload != null && inRange(scanner, other)) sight(scanner, other, payload)
+            if (other !== scanner && payload != null && reach.test(scanner, other)) sight(scanner, other, payload)
         }
     }
 
@@ -171,7 +179,7 @@ internal class VirtualAir(
         peer: PeerHandle,
     ): RadioResult<CentralLink> {
         val peripheral = radios.firstOrNull { it.handle === peer && it !== central && it.advertisement != null }
-        if (peripheral == null || !inRange(central, peripheral)) {
+        if (peripheral == null || !reach.test(central, peripheral)) {
             return RadioResult.Failed(RadioFailure.PEER_UNREACHABLE)
         }
         delay(latency())
@@ -236,6 +244,32 @@ internal class VirtualAir(
 
 /** A radio's address on the [VirtualAir]; compared by reference. */
 internal class VirtualPeer : PeerHandle
+
+/** Which pairs of radios hear each other: those at most [range] apart and not set out of reach. */
+internal class AirReach(
+    private val range: Double,
+) {
+    private val apart = mutableSetOf<Set<VirtualRadio>>()
+
+    /** Sets [a] and [b] out of reach of each other unless [reachable]. */
+    fun set(
+        a: VirtualRadio,
+        b: VirtualRadio,
+        reachable: Boolean,
+    ) {
+        if (reachable) apart -= setOf(a, b) else apart += setOf(a, b)
+    }
+
+    /** Whether [a] and [b] hear each other. */
+    fun test(
+        a: VirtualRadio,
+        b: VirtualRadio,
+    ): Boolean {
+        val dx = a.x - b.x
+        val dy = a.y - b.y
+        return setOf(a, b) !in apart && dx * dx + dy * dy <= range * range
+    }
+}
 
 /** One node's radio on a [VirtualAir]. */
 internal class VirtualRadio(
