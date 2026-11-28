@@ -414,6 +414,8 @@ One line per public declaration of each published module, from its committed kli
 | object | `final object ch.trancee.meshlink/Preset.OfflineChat : ch.trancee.meshlink/Preset` |
 | object | `final object ch.trancee.meshlink/Preset.ProximityDiscovery : ch.trancee.meshlink/Preset` |
 | fun | `final fun (ch.trancee.meshlink/MeshPlatform.Companion).ch.trancee.meshlink/ios(): ch.trancee.meshlink/MeshPlatform` |
+| fun | `final fun (kotlin/ByteArray).ch.trancee.meshlink/toNSData(): platform.Foundation/NSData` |
+| fun | `final fun (platform.Foundation/NSData).ch.trancee.meshlink/toByteArray(): kotlin/ByteArray` |
 | fun | `final fun ch.trancee.meshlink/meshLinkConfig(ch.trancee.meshlink/Preset, ch.trancee.meshlink/SecurityProfile, kotlin/Function1<ch.trancee.meshlink/MeshLinkConfigBuilder, kotlin/Unit>): ch.trancee.meshlink/MeshLinkConfigBuilder` |
 
 ### Internal API

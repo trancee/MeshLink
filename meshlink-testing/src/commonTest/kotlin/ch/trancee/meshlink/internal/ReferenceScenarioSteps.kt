@@ -116,7 +116,9 @@ private fun StepsBuilder.proximityDiscoverySteps(mesh: ReferenceMesh) {
 }
 
 private fun StepsBuilder.localMultiplayerSteps(mesh: ReferenceMesh) {
-    given("four players run the custom preset {string}, based on LocalMultiplayer, all in range of each other") { name: String ->
+    given(
+        "four players run the custom preset {string}, based on LocalMultiplayer, all in range of each other",
+    ) { name: String ->
         val arena = Preset.Custom(name, Preset.LocalMultiplayer) { messageLifetimeSeconds = ARENA_LIFETIME_SECONDS }
         mesh.start(arena, SecurityProfile.Classical, List(PLAYERS) { 0.0 to 0.0 })
     }
@@ -132,7 +134,9 @@ private fun StepsBuilder.localMultiplayerSteps(mesh: ReferenceMesh) {
         mesh.settle(REFERENCE_SETTLE_MILLIS)
     }
 
-    then("every player received a move from each of the {int} others within {int} second") { others: Int, seconds: Int ->
+    then(
+        "every player received a move from each of the {int} others within {int} second",
+    ) { others: Int, seconds: Int ->
         mesh.nodes.indices.forEach { player ->
             val inbox = mesh.inbox(player)
             assertEquals((mesh.nodes.indices - player).map(mesh::id).toSet(), inbox.map { it.first.sender }.toSet())

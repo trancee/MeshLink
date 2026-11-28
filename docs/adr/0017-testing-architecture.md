@@ -1,6 +1,6 @@
 # 0017: Testing architecture
 
-Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 15 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner; 2026-11-16, production randomness; 2026-11-18, fuzzing; 2026-11-21, self-hosted runner; 2026-11-22, density suites; 2026-11-22, Fedora runners).
+Status: accepted (2026-11-08; ticket "What is the testing architecture?"). Version: 16 (amended 2026-11-13, release device evidence; 2026-11-13, errata; 2026-11-14, test timeouts; 2026-11-14, sans-IO enforcement; 2026-11-14, system clock; 2026-11-14, Android adapter tests; 2026-11-15, iOS adapter tests; 2026-11-15, lab tools; 2026-11-15, vector runner; 2026-11-16, production randomness; 2026-11-18, fuzzing; 2026-11-21, self-hosted runner; 2026-11-22, density suites; 2026-11-22, Fedora runners; 2026-11-28, reference scenarios).
 
 ## Context
 
@@ -224,3 +224,7 @@ Inputs:
 - **Trust and risk:** the public repository exposes both persistent hosts to eligible workflow code. Each runner has its own work directory, but runners on each host share a non-admin `gh-runner` account, toolchains, Gradle home and network access. Neither account can traverse the owner's home. A modified workflow can change the fork guard, so it is not an independent security boundary; review workflow changes and control approval of untrusted runs. GitHub recommends private repositories for self-hosted runners.
 - **Alternatives:** GitHub-hosted Linux avoids host exposure but does not use these hosts; an organization pool cannot serve personal-account repositories. Separate registrations per repository do not enforce a host-wide job limit. The owner selected three instances per host for this repository and deferred selecting others.
 - **Operation:** systemd user services start the runners with a clean environment and persist through user lingering. The accounts have no `sudo` or personal credentials. See [runner maintenance](../how-to/maintain-fedora-runners.md).
+
+2026-11-28, reference scenarios (0.1.0 backlog ticket "Use MeshLink naturally from Swift", ticket 55):
+
+- **Swift fake drift (decision 6, risk):** the shared scenarios are `meshlink-testing/src/commonTest/resources/features/reference-scenarios.feature`, one or two per preset. Kotlin runs them on `VirtualAir` through the Gherkin glue; `swift/Tests/MeshLinkTestingTests/ReferenceScenarioTests.swift` runs each against `MeshLinkTesting`, naming it with `scenario("<title>")`. `tools/check-scenario-parity.py`, which `swift/test.sh` runs first, fails on a missing, extra or duplicate title. The check compares titles only; each Swift test follows its scenario's steps by review.

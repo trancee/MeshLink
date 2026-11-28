@@ -23,6 +23,7 @@ MeshLink is being built toward its first release, 0.1.0. This page lists what yo
 | What each diagnostic code means, its likely cause and fix | [Diagnostics](reference/diagnostics.md) (generated; [JSON for agents](agents/diagnostics.json)) |
 | What each security profile guarantees | [Security profile guarantees](reference/security-profile-guarantees.md) |
 | What relays and neighbors learn from routing messages | [What each observer learns](reference/observer-exposure.md) |
+| Swift overlay: the `MeshNode` protocol, its Swift value types and the `MeshLinkTesting` fake | [`swift/`](../swift/) ([ADR 0007](adr/0007-public-api-shape.md) amendment of 2026-11-28) |
 | Kotlin API of the latest release | `https://trancee.github.io/MeshLink/api/`, from the first release on; locally `./gradlew dokkaGeneratePublicationHtml` writes it to `build/dokka/html/` |
 | Dependencies and tools, with their rationale | [Dependency register](reference/dependencies.md) |
 | Setting up the self-hosted macOS CI runner | [How-to](how-to/set-up-self-hosted-runner.md) |

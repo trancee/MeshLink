@@ -35,7 +35,7 @@ These names are fixed here so every ticket can cite them. The ticket that create
 | `./gradlew dokkaGenerate` | API docs build without warnings | 02 |
 | `./gradlew publishToMavenLocal` | Every artifact publishes with its POM; until ticket 65 only `:meshlink:publishToMavenLocal` passes | 04, 65 |
 | `tools/maven-consumer/test.sh` | A generated KMP consumer of `ch.trancee.meshlink:meshlink` resolves every transitive module from Maven local alone | 65 |
-| `tools/swiftpm-consumer/test.sh` | The XCFramework works from a SwiftPM `binaryTarget`; runs `xcodebuild test` on an iOS simulator, because `swift test` can't link an iOS-only XCFramework on macOS | 04 |
+| `tools/swiftpm-consumer/test.sh` | The XCFramework works from a SwiftPM `binaryTarget`, through the `swift/` package's `MeshLink` product since 55; runs `xcodebuild test` on an iOS simulator, because `swift test` can't link an iOS-only XCFramework on macOS | 04 |
 | `python3 tools/lab/lab.py run --scenario <name> --devices <alias>,<alias> [--profile unsecured\|classical\|post-quantum]` | One device scenario; writes results under `build/lab/`. `classical` needs ticket 24, `post-quantum` ticket 25 | 16 |
 | `python3 tools/lab/lab.py evidence --run <dir>` | Turns a run into a T9 evidence record in `docs/evidence/` | 16 |
 | `python3 -m unittest discover -s tools/lab/tests` | The lab tools' own unit tests | 16 |
@@ -44,7 +44,7 @@ These names are fixed here so every ticket can cite them. The ticket that create
 | `./gradlew :meshlink-testing:densityTest` | 50–200-node density meshes against the simulator bands (scheduled) | 42 |
 | `./gradlew updateReference` | Regenerates the generated reference pages | 53 |
 | `python3 tools/check_freshness.py` | Dependency freshness report | 56 |
-| `swift/test.sh` | The Swift overlay's tests on an iOS simulator | 55 |
+| `swift/test.sh` | The reference-scenario parity check, then the Swift overlay's and `MeshLinkTesting`'s tests on an iOS simulator | 55 |
 | `actionlint` | Workflow files are valid | 59, 60 |
 | `python3 tools/release/verify_release.py --version <X.Y.Z>`, `python3 -m unittest discover tools/release` | A published release matches its build; the verifier's own tests | 60 |
 | `gh workflow run release.yml --ref main -f dry_run=true` | A release dry run | 60 |

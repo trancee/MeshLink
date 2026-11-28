@@ -1,6 +1,6 @@
 # Use MeshLink naturally from Swift
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 Blocked by: 54
 
@@ -18,15 +18,15 @@ A Swift app imports the `MeshLink` package and calls MeshLink in idiomatic Swift
 
 ## Acceptance criteria
 
-- [ ] `swift/Package.swift` (path-based, development only) defines package `MeshLink` with products `MeshLink` and `MeshLinkTesting`. Its binary target is the local `MeshLinkKit` XCFramework that ticket 04's build produces.
-- [ ] The `MeshLink` target re-exports `MeshLinkKit` and adds only ADR 0007 decision 14's items plus the Swift protocol: `Data` ↔ `KotlinByteArray` with one bulk copy, Swift default arguments on the options types, a static `MeshLink.create`, and `error.meshLink`. It has no protocol or mesh logic (T3) and stays near 60 lines. A larger overlay needs a reason in the PR.
-- [ ] `MeshLinkTesting` is a pure Swift target with a protocol-based fake. It contains no Kotlin of its own, conforms to the overlay's protocol, and is never linked into an app target.
-- [ ] XCTest suites in `swift/Tests/` run the reference scenarios that `meshlink-testing` runs, once against `MeshLinkTesting` and once against the real framework where the simulator allows it (MeshLink reports `Blocked(Unsupported)` there).
-- [ ] Swift tests cover exhaustive `onEnum(of:)` switches over `MeshState`, `SendResult` and `DeliveryStatus`, `try await` with `Task` cancellation reaching Kotlin, a full queue answered with `awaitSendCapacity()`, `error.meshLink` on a declared exception, and collection from `@MainActor`.
-- [ ] A conversion test round-trips empty, 1 B and 128 KiB payloads unchanged. A benchmark test converts 16 KB and fails above a budget written in the test as P1 `{workload, environment, method, threshold}`, derived from the [SE 2016 evidence](../../../docs/evidence/2026-11-se2016-bench/README.md).
-- [ ] `tools/swiftpm-consumer` depends on `swift/` by path and builds against the `MeshLink` product, not `MeshLinkKit` directly.
-- [ ] `swift/test.sh` runs `xcodebuild test` for the `swift/` package on an iOS Simulator, builds the XCFramework first or fails naming the Gradle task, and exits non-zero on any failure.
-- [ ] Every overlay declaration has a Swift doc comment. `./gradlew check` and `./gradlew iosSimulatorArm64Test` still pass.
+- [x] `swift/Package.swift` (path-based, development only) defines package `MeshLink` with products `MeshLink` and `MeshLinkTesting`. Its binary target is the local `MeshLinkKit` XCFramework that ticket 04's build produces.
+- [x] The `MeshLink` target re-exports `MeshLinkKit` and adds only ADR 0007 decision 14's items plus the Swift protocol: `Data` ↔ `KotlinByteArray` with one bulk copy, Swift default arguments on the options types, a static `MeshLink.create`, and `error.meshLink`. It has no protocol or mesh logic (T3) and stays near 60 lines. A larger overlay needs a reason in the PR.
+- [x] `MeshLinkTesting` is a pure Swift target with a protocol-based fake. It contains no Kotlin of its own, conforms to the overlay's protocol, and is never linked into an app target.
+- [x] XCTest suites in `swift/Tests/` run the reference scenarios that `meshlink-testing` runs, once against `MeshLinkTesting` and once against the real framework where the simulator allows it (MeshLink reports `Blocked(Unsupported)` there).
+- [x] Swift tests cover exhaustive `onEnum(of:)` switches over `MeshState`, `SendResult` and `DeliveryStatus`, `try await` with `Task` cancellation reaching Kotlin, a full queue answered with `awaitSendCapacity()`, `error.meshLink` on a declared exception, and collection from `@MainActor`.
+- [x] A conversion test round-trips empty, 1 B and 128 KiB payloads unchanged. A benchmark test converts 16 KB and fails above a budget written in the test as P1 `{workload, environment, method, threshold}`, derived from the [SE 2016 evidence](../../../docs/evidence/2026-11-se2016-bench/README.md).
+- [x] `tools/swiftpm-consumer` depends on `swift/` by path and builds against the `MeshLink` product, not `MeshLinkKit` directly.
+- [x] `swift/test.sh` runs `xcodebuild test` for the `swift/` package on an iOS Simulator, builds the XCFramework first or fails naming the Gradle task, and exits non-zero on any failure.
+- [x] Every overlay declaration has a Swift doc comment. `./gradlew check` and `./gradlew iosSimulatorArm64Test` still pass.
 
 ## Known input
 
@@ -53,3 +53,9 @@ swift/test.sh
 ## Devices needed
 
 None. Swift tests run on the iOS simulator; radio behavior is not claimed here.
+
+## Outcome (2026-11-28)
+
+- Root cause of the "raw `StateFlow`" finding: none in SKIE. SKIE retypes flows in `MeshLinkKit.apinotes`, which Swift applies on import; ticket 09 read the Objective-C header. Lesson and ADR 0007 corrected.
+- Owner decisions: the `MeshNode` protocol speaks `Sendable` Swift value types and `MeshLink`'s conformance maps each Kotlin type once (ADR 0007 amendment of 2026-11-28: the budget counts idioms, and a per-type mapping is one); the shared scenarios are `reference-scenarios.feature` with a title-parity check (ADR 0017 amendment of 2026-11-28).
+- Size: `Overlay.swift` (the four idioms of decision 14) is 46 lines; the protocol with its value types and the conformance add 419 lines of declarations and one `switch` per type.

@@ -6,6 +6,7 @@ meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/Sodi
 meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumClassical.ios.kt
 meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumHashing.ios.kt
 meshlink-crypto-sodium/src/iosMain/kotlin/ch/trancee/meshlink/crypto/sodium/SodiumKems.ios.kt
+meshlink/src/iosMain/kotlin/ch/trancee/meshlink/DataBridge.kt
 meshlink/src/iosMain/kotlin/ch/trancee/meshlink/MeshPlatform.ios.kt
 meshlink/src/iosMain/kotlin/ch/trancee/meshlink/internal/IosPort.kt
 meshlink/src/iosArm64Main/kotlin/ch/trancee/meshlink/internal/IosPort.iosArm64.kt

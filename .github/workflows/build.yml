@@ -178,8 +178,11 @@ jobs:
       - if: matrix.phase == 'swiftpm'
         run: tools/swiftpm-consumer/test.sh
         id: swiftpm_consumer
+      - if: matrix.phase == 'swiftpm'
+        run: swift/test.sh
+        id: swift_overlay
       - name: Diagnose unavailable simulators
-        if: ${{ failure() && steps.swiftpm_consumer.outcome == 'failure' }}
+        if: ${{ failure() && (steps.swiftpm_consumer.outcome == 'failure' || steps.swift_overlay.outcome == 'failure') }}
         run: python3 tools/ci/simulator_diagnostics.py
       - if: matrix.phase == 'swiftpm'
         run: ./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols
