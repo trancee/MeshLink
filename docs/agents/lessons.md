@@ -157,6 +157,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - Each SDK's android-all pin needs its own Gradle configuration. All pins share the module `org.robolectric:android-all-instrumented`, so one configuration resolves only the newest version and the older SDK fails with `no artifacts found for DependencyJar{...}`.
 - Robolectric 4.18 on the JDK 21 test toolchain needs neither `--add-exports` nor `--add-opens` (ADR 0005, 2026-11-14 amendment).
 - A JUnit `Timeout` rule runs each test on another thread, and the main looper can then not be driven (`Main looper can only be controlled from its thread in PAUSED mode`). Time adapter retries and budgets with a coroutine `delay` in the radio's scope and an injected `TimeSource`, and advance the `TestScope` scheduler instead (`BleScanner`, `GattServerHost`).
+- A Robolectric test must never call `MeshLink.create`. Creating a node loads libsodium's JNI library, which a JVM binds to one classloader. A plain JVM test in the same fork, such as `DiagnosticRedactionTest`, loads it first, and the Robolectric sandbox then fails with `UnsatisfiedLinkError: … already loaded in another classloader`. Run alone, the Robolectric test passes, so only the full `check` shows the failure. Test node behavior on `VirtualAir` instead (`GetStartedAndroidTest`).
 
 ## VirtualAir link tests
 
@@ -254,6 +255,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 ## Docs tooling
 
 - `markdownlint-cli2 --fix` mangles URLs that contain `(` and rewrites table separators. Review its diff, never trust it blindly.
+- A code block after `<!-- region: <path>#<name> -->` is generated: edit the test region, then run `./gradlew updateDocRegions`. `checkDocRegions` (in `check`) fails on any hand edit (ADR 0006, 2026-11-28 amendment).
 - lychee's `include_fragments` must be a string (`"full"`).
 - silabs.com blocks all automated clients, and eprint.iacr.org answers only browser user agents. Both are excluded in `lychee.toml`.
 

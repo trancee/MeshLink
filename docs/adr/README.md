@@ -11,7 +11,7 @@ Each hard decision with its alternatives and risks, in one numbered list (ADR 00
 | [0003](0003-installation-identity-key-model.md) | Installation identity key model | accepted | 6 |
 | [0004](0004-crypto-provider-libsodium.md) | libsodium as the crypto provider; Rust only as a test-only reference | accepted | 5 |
 | [0005](0005-toolchain-and-dependency-baseline.md) | Toolchain and dependency baseline | accepted | 14 |
-| [0006](0006-documentation-architecture.md) | Documentation architecture for humans and agents | accepted | 3 |
+| [0006](0006-documentation-architecture.md) | Documentation architecture for humans and agents | accepted | 4 |
 | [0007](0007-public-api-shape.md) | Public API shape and error model | accepted | 20 |
 | [0008](0008-routing-topology-and-density-adaptation.md) | Routing, topology and density adaptation | accepted | 19 |
 | [0009](0009-ble-bearers-and-phy-policy.md) | BLE bearers, PHY policy and link rules | accepted | 10 |

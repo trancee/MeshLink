@@ -12,6 +12,7 @@ Every document with its type, its authority and its status. When two documents d
 | [`GLOSSARY.md`](../../GLOSSARY.md) | MeshLink | glossary | 6 | current |
 | [`KOTLIN.md`](../../KOTLIN.md) | Kotlin | governance | 6 | current |
 | [`PROJECT.md`](../../PROJECT.md) | PROJECT | governance | 6 | current |
+| [`README.md`](../../README.md) | MeshLink | navigation | 6 | current |
 | [`SECURITY.md`](../../SECURITY.md) | Security Policy | governance | 6 | current |
 | [`docs/README.md`](../README.md) | MeshLink documentation | navigation | 6 | current |
 | [`docs/adr/0001-threat-model-and-profile-guarantees.md`](../adr/0001-threat-model-and-profile-guarantees.md) | 0001: Threat model and security-profile guarantees | adr | 4 | accepted |
@@ -107,3 +108,4 @@ Every document with its type, its authority and its status. When two documents d
 | [`docs/spec/link.md`](../spec/link.md) | Link layer | spec | 2 | current |
 | [`docs/spec/routing.md`](../spec/routing.md) | Routing | spec | 2 | current |
 | [`docs/spec/vectors/README.md`](../spec/vectors/README.md) | Test vectors | spec | 2 | current |
+| [`docs/tutorials/get-started.md`](../tutorials/get-started.md) | Get started: send a message between two phones | tutorial | 6 | current |

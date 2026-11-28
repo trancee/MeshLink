@@ -112,6 +112,8 @@ Docs tools verified locally on 2026-11-01 (macOS, Homebrew lychee 0.24.2 and typ
 | Swift overlay and `MeshLinkTesting` tests on an iOS Simulator, after the reference-scenario parity check (macOS only; same `DEVELOPER_DIR` and `MESHLINK_SIMULATOR_DESTINATION`) | `swift/test.sh` |
 | Reference-scenario titles match between the feature and the Swift tests | `python3 tools/check-scenario-parity.py` |
 | Update the ABI dumps after an intended API change | `./gradlew updateKotlinAbi`, then add a `CHANGELOG.md` entry |
+| Check that every marked code block in the docs equals its test region (part of `check`) | `./gradlew checkDocRegions` |
+| Rewrite the marked code blocks from their test regions after changing a region | `./gradlew updateDocRegions` |
 | Regenerate the reference pages, `docs/agents/diagnostics.json`, the troubleshooting code tables, the agent docs index, contract reference and ADR index after a config, preset, diagnostic KDoc, ABI or docs change | `./gradlew updateReference` |
 | Dependency freshness report (not in `check`; needs the network; set `GITHUB_TOKEN` to avoid GitHub's rate limit; exits 1 when anything has a newer stable release) | `python3 tools/check_freshness.py` |
 | API reference (HTML in `build/dokka/html/`) | `./gradlew dokkaGenerate` |
