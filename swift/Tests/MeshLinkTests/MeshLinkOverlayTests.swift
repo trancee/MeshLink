@@ -135,6 +135,18 @@ final class MeshLinkOverlayTests: XCTestCase {
         XCTAssertLessThanOrEqual(toSwift, 250_000, "KotlinByteArray -> Data median \(toSwift) ns")
     }
 
+    func testMainActorCallerExportsTheDiagnosticsReport() async throws {
+        // Arrange
+        let node = try makeNode()
+        try await (node as any MeshNode).start()
+
+        // Act
+        let report = try await node.exportDiagnostics()
+
+        // Assert
+        XCTAssertTrue(report.contains("\"platform\": \"iOS\""), report)
+    }
+
     private func makeNode() throws -> MeshLink {
         let config = try meshLinkConfig(preset: Preset.EmergencyBroadcast.shared, securityProfile: SecurityProfileUnsecured.shared) {
             $0.meshId = "Swift overlay"

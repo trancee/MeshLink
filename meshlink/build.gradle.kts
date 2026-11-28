@@ -34,6 +34,10 @@ kotlin {
     sourceSets.commonTest.dependencies {
         implementation(libs.kotlinx.coroutines.test)
     }
+    // The permission how-to's Robolectric test shows the Activity Result API (ticket 57).
+    sourceSets.getByName("androidHostTest").dependencies {
+        implementation(libs.androidx.activity)
+    }
     // ADR 0011, 2026-11-13 amendment "coordinates and names": Swift module MeshLinkKit, bundle ID ch.trancee.meshlink.kit.
     val meshLinkKit = XCFramework("MeshLinkKit")
     targets.withType<KotlinNativeTarget>().configureEach {
@@ -61,6 +65,10 @@ kotlin {
 dokka {
     val adapters = setOf("iosAdaptersMain", "iosArm64Main", "iosSimulatorArm64Main")
     dokkaSourceSets.configureEach { if (name in adapters) suppress.set(true) }
+    // The `@sample` functions, which meshlink-testing's HowToTest runs and the how-to pages copy.
+    dokkaSourceSets.named("commonMain") {
+        samples.from(rootProject.file("meshlink-testing/src/commonTest/kotlin/ch/trancee/meshlink/samples/Samples.kt"))
+    }
 }
 
 // ADR 0004 "Binding": the release XCFramework's slices export no libsodium symbol and touch no AES,

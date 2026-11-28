@@ -234,6 +234,7 @@ public class MeshLink private constructor(
      * the caller awaits [awaitSendCapacity]. MeshLink never compresses payloads; see [LimitsBuilder]
      * before compressing secret data.
      *
+     * @sample ch.trancee.meshlink.samples.sendWithReadReceipt
      * @throws MeshLinkException.Closed if the node is closed.
      */
     @Throws(MeshLinkException::class)
@@ -267,6 +268,7 @@ public class MeshLink private constructor(
      * [RejectionReason.TooLarge] above [Limits.maxBroadcastPayload] (at most 1,024 bytes); and
      * [RejectionReason.QueueFull] while the payloads of unfinished messages and broadcasts reach 1 MiB.
      *
+     * @sample ch.trancee.meshlink.samples.broadcastAlert
      * @throws MeshLinkException.Closed if the node is closed.
      */
     @Throws(MeshLinkException::class)
@@ -282,6 +284,7 @@ public class MeshLink private constructor(
      * Returns once the send queue has room again, or at once if it has. A caller that got
      * [RejectionReason.QueueFull] awaits this, then sends again; it never retries in a loop.
      *
+     * @sample ch.trancee.meshlink.samples.sendWhenThereIsRoom
      * @throws MeshLinkException.Closed if the node is closed.
      */
     @Throws(MeshLinkException::class, CancellationException::class)

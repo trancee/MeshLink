@@ -81,7 +81,13 @@ Every document with its type, its authority and its status. When two documents d
 | [`docs/evidence/2026-11-sybil/README.md`](../evidence/2026-11-sybil/README.md) | Fake identities (Sybil) in open meshes: evidence | evidence | 6 | current |
 | [`docs/explanation/background-iphone-discovery.md`](../explanation/background-iphone-discovery.md) | Finding iPhones in the background | explanation | 6 | current |
 | [`docs/explanation/threat-model.md`](../explanation/threat-model.md) | Threat model | explanation | 6 | current |
+| [`docs/how-to/broadcast-to-the-mesh.md`](../how-to/broadcast-to-the-mesh.md) | Broadcast to the mesh | how-to | 6 | current |
+| [`docs/how-to/choose-and-customize-a-preset.md`](../how-to/choose-and-customize-a-preset.md) | Choose and customize a preset | how-to | 6 | current |
+| [`docs/how-to/export-diagnostics.md`](../how-to/export-diagnostics.md) | Export diagnostics for a bug report | how-to | 6 | current |
 | [`docs/how-to/maintain-fedora-runners.md`](../how-to/maintain-fedora-runners.md) | Maintain the Fedora runners | how-to | 6 | current |
+| [`docs/how-to/request-permissions.md`](../how-to/request-permissions.md) | Request permissions | how-to | 6 | current |
+| [`docs/how-to/run-in-the-background.md`](../how-to/run-in-the-background.md) | Run in the background | how-to | 6 | current |
+| [`docs/how-to/send-messages.md`](../how-to/send-messages.md) | Send messages and read receipts | how-to | 6 | current |
 | [`docs/how-to/set-up-self-hosted-runner.md`](../how-to/set-up-self-hosted-runner.md) | Set up the self-hosted macOS runner | how-to | 6 | current |
 | [`docs/how-to/troubleshoot-high-battery-use.md`](../how-to/troubleshoot-high-battery-use.md) | Troubleshoot high battery use | how-to | 6 | current |
 | [`docs/how-to/troubleshoot-messages-not-delivered.md`](../how-to/troubleshoot-messages-not-delivered.md) | Troubleshoot messages that aren't delivered | how-to | 6 | current |

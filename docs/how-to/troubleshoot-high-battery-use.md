@@ -7,6 +7,7 @@ Use this guide when MeshLink drains the battery faster than your app can accept.
 1. Let the node run for at least 10 minutes in the place where the drain happens.
 2. Take `meshLink.diagnostics.snapshot()`. Its `densityClass` is the class the node runs in now, and its `counters.events` counts each code since `start()`, including the `Debug` code [`ML2001`](../reference/diagnostics.md#ml2001) when [`diagnostics.debug`](../reference/configuration.md#diagnosticsdebug) is off.
 3. Read the `power` and `density` lines in the snapshot's `configuration`.
+4. [Export the diagnostics](export-diagnostics.md) of the node, so you can attach them to an issue if the checks below don't help.
 
 ## Check how often the node scans
 
@@ -33,4 +34,4 @@ If `ML2007` repeats while the crowd around the phone stays the same, the class f
 
 ## If the problem stays
 
-Open an issue with `meshLink.diagnostics.export()` attached, and the battery use you measured and how. The export holds no key, payload, NodeId, mesh ID or Bluetooth address ([Diagnostics export](../reference/diagnostics-export.md)).
+Open an issue with a [diagnostics export](export-diagnostics.md) attached, and the battery use you measured and how. The export holds no key, payload, NodeId, mesh ID or Bluetooth address ([Diagnostics export](../reference/diagnostics-export.md)).

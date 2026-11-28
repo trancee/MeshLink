@@ -8,9 +8,8 @@ import ch.trancee.meshlink.internal.MessageContent
  * Starts a [MeshLinkConfig] for [preset] and [securityProfile] (ADR 0007 decision 4). [configure]
  * sets the remaining settings; [MeshLinkConfigBuilder.build] validates them.
  *
- * ```kotlin
- * val config = meshLinkConfig(Preset.OfflineChat, SecurityProfile.Unsecured) { meshId = "Festival" }.build()
- * ```
+ * @sample ch.trancee.meshlink.samples.choosePreset
+ * @sample ch.trancee.meshlink.samples.customizePreset
  */
 public fun meshLinkConfig(
     preset: Preset,

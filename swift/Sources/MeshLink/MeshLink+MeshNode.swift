@@ -28,6 +28,14 @@ extension MeshLink: MeshNode {
     public func broadcast(_ payload: Data, hopLimit: Int) throws -> MeshSendResult {
         MeshSendResult(try broadcast(payload: payload.kotlinByteArray, hopLimit: Int32(clamping: hopLimit)))
     }
+
+    /// `diagnostics.export()` from the main actor: the JSON report to attach to a bug report. Under
+    /// Swift 6 a main-actor caller can't await `diagnostics.export()` itself ("sending risks causing
+    /// data races"); the export runs off the main actor, and a Kotlin `suspend` function is safe from any thread.
+    @MainActor public func exportDiagnostics() async throws -> String {
+        let diagnostics = Unchecked(self.diagnostics)
+        return try await Task.detached { try await diagnostics.value.export() }.value
+    }
 }
 
 // Follows a SKIE flow as an AsyncStream; ending the stream cancels the Kotlin collection. Collection
