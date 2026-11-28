@@ -40,7 +40,7 @@ class ReplayTest {
     /** The writes of a three-node line in which the first node sends one message to the last. */
     private fun trace(seed: Long): List<String> {
         val scope = TestScope()
-        val mesh = VirtualMesh(scope, seed, listOf(0.0 to 0.0, 25.0 to 0.0, 50.0 to 0.0))
+        val mesh = SeededMesh(scope, seed, listOf(0.0 to 0.0, 25.0 to 0.0, 50.0 to 0.0))
         scope.launch { mesh.start() }
         scope.testScheduler.advanceTimeBy(SETTLE_MILLIS)
         scope.launch { mesh.nodes[0].send(checkNotNull(mesh.idOf(2)), "Hello".encodeToByteArray()) }

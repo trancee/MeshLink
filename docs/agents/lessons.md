@@ -209,6 +209,7 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 - detekt's `LargeClass` (600 lines) also applies to test classes; `SecuredLinkTest` sits at the limit, so move shared steps into `SecuredFakes.kt` helpers before adding tests there.
 - A chain like `keys?.own(now)?.key` with a non-null `own` compiles to a second null check that never fails, which leaves a Kover branch uncovered. Write `keys?.let { it.own(now).key }` (2026-11-18).
 - Default methods in an interface compile to `$DefaultImpls` bridges that no test executes, so Kover drops below 100 % even when every implementation is covered. Keep interface members abstract (ADR 0004, 2026-11-15 amendment).
+- Every module shares the package `ch.trancee.meshlink.internal`, and on the JVM an `internal` class compiles to a public class file. Two modules' classes of the same name therefore clash on the test classpath without a compile error: one loads in place of the other, and nodes misbehave at run time (`meshlink-testing`'s first `Reach` beside `meshlink`'s `Router.kt` `Reach` made every delivery fail with `Stopped`). Grep `meshlink*/src` for a new top-level class name before adding it.
 
 ## Vector runner
 
@@ -229,8 +230,8 @@ Read this before any radio, device-lab, crypto-choice, gate or proof work (see [
 
 ## Density suites
 
-- Code: `meshlink-testing/src/commonTest/kotlin/ch/trancee/meshlink/internal/` (`VirtualMesh`, `SeededCrypto`, `ReplayTest`, `MeshDeliverySteps`), `meshlink-testing/src/androidHostTest/kotlin/ch/trancee/meshlink/internal/` (`DensityCell`, `DensityCellTest`), `.github/workflows/density.yml`.
-- Recorded writes grow with every byte sent, which a 200-node, 17 min cell can't afford: the cells build `VirtualMesh(recording = false)`, which keeps no `written` copies, and count bytes through `VirtualAir.onWrite` (2026-11-22).
+- Code: `meshlink-testing/src/commonTest/kotlin/ch/trancee/meshlink/internal/` (`SeededMesh`, `SeededCrypto`, `ReplayTest`, `MeshDeliverySteps`), `meshlink-testing/src/androidHostTest/kotlin/ch/trancee/meshlink/internal/` (`DensityCell`, `DensityCellTest`), `.github/workflows/density.yml`.
+- Recorded writes grow with every byte sent, which a 200-node, 17 min cell can't afford: the cells build `SeededMesh(recording = false)`, which keeps no `written` copies, and count bytes through `VirtualAir.onWrite` (2026-11-22).
 - Writes are a byte stream: a record's 2-byte length prefix starts a record, but one record spans several writes and one write can end mid-record. Classify frames by reading `RecordReader().read(end.written)` per link end with recording on, never per write (2026-11-22).
 - Origin retries dominate the busiest node at low and medium density. One origin wrote one `MESSAGE` body 228 times in 15 min: [origin behavior](../spec/routing.md#origin-behavior) resends with backoff until expiry and on every new link, and at low density each resend floods. The routing simulator stopped on the first receipt, so its byte bands assume receipts (ticket 47, then 42b) (2026-11-22).
 - With `-q`, `densityTest` hides the cell log; read `meshlink-testing/build/density/<cell>.md` or `build/test-results/densityTest/*.xml`, and check its timestamp, since an earlier run's results stay in place (2026-11-22).

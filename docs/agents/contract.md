@@ -456,4 +456,13 @@ Declarations in `ch.trancee.meshlink.internal`: public only so MeshLink's own mo
 
 ## meshlink-testing
 
-No public declarations.
+### Public API
+
+| Kind | Declaration |
+|---|---|
+| class | `final class ch.trancee.meshlink.testing/VirtualMesh` |
+| constructor | `constructor ch.trancee.meshlink.testing/VirtualMesh(kotlinx.coroutines.test/TestScope)` |
+| fun | `final fun ch.trancee.meshlink.testing/VirtualMesh.advance(kotlin.time/Duration)` |
+| fun | `final fun ch.trancee.meshlink.testing/VirtualMesh.connect(ch.trancee.meshlink/MeshLink, ch.trancee.meshlink/MeshLink, kotlin/Int = ...)` |
+| fun | `final fun ch.trancee.meshlink.testing/VirtualMesh.disconnect(ch.trancee.meshlink/MeshLink, ch.trancee.meshlink/MeshLink)` |
+| fun | `final fun ch.trancee.meshlink.testing/VirtualMesh.node(ch.trancee.meshlink/MeshLinkConfig): ch.trancee.meshlink/MeshLink` |

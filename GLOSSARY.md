@@ -167,3 +167,7 @@ _Avoid_: Radio driver, BLE adapter (that is one implementation), transport
 **VirtualAir**:
 A simulated shared air in which many nodes' radios run in one process in virtual time, with seeded latency, so one seed always replays the same run.
 _Avoid_: Mock radio, fake BLE, simulator (that is the routing simulator)
+
+**Fake mesh**:
+The VirtualAir as an app's own tests see it: real nodes that start out of reach of each other, which the test brings into reach or parts by hand while it advances virtual time. Called `VirtualMesh` in Kotlin and `FakeMesh` in Swift.
+_Avoid_: Mock mesh, test network
