@@ -39,6 +39,8 @@ public class MeshDiagnostics internal constructor(
      * the MeshLink, protocol, platform and OS versions, the [snapshot], and the last 500 events this
      * node emitted since it was created, each with the wall-clock time it was emitted at. Holds
      * nothing an event or the snapshot doesn't show.
+     *
+     * @sample ch.trancee.meshlink.samples.exportDiagnostics
      */
     public suspend fun export(): String =
         withContext(port.dispatcher) {

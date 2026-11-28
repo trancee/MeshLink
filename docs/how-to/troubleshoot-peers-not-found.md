@@ -7,6 +7,7 @@ Use this guide when `MeshLink.peers` stays empty, or misses a phone you expect, 
 1. Turn on [`diagnostics.debug`](../reference/configuration.md#diagnosticsdebug) in the configuration, so `meshLink.diagnostics.events` also emits the `Debug` events.
 2. Collect `meshLink.diagnostics.events` on both phones from before `start()`, and reproduce the problem.
 3. Read `meshLink.state`, and take `meshLink.diagnostics.snapshot()` on both phones. Its `counters.events` counts every code reported since `start()`, including `Debug` codes when `diagnostics.debug` is off.
+4. [Export the diagnostics](export-diagnostics.md) of both phones, so you can attach them to an issue if the checks below don't help.
 
 ## Check the node can use the radio
 
@@ -67,4 +68,4 @@ In a dense mesh, [`ML3004`](../reference/diagnostics.md#ml3004) (link cap reache
 
 ## If the problem stays
 
-Open an issue with `meshLink.diagnostics.export()` from both phones attached. The export holds no key, payload, NodeId, mesh ID or Bluetooth address ([Diagnostics export](../reference/diagnostics-export.md)).
+Open an issue with a [diagnostics export](export-diagnostics.md) from both phones attached. The export holds no key, payload, NodeId, mesh ID or Bluetooth address ([Diagnostics export](../reference/diagnostics-export.md)).

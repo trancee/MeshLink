@@ -1,6 +1,6 @@
 # 0007: Public API shape and error model
 
-Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 20 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast; 2026-11-20, broadcast; 2026-11-23, delivery receipts; 2026-11-25, central-only nodes; 2026-11-27, diagnostics snapshot and export; 2026-11-28, Swift overlay).
+Status: accepted (2026-11-01; ticket "What public API shape makes MeshLink easiest to use?"). Version: 21 (amended 2026-11-02, ADR 0013; 2026-11-03, ADR 0011, ticket "Are Swift interop and libsodium fast enough on the iPhone SE (2016; 2026-11-18, proximity)?" and ADR 0015; 2026-11-08, ADRs 0018 and 0020; 2026-11-14, lifecycle; 2026-11-14, peers; 2026-11-14, direct messages; 2026-11-15, iOS adapter; 2026-11-15, identity storage; 2026-11-15, lab link roles; 2026-11-19, routed unicast; 2026-11-20, broadcast; 2026-11-23, delivery receipts; 2026-11-25, central-only nodes; 2026-11-27, diagnostics snapshot and export; 2026-11-28, Swift overlay; 2026-11-28, Swift diagnostics export).
 
 ## Context
 
@@ -254,3 +254,8 @@ Prototype: throwaway branch `prototype/public-api` (commits `105001d`, `f4ffd04`
 - **Flows (decision 13):** `stateUpdates`, `peerUpdates`, `receivedMessages` and `statusUpdates` are `AsyncStream`s of Swift values. Each collects its SKIE flow on a detached task and maps every element there; ending the stream cancels the collection.
 - **Bulk conversion (amendment of 2026-11-03):** `ByteArray.toNSData()` and `NSData.toByteArray()` in `iosMain` do the single pinned copy, refined out of the Swift surface (`@ShouldRefineInSwift`), because a `KotlinByteArray` offers Swift only per-element access. `MeshLinkOverlayTests.testSixteenKibConvertsWithinBudget` guards a median of at most 250 µs per direction for 16 KiB on the simulator; a per-byte copy measured 1.6 ms and 3.5 ms there.
 - **Reference scenarios (decision 15, ADR 0017 decision 6):** `reference-scenarios.feature` in `meshlink-testing` runs on `VirtualAir`, and `swift/Tests/MeshLinkTestingTests` runs the same scenarios on `MeshLinkTesting`; `tools/check-scenario-parity.py` fails when their titles differ.
+
+2026-11-28, Swift diagnostics export (0.1.0 backlog ticket "Teach MeshLink with a tutorial and how-tos", ticket 57):
+
+- **`exportDiagnostics()` (refines the Swift overlay amendment of 2026-11-28):** under Swift 6, main-actor code can't await `node.diagnostics.export()`: the `MeshDiagnostics` object isn't `Sendable` ("sending … risks causing data races"). The overlay adds `@MainActor public func exportDiagnostics() async throws -> String` to `MeshLink`, which runs `export()` on a detached task and returns the `String`. It is one idiom (decision 14) and holds no logic; owner decision on ticket 57.
+  - Rejected: adding `exportDiagnostics()` to `MeshNode`, a larger API change whose `FakeMesh` report would have to follow the export format; and showing apps a `nonisolated(unsafe)` or `@unchecked Sendable` box, which teaches unsafe code.

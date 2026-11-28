@@ -7,6 +7,7 @@ Use this guide when `send()` returns but the recipient never gets the message, t
 1. Turn on [`diagnostics.debug`](../reference/configuration.md#diagnosticsdebug) in the configuration, so `meshLink.diagnostics.events` also emits the `Debug` events.
 2. Collect `meshLink.diagnostics.events` on the sender, the recipient and, if you can, a phone between them, and send again.
 3. Take `meshLink.diagnostics.snapshot()` on each. Its `queues` shows the messages waiting to send, the frames held for absent peers and the messages waiting in the inbox.
+4. [Export the diagnostics](export-diagnostics.md) of each phone, so you can attach them to an issue if the checks below don't help.
 
 ## Check the recipient collects its messages
 
@@ -64,4 +65,4 @@ If messages arrive but slowly, look for [`ML3005`](../reference/diagnostics.md#m
 
 ## If the problem stays
 
-Open an issue with `meshLink.diagnostics.export()` from the sender and the recipient attached. The export holds no key, payload, NodeId, mesh ID or Bluetooth address ([Diagnostics export](../reference/diagnostics-export.md)).
+Open an issue with a [diagnostics export](export-diagnostics.md) from the sender and the recipient attached. The export holds no key, payload, NodeId, mesh ID or Bluetooth address ([Diagnostics export](../reference/diagnostics-export.md)).

@@ -187,4 +187,12 @@ If a step didn't give the result it describes, these pages walk through the caus
 - [Troubleshoot messages that aren't delivered](../how-to/troubleshoot-messages-not-delivered.md), or arrive late
 - [Troubleshoot high battery use](../how-to/troubleshoot-high-battery-use.md)
 
+To build your own app, these pages each do one task:
+
+- [Choose and customize a preset](../how-to/choose-and-customize-a-preset.md)
+- [Request permissions](../how-to/request-permissions.md)
+- [Send messages and read receipts](../how-to/send-messages.md)
+- [Broadcast to the mesh](../how-to/broadcast-to-the-mesh.md)
+- [Run in the background](../how-to/run-in-the-background.md)
+
 To go further, see what each [preset](../reference/presets.md) sets and every [configuration](../reference/configuration.md) setting, or browse the [documentation](../README.md).

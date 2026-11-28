@@ -8,6 +8,12 @@ MeshLink is being built toward its first release, 0.1.0. This page lists the doc
 
 ## Do a task
 
+- [Choose and customize a preset](how-to/choose-and-customize-a-preset.md)
+- [Request permissions](how-to/request-permissions.md)
+- [Send messages and read receipts](how-to/send-messages.md)
+- [Broadcast to the mesh](how-to/broadcast-to-the-mesh.md)
+- [Run in the background](how-to/run-in-the-background.md)
+- [Export diagnostics for a bug report](how-to/export-diagnostics.md)
 - [Troubleshoot peers that aren't found](how-to/troubleshoot-peers-not-found.md)
 - [Troubleshoot messages that aren't delivered](how-to/troubleshoot-messages-not-delivered.md), or arrive late
 - [Troubleshoot high battery use](how-to/troubleshoot-high-battery-use.md)

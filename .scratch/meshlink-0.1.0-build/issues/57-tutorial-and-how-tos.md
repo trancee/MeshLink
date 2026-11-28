@@ -14,6 +14,14 @@ A new Kotlin or Swift developer follows one tutorial from an empty app to two no
 - Q2 A: three pull requests. (1) `checkDocRegions`, the tutorial, the root `README.md` and `docs/README.md`. (2) The how-tos except testing, and the `@sample` functions. (3) The testing how-to, after ticket 80.
 - Q3 A: each step shows a Kotlin fenced block, then a Swift one. A line `<!-- region: <path>#<name> -->` directly before a fence ties it to the region between `// region <name>` and `// endregion` in a test source file. The check compares the region with its common indentation removed.
 
+## Owner decisions for PR 2 (2026-11-28)
+
+- Q1 A: the Android permission how-to asks with the Activity Result API in a Robolectric test (`RequestPermissionsAndroidTest`), adding the test-only dependency `androidx.activity:activity`.
+- Q2 A: the Swift `blocked` and `export` regions run against the real framework on the simulator.
+- Q3 A: the samples live in `meshlink-testing`'s `commonTest`, package `ch.trancee.meshlink.samples`; Dokka reads them through `samples.from`.
+- Q4 A: per-preset background recommendations: `OfflineChat` and `FieldTeams` run in the background from a user action, `EmergencyBroadcast` for the emergency session, `ProximityDiscovery` and `LocalMultiplayer` foreground only.
+- Export A: Swift 6 main-actor code can't await `diagnostics.export()`, so the overlay adds `@MainActor MeshLink.exportDiagnostics()` (ADR 0007 amendment of 2026-11-28).
+
 ## Spec and ADR references
 
 - [ADR 0006](../../../docs/adr/0006-documentation-architecture.md#decision) decisions 1 (Diátaxis layout), 5 (Kotlin and Swift side by side; regions from compiled tests; no kotlinx-knit, DocC or SwiftPM `Snippets/`) and 6 (troubleshooting built on codes), and its "Risks": the region check needs its own tests.
@@ -29,15 +37,15 @@ A new Kotlin or Swift developer follows one tutorial from an empty app to two no
 - [x] `checkDocRegions` in `build-logic/` is wired into `check`. It fails when a fenced block tied to a region marker differs from that region in a Kotlin `commonTest` file or a Swift XCTest file. Its own tests prove a match passes and a changed line, a missing region and an orphan marker each fail.
 - [x] `docs/tutorials/get-started.md` takes a reader from adding the dependency (Gradle and SwiftPM) through `meshLinkConfig`, `start()`, `peers`, `send`, `messages` and `close()`. Its Kotlin regions run in `:meshlink-testing`'s `commonTest` on `VirtualAir`. Its Swift regions run against `MeshLinkTesting` in the SwiftPM consumer tests.
 - [ ] How-tos in `docs/how-to/`, each with Kotlin and Swift regions: choose and customize a preset; request permissions and leave `Blocked`; send with receipts and handle `QueueFull`; broadcast to the mesh; test an app with `meshlink-testing` and `MeshLinkTesting`; export diagnostics.
-- [ ] `docs/how-to/run-in-the-background.md` gives the per-preset recommendations of ADR 0011 decision 13. It states at the top that 0.1.0 has not verified background behavior on devices. No page documents a Live Activity setup.
-- [ ] `@sample` functions in `commonTest` cover `meshLinkConfig`, `send`, `broadcast` and `exportDiagnostics()`, and Dokka renders them.
-- [ ] The troubleshooting pages from ticket 54 are linked from the tutorial's last step and from every how-to whose task can fail.
-- [ ] The troubleshooting pages (ticket 54e) link the export-diagnostics how-to from their "Collect the evidence" and "If the problem stays" sections.
+- [x] `docs/how-to/run-in-the-background.md` gives the per-preset recommendations of ADR 0011 decision 13. It states at the top that 0.1.0 has not verified background behavior on devices. No page documents a Live Activity setup.
+- [x] `@sample` functions in `commonTest` cover `meshLinkConfig`, `send`, `broadcast` and `diagnostics.export()`, and Dokka renders them.
+- [x] The troubleshooting pages from ticket 54 are linked from the tutorial's last step and from every how-to whose task can fail.
+- [x] The troubleshooting pages (ticket 54e) link the export-diagnostics how-to from their "Collect the evidence" and "If the problem stays" sections.
 - [x] A root `README.md` says what MeshLink is, its 0.1.0 status, the Maven and SwiftPM coordinates of ADR 0011's 2026-11-13 amendment, and links to `docs/README.md`, the tutorial and the API reference URL of ADR 0006.
 - [x] `docs/README.md` is reorganized by reader task with "Learn", "Do a task", "Look up a contract" and "Understand the design". It no longer says that no library code exists.
 - [ ] Kover stays at 100%. `./gradlew check`, `./gradlew iosSimulatorArm64Test`, `tools/swiftpm-consumer/test.sh` and every docs check pass.
 
-PR 1 (branch `docs/tutorial-and-how-tos`) delivers the four checked items. The Android-only region `platform-android` comes from a Robolectric test in `meshlink/src/androidHostTest`, and the Swift `create-ios` region runs against the real framework on the simulator (ADR 0006 amendment of 2026-11-28).
+PR 1 (branch `docs/tutorial-and-how-tos`) delivered the tutorial, the README files and `checkDocRegions`. PR 2 (branch `docs/how-tos`) delivers every how-to except testing, the background how-to, the `@sample`s and the troubleshooting links; the how-to item stays open for the testing how-to of PR 3. The Android-only region `platform-android` comes from a Robolectric test in `meshlink/src/androidHostTest`, and the Swift `create-ios` region runs against the real framework on the simulator (ADR 0006 amendment of 2026-11-28).
 
 ## Proof commands
 
