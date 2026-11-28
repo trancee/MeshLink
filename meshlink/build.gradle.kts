@@ -52,8 +52,9 @@ kotlin {
     }
 }
 
-// iosAdaptersMain and the two iOS target source sets hold only internal thin adapters, so they add
-// nothing to the docs. Dokka 2.3.0 still resolves the KDoc QueueDispatcher inherits from
+// iosAdaptersMain and the two iOS target source sets hold only thin adapters: internal ones and
+// DataBridge, which only the Swift overlay calls and Swift hides (ADR 0007), so they add nothing to
+// the docs. Dokka 2.3.0 still resolves the KDoc QueueDispatcher inherits from
 // CoroutineDispatcher, whose links don't resolve from iosArm64Main, and on a Linux host, which has no
 // iOS platform libraries, it can't resolve the cinterop types in iosAdaptersMain; failOnWarning fails
 // on both. Dokka needs the source sets that depend on a suppressed one suppressed too.
