@@ -77,6 +77,8 @@ jobs:
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" ||
             "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
+      - name: Install the compileSdk platform
+        uses: ./.github/actions/android-platform
       - id: libsodium-toolchain
         run: |
           os=$(sha256sum /etc/os-release)
@@ -189,6 +191,9 @@ jobs:
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" ||
             "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
           test -f "$ANDROID_HOME/ndk/$ndk/source.properties" || { echo "::error::NDK $ndk is missing"; exit 1; }
+      - name: Install the compileSdk platform
+        if: matrix.phase == 'maven'
+        uses: ./.github/actions/android-platform
       - if: matrix.phase == 'maven'
         run: ./gradlew buildLibsodiumAndroid
       - if: matrix.phase == 'maven'

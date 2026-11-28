@@ -47,7 +47,7 @@ Snapshot=2026-10-05, refreshed 2026-11-01 where noted; review aid, not pins (pin
 
 ### Spotless: formatting/lint (Q1/E1/E7)
 
-- [`com.diffplug.spotless`](https://plugins.gradle.org/plugin/com.diffplug.spotless): `8.11.0` (2026-11-02) + ktlint `1.8.0`; verify selected Gradle/JDK + formatter compatibility.
+- [`com.diffplug.spotless`](https://plugins.gradle.org/plugin/com.diffplug.spotless): `8.12.0` (2026-11-21) + ktlint `1.8.0`; verify selected Gradle/JDK + formatter compatibility.
 - `spotlessCheck`=read-only CI; `spotlessApply`=developer mutation. One pinned `ktfmt`|`ktlint`; formatting != static analysis.
 - Rollout=isolated repo-wide format commit|`ratchetFrom origin/main`; X `HEAD`.
 - Apply twice => second zero diff; check passes. Exclude generated/build/vendor/byte-contractual fixtures.

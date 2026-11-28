@@ -1,0 +1,18 @@
+name: Install the compileSdk platform
+description: >-
+  Installs the Android platform the catalog's android-compileSdk names, such as 37.2, when the runner lacks it
+  (ADR 0005, 2026-11-27). GitHub's ubuntu-24.04 image ships it; the self-hosted runners may not.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        sdk=$(sed -n 's/^android-compileSdk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+        platform="$ANDROID_HOME/platforms/android-$sdk/android.jar"
+        # The self-hosted Linux runners share one SDK, and two concurrent sdkmanager installs fail. The lock serializes them.
+        if [ "$RUNNER_OS" = Linux ]; then
+          exec 9> "$ANDROID_HOME/.compile-sdk-install.lock"
+          flock 9
+        fi
+        test -f "$platform" || "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$sdk"
+        test -f "$platform" || { echo "::error::Android platform $sdk is missing"; exit 1; }

@@ -74,7 +74,7 @@ GITHUB = "https://api.github.com/repos/"
 
 RESPONSES = {
     CENTRAL + "org/jetbrains/kotlin/kotlin-gradle-plugin/maven-metadata.xml": metadata("2.4.21", "2.4.30", "2.5.0-Beta1"),
-    CENTRAL + "com/android/tools/build/gradle/maven-metadata.xml": None,
+    CENTRAL + "com/android/tools/build/gradle/maven-metadata.xml": metadata("2.2.0", "2.3.0"),
     GOOGLE + "com/android/tools/build/gradle/maven-metadata.xml": metadata("9.5.0-alpha01", "9.3.3", "9.4.0"),
     CENTRAL + "dev/detekt/detekt-gradle-plugin/maven-metadata.xml": metadata("1.23.8", "2.0.0-alpha.6", "2.0.0-alpha.7"),
     CENTRAL + "com/pinterest/ktlint/ktlint-cli/maven-metadata.xml": metadata("1.8.0", "1.9.0", "2.0.0-RC1"),
@@ -117,7 +117,8 @@ def repository(root, catalog=CATALOG):
 
 def fetcher(overrides=None):
     responses = {**RESPONSES, **(overrides or {})}
-    return lambda url: responses[url]
+    # Every library is looked up on Google Maven too; a module listed only on Maven Central is a 404 there.
+    return lambda url: responses.get(url) if url.startswith(GOOGLE) else responses[url]
 
 
 class CheckFreshnessTest(unittest.TestCase):
@@ -128,19 +129,24 @@ class CheckFreshnessTest(unittest.TestCase):
         self.assertEqual(
             [
                 ("kotlin", "2.4.21", "2.4.30"),
-                ("agp", "9.3.3", "9.4.0"),
                 ("ktlint", "1.8.0", "1.9.0"),
                 ("android-ndk", "30.0.16248370", "30.1.100"),
                 ("android-compileSdk", "37", "38"),
-                ("floor-netty", "4.1.141.Final", "4.1.142.Final"),
-                ("Gradle", "9.7.1", "9.9.3"),
                 ("actions/cache", "6.1.0", "6.2.0"),
                 ("lychee", "0.24.2", "0.25.0"),
                 ("markdownlint-cli2", "0.24.0", "0.24.2"),
             ],
             [(f.name, f.current, f.latest) for f in report.findings],
         )
-        self.assertEqual(["android-minSdk", "jdk-toolchain", "robolectric-sdk37"], [name for name, _ in report.skipped])
+        self.assertEqual(
+            ["android-minSdk", "jdk-toolchain", "robolectric-sdk37", "floor-netty", "floor-guava"],
+            [name for name, _ in report.skipped],
+        )
+        self.assertEqual(
+            [("agp", "9.3.3", "9.4.0", "Google Maven `com.android.tools.build:gradle`"),
+             ("Gradle", "9.7.1", "9.9.3", "services.gradle.org")],
+            [(f.name, f.current, f.latest, f.source) for f in report.held],
+        )
 
     def test_reports_the_first_stable_zensical_release(self):
         stable = '{"info": {"version": "1.0.0", "classifiers": ["Development Status :: 5 - Production/Stable"]}}'
@@ -149,6 +155,18 @@ class CheckFreshnessTest(unittest.TestCase):
 
         finding = report.findings[-1]
         self.assertEqual(("Zensical", "not adopted", "1.0.0"), (finding.name, finding.current, finding.latest))
+
+    def test_reports_a_newer_minor_sdk_platform(self):
+        sdk = (
+            '<sdk-repository><remotePackage path="ndk;30.0.16248370"/><remotePackage path="platforms;android-37.0"/>'
+            '<remotePackage path="platforms;android-37.1"/><remotePackage path="platforms;android-37.2"/>'
+            '<remotePackage path="platforms;android-38.1-beta1"/></sdk-repository>'
+        )
+        with tempfile.TemporaryDirectory() as root:
+            root = repository(root, CATALOG.replace('android-compileSdk = "37"', 'android-compileSdk = "37.1"'))
+            report = freshness.check(root, fetcher({"https://dl.google.com/android/repository/repository2-4.xml": sdk}))
+
+        self.assertIn(("android-compileSdk", "37.1", "37.2"), [(f.name, f.current, f.latest) for f in report.findings])
 
     def test_catalog_version_without_a_source_fails(self):
         with tempfile.TemporaryDirectory() as root:
@@ -172,14 +190,11 @@ class CheckFreshnessTest(unittest.TestCase):
     def test_main_passes_when_everything_is_current(self):
         current = {
             CENTRAL + "org/jetbrains/kotlin/kotlin-gradle-plugin/maven-metadata.xml": metadata("2.4.21"),
-            GOOGLE + "com/android/tools/build/gradle/maven-metadata.xml": metadata("9.3.3"),
             CENTRAL + "com/pinterest/ktlint/ktlint-cli/maven-metadata.xml": metadata("1.8.0"),
-            CENTRAL + "io/netty/netty-codec/maven-metadata.xml": metadata("4.1.141.Final", "4.2.9.Final"),
             "https://dl.google.com/android/repository/repository2-4.xml": (
                 '<sdk-repository><remotePackage path="ndk;30.0.16248370"/>'
-                '<remotePackage path="platforms;android-37"/></sdk-repository>'
+                '<remotePackage path="platforms;android-37"/><remotePackage path="platforms;android-37.0"/></sdk-repository>'
             ),
-            "https://services.gradle.org/versions/current": '{"version": "9.7.1"}',
             GITHUB + "actions/cache/releases/latest": release("v6.1.0"),
             GITHUB + "lycheeverse/lychee/releases/latest": release("lychee-v0.24.2"),
             "https://registry.npmjs.org/markdownlint-cli2/latest": '{"version": "0.24.0"}',
@@ -188,7 +203,8 @@ class CheckFreshnessTest(unittest.TestCase):
             code = freshness.main(repository(root), fetcher(current))
 
         self.assertEqual(0, code)
-        self.assertIn("Every checked dependency is on its newest stable release.", out.getvalue())
+        self.assertIn("No checked dependency needs an update.", out.getvalue())
+        self.assertIn("| `Gradle` | 9.7.1 | 9.9.3 | ", out.getvalue())
 
 
 if __name__ == "__main__":
