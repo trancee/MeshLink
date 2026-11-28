@@ -1,6 +1,6 @@
 # 0006: Documentation architecture for humans and agents
 
-Status: accepted (2026-11-01; ticket "What documentation architecture serves humans and AI agents?"). Version: 3 (amended 2026-11-09, ADR headers and pre-push privacy gate; 2026-11-13, docs site for 0.1.0).
+Status: accepted (2026-11-01; ticket "What documentation architecture serves humans and AI agents?"). Version: 4 (amended 2026-11-09, ADR headers and pre-push privacy gate; 2026-11-13, docs site for 0.1.0; 2026-11-28, region markers).
 
 ## Context
 
@@ -115,3 +115,9 @@ Facts verified 2026-11-01 from primary sources (release pages, project docs):
 - **URL layout (decision 8):** Dokka lives at `https://trancee.github.io/MeshLink/api/` from the first release, so a later prose site can take the root without breaking API links. The root is a small hand-written `index.html` linking to the API and to `docs/README.md` on GitHub. Pages holds only the latest release (ADR 0019).
 - **Next re-evaluation (decision 8):** at Zensical's first stable release or at 1.0.0, whichever comes first: Zensical if it is stable then, otherwise Starlight. The scheduled dependency freshness check (ADR 0017) reports the Zensical release.
 - No new tool: Dokka is already in the [dependency register](../reference/dependencies.md).
+
+2026-11-28, region markers (ticket 57, owner decision Q3 A):
+
+- **Marker syntax (decision 5):** a Markdown line `<!-- region: <path>#<name> -->` directly before a fenced block ties the block to a region of a test source. `<path>` is relative to the repository root and must be a Kotlin file under a `src/<set>Test/` directory or a Swift file under a `Tests/` directory. The region lies between the lines `// region <name>` and `// endregion`, and the check compares it with its common indentation removed. Each step shows the Kotlin block first, then the Swift block.
+- **Platform-only code (decision 5):** a Kotlin region comes from `commonTest` unless its code exists on one platform only. Then it comes from that platform's test source set, such as the Robolectric tests in `androidHostTest` for `MeshPlatform.android(context)`.
+- **The check (Risks):** `./gradlew checkDocRegions`, part of `check`, fails on a changed block, an orphan marker, an unclosed fence, a missing file or region, and a path outside the test sources; `build-logic`'s `DocRegionsTest` covers each case. `./gradlew updateDocRegions` rewrites the blocks from their regions. Dependency snippets (Gradle, SwiftPM) can't come from tests and stay unmarked.

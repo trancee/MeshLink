@@ -12,8 +12,8 @@ import org.jetbrains.dokka.gradle.DokkaExtension
 /**
  * Configures the root build: the merged Kover report over every module with 100% line and branch
  * rules, the Dokka aggregate over the published modules, Spotless with ktlint, `checkChangelog`,
- * `checkThinAdapters`, `checkSuppressions`, `checkDependencyRegister`, and `checkAgentDocs` with its
- * `updateReference` writer.
+ * `checkThinAdapters`, `checkSuppressions`, `checkDependencyRegister`, `checkAgentDocs` with its
+ * `updateReference` writer, and `checkDocRegions` with its `updateDocRegions` writer.
  */
 class RootPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -92,8 +92,21 @@ class RootPlugin : Plugin<Project> {
             mustRunAfter(":meshlink:updateReference")
             AgentDocs.configure(this, project)
         }
+        val docRegions =
+            project.tasks.register("checkDocRegions", DocRegionsTask::class.java) {
+                group = LifecycleBasePlugin.VERIFICATION_GROUP
+                description = "Fails when a tutorial or how-to code block differs from its test region."
+                update.set(false)
+                DocRegions.configure(this, project)
+            }
+        project.tasks.register("updateDocRegions", DocRegionsTask::class.java) {
+            group = LifecycleBasePlugin.VERIFICATION_GROUP
+            description = "Rewrites every tutorial and how-to code block from its test region."
+            update.set(true)
+            DocRegions.configure(this, project)
+        }
         project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) {
-            dependsOn("spotlessCheck", thinAdapters, suppressions, register, agentDocs)
+            dependsOn("spotlessCheck", thinAdapters, suppressions, register, agentDocs, docRegions)
         }
     }
 

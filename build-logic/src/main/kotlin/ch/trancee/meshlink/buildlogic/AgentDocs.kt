@@ -34,6 +34,7 @@ internal object AgentDocs {
             "GLOSSARY.md" to "glossary",
             "KOTLIN.md" to "governance",
             "PROJECT.md" to "governance",
+            "README.md" to "navigation",
             "SECURITY.md" to "governance",
         )
 

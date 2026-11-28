@@ -1,17 +1,17 @@
 # MeshLink documentation
 
-MeshLink is being built toward its first release, 0.1.0. This page lists what you can read today. The layout and rules for all docs are in [ADR 0006](adr/0006-documentation-architecture.md).
+MeshLink is being built toward its first release, 0.1.0. This page lists the documentation by what you want to do. The layout and rules for all docs are in [ADR 0006](adr/0006-documentation-architecture.md).
 
-## Understand the design
+## Learn
 
-- [Threat model](explanation/threat-model.md): who MeshLink defends against, and why each security profile promises what it does.
-- [Finding iPhones in the background](explanation/background-iphone-discovery.md): how Android finds a backgrounded iPhone through Apple's overflow area, and what that bit can and cannot tell.
+- [Get started](tutorials/get-started.md): build an app whose two phones find each other and exchange an encrypted message.
 
-## Fix a problem
+## Do a task
 
 - [Troubleshoot peers that aren't found](how-to/troubleshoot-peers-not-found.md)
 - [Troubleshoot messages that aren't delivered](how-to/troubleshoot-messages-not-delivered.md), or arrive late
 - [Troubleshoot high battery use](how-to/troubleshoot-high-battery-use.md)
+- [Set up the self-hosted macOS CI runner](how-to/set-up-self-hosted-runner.md) and [maintain the Fedora runners](how-to/maintain-fedora-runners.md)
 
 ## Look up a contract
 
@@ -26,14 +26,18 @@ MeshLink is being built toward its first release, 0.1.0. This page lists what yo
 | Swift overlay: the `MeshNode` protocol, its Swift value types and the `MeshLinkTesting` fake | [`swift/`](../swift/) ([ADR 0007](adr/0007-public-api-shape.md) amendment of 2026-11-28) |
 | Kotlin API of the latest release | `https://trancee.github.io/MeshLink/api/`, from the first release on; locally `./gradlew dokkaGeneratePublicationHtml` writes it to `build/dokka/html/` |
 | Dependencies and tools, with their rationale | [Dependency register](reference/dependencies.md) |
-| Setting up the self-hosted macOS CI runner | [How-to](how-to/set-up-self-hosted-runner.md) |
 | Terms such as node, peer and security profile | [Glossary](../GLOSSARY.md) |
 | Engineering rules | [Constitution](../CONSTITUTION.md) and [Kotlin guidance](../KOTLIN.md) |
 | Reporting a vulnerability | [Security policy](../SECURITY.md) |
 
 When two documents disagree, this order decides: Constitution, protocol spec and vectors, public API dump, ADRs, generated reference, then everything else (ADR 0006).
 
-## Why decisions were made
+## Understand the design
+
+- [Threat model](explanation/threat-model.md): who MeshLink defends against, and why each security profile promises what it does.
+- [Finding iPhones in the background](explanation/background-iphone-discovery.md): how Android finds a backgrounded iPhone through Apple's overflow area, and what that bit can and cannot tell.
+
+### Why decisions were made
 
 The [ADR index](adr/README.md) lists every architecture decision record with its status and version. Each ADR records a hard decision with its alternatives and risks.
 
