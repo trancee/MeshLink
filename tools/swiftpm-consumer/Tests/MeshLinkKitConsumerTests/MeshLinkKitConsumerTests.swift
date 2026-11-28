@@ -1,6 +1,7 @@
-import MeshLinkKit
+import MeshLink
 import XCTest
 
+@MainActor
 final class MeshLinkKitConsumerTests: XCTestCase {
     func testFrameworkBundleIsLoaded() throws {
         // Arrange
@@ -19,15 +20,14 @@ final class MeshLinkKitConsumerTests: XCTestCase {
         let config = try meshLinkConfig(preset: Preset.OfflineChat.shared, securityProfile: SecurityProfileUnsecured.shared) {
             $0.meshId = "Swift consumer"
         }.build()
-        let node = MeshLink.companion.create(config: config, platform: MeshPlatform.companion.ios())
+        let node = MeshLink.create(config: config)
 
         // Act
-        try await node.start()
-        let state = node.state.value
+        try await (node as any MeshNode).start()
+        let state = node.currentState
         node.close()
 
         // Assert
-        let blocked = try XCTUnwrap(state as? MeshStateBlocked, "expected Blocked, got \(String(describing: state))")
-        XCTAssertEqual(blocked.requirements, [RequirementUnsupported.shared] as Set<AnyHashable>)
+        XCTAssertEqual(state, .blocked(requirements: [.unsupported]))
     }
 }

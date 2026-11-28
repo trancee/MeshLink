@@ -1190,4 +1190,6 @@ sealed class ch.trancee.meshlink/Preset { // ch.trancee.meshlink/Preset|null[0]
 }
 
 final fun (ch.trancee.meshlink/MeshPlatform.Companion).ch.trancee.meshlink/ios(): ch.trancee.meshlink/MeshPlatform // ch.trancee.meshlink/ios|ios@ch.trancee.meshlink.MeshPlatform.Companion(){}[0]
+final fun (kotlin/ByteArray).ch.trancee.meshlink/toNSData(): platform.Foundation/NSData // ch.trancee.meshlink/toNSData|toNSData@kotlin.ByteArray(){}[0]
+final fun (platform.Foundation/NSData).ch.trancee.meshlink/toByteArray(): kotlin/ByteArray // ch.trancee.meshlink/toByteArray|toByteArray@platform.Foundation.NSData(){}[0]
 final fun ch.trancee.meshlink/meshLinkConfig(ch.trancee.meshlink/Preset, ch.trancee.meshlink/SecurityProfile, kotlin/Function1<ch.trancee.meshlink/MeshLinkConfigBuilder, kotlin/Unit>): ch.trancee.meshlink/MeshLinkConfigBuilder // ch.trancee.meshlink/meshLinkConfig|meshLinkConfig(ch.trancee.meshlink.Preset;ch.trancee.meshlink.SecurityProfile;kotlin.Function1<ch.trancee.meshlink.MeshLinkConfigBuilder,kotlin.Unit>){}[0]

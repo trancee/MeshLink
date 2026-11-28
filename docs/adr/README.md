@@ -12,7 +12,7 @@ Each hard decision with its alternatives and risks, in one numbered list (ADR 00
 | [0004](0004-crypto-provider-libsodium.md) | libsodium as the crypto provider; Rust only as a test-only reference | accepted | 5 |
 | [0005](0005-toolchain-and-dependency-baseline.md) | Toolchain and dependency baseline | accepted | 14 |
 | [0006](0006-documentation-architecture.md) | Documentation architecture for humans and agents | accepted | 3 |
-| [0007](0007-public-api-shape.md) | Public API shape and error model | accepted | 19 |
+| [0007](0007-public-api-shape.md) | Public API shape and error model | accepted | 20 |
 | [0008](0008-routing-topology-and-density-adaptation.md) | Routing, topology and density adaptation | accepted | 19 |
 | [0009](0009-ble-bearers-and-phy-policy.md) | BLE bearers, PHY policy and link rules | accepted | 10 |
 | [0010](0010-discovery-and-advertising.md) | Discovery, advertising and identifier rotation | accepted | 14 |
@@ -22,7 +22,7 @@ Each hard decision with its alternatives and risks, in one numbered list (ADR 00
 | [0014](0014-store-and-forward.md) | Store-and-forward | accepted | 10 |
 | [0015](0015-message-size-and-compression.md) | Message size and compression | accepted | 4 |
 | [0016](0016-routing-metadata-exposure.md) | Routing metadata exposure | accepted | 4 |
-| [0017](0017-testing-architecture.md) | Testing architecture | accepted | 15 |
+| [0017](0017-testing-architecture.md) | Testing architecture | accepted | 16 |
 | [0018](0018-certificate-acquisition.md) | Certificate acquisition | accepted | 4 |
 | [0019](0019-release-versioning-and-api-compatibility.md) | Release, versioning and API compatibility | accepted | 3 |
 | [0020](0020-diagnostics-catalog.md) | Diagnostics catalog | accepted | 8 |

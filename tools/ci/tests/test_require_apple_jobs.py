@@ -109,6 +109,7 @@ class RequireAppleJobsTest(unittest.TestCase):
         checks = (
             ("matrix.phase == 'simulator'", "./gradlew iosSimulatorArm64Test --profile"),
             ("matrix.phase == 'swiftpm'", "tools/swiftpm-consumer/test.sh"),
+            ("matrix.phase == 'swiftpm'", "swift/test.sh"),
             ("matrix.phase == 'maven'", "./gradlew buildLibsodiumAndroid"),
             ("matrix.phase == 'maven'", "tools/maven-consumer/test.sh"),
             ("matrix.phase == 'swiftpm'", "./gradlew checkKotlinAbi checkSodiumAppleSize :meshlink:checkFrameworkSymbols"),
@@ -127,8 +128,9 @@ class RequireAppleJobsTest(unittest.TestCase):
             "run: tools/swiftpm-consumer/test.sh\n        id: swiftpm_consumer",
             workflow,
         )
+        self.assertIn("run: swift/test.sh\n        id: swift_overlay", workflow)
         self.assertIn(
-            "if: ${{ failure() && steps.swiftpm_consumer.outcome == 'failure' }}\n"
+            "if: ${{ failure() && (steps.swiftpm_consumer.outcome == 'failure' || steps.swift_overlay.outcome == 'failure') }}\n"
             "        run: python3 tools/ci/simulator_diagnostics.py",
             workflow,
         )
